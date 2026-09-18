@@ -16,6 +16,11 @@
         <div class="field"><label>Moneda (símbolo)</label><input type="text" name="moneda" value="{{ config.moneda }}" maxlength="5"></div>
         <div class="field"><label>Recargo predeterminado (%)</label><input type="number" step="0.01" min="0" name="recargo_default_pct" value="{{ config.recargo_default_pct }}"></div>
       </div>
+      <div class="field">
+        <label>Marcar orden como "Vencida" después de (días)</label>
+        <input type="number" step="1" min="1" name="dias_vencido_alerta" value="{{ config.dias_vencido_alerta }}" style="max-width:120px;">
+        <div class="help">Si una orden activa (no entregada ni cancelada) lleva este número de días o más en el taller, se marca como "Vencida" en el listado de órdenes y aparece en el aviso de atención urgente del Dashboard.</div>
+      </div>
       <div class="field"><label>Información adicional para el PDF</label><textarea name="info_pdf_extra">{{ config.info_pdf_extra }}</textarea></div>
       <div class="field">
         <label>Condiciones de Servicio y Retiro de Equipos</label>

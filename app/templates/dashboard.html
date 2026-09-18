@@ -17,6 +17,35 @@
   <div class="kpi accent-red"><div class="kpi-label">Gastos del mes</div><div class="kpi-value">{{ gastos_mes|moneda(config_taller().moneda) }}</div></div>
 </div>
 
+{% if ordenes_vencidas %}
+<div class="card" id="cardVencidos" style="border-color: var(--danger);">
+  <div class="card-title" style="color: var(--danger);">
+    &#9888; Requieren atención urgente
+    <span class="actions"><a href="/ordenes?vencidas=1" class="btn btn-outline btn-sm">Ver todas</a></span>
+  </div>
+  <p class="help" style="margin-top:-6px;">
+    {{ ordenes_vencidas|length }} equipo{{ 's' if ordenes_vencidas|length != 1 else '' }}
+    sin entregar hace {{ umbral_vencido }} día{{ 's' if umbral_vencido != 1 else '' }} o más.
+  </p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Cliente</th><th>Equipo</th><th>Orden</th><th>Estado</th><th>Retraso</th></tr></thead>
+    <tbody>
+      {% for o in ordenes_vencidas %}
+      <tr>
+        <td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
+        <td>{{ o.marca }} {{ o.modelo }}</td>
+        <td><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td>
+        <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+        <td><span class="dias-chip dias-chip-alerta">+{{ o.dias_en_taller() - umbral_vencido }}d</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
 <div class="grid cols-2">
   <div class="card">
     <div class="card-title">Ingresos últimos 7 días</div>
@@ -76,4 +105,48 @@
   </table>
   </div>
 </div>
+
+{% if ordenes_vencidas %}
+<div class="modal-overlay" id="modalVencidos" style="display:none;">
+  <div class="modal-box card">
+    <div class="card-title" style="color: var(--danger);">&#9888; Equipos con plazo vencido</div>
+    <p class="help">{{ ordenes_vencidas|length }} equipo{{ 's' if ordenes_vencidas|length != 1 else '' }} requieren atención urgente.</p>
+    <div class="modal-list">
+      {% for o in ordenes_vencidas %}
+      <div class="modal-list-item">
+        <div>
+          <b>{{ o.marca }} {{ o.modelo }}</b> · {{ o.cliente.nombre if o.cliente else '-' }}<br>
+          <span class="help">{{ o.numero_orden }} · {{ o.estado }}</span>
+        </div>
+        <span class="dias-chip dias-chip-alerta">+{{ o.dias_en_taller() - umbral_vencido }}d</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <a href="/ordenes?vencidas=1" class="btn btn-primary" style="flex:1; text-align:center;">Entendido — voy a revisar estos equipos</a>
+    </div>
+    <button type="button" class="btn btn-outline" id="btnRevisarDespues" style="width:100%; margin-top:8px;">Revisar después</button>
+  </div>
+</div>
+<script>
+  (function () {
+    try {
+      var hoy = new Date().toISOString().slice(0, 10);
+      var clave = "taller_modal_vencidos_" + hoy;
+      if (!sessionStorage.getItem(clave)) {
+        var modal = document.getElementById("modalVencidos");
+        if (modal) { modal.style.display = "flex"; }
+        sessionStorage.setItem(clave, "1");
+      }
+    } catch (e) { /* almacenamiento no disponible: no se muestra el modal */ }
+    var btn = document.getElementById("btnRevisarDespues");
+    if (btn) {
+      btn.addEventListener("click", function () {
+        var modal = document.getElementById("modalVencidos");
+        if (modal) { modal.style.display = "none"; }
+      });
+    }
+  })();
+</script>
+{% endif %}
 {% endblock %}

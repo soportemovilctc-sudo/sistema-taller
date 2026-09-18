@@ -41,6 +41,7 @@ def configuracion_actualizar(
     direccion: str = Form(""), correo: str = Form(""), moneda: str = Form("L"),
     recargo_default_pct: str = Form("0"), info_pdf_extra: str = Form(""),
     condiciones_servicio: str = Form(""),
+    dias_vencido_alerta: int = Form(3),
     logo: UploadFile | None = File(None),
     db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
 ):
@@ -54,6 +55,7 @@ def configuracion_actualizar(
     cfg.recargo_default_pct = to_decimal(recargo_default_pct or 0)
     cfg.info_pdf_extra = info_pdf_extra
     cfg.condiciones_servicio = condiciones_servicio
+    cfg.dias_vencido_alerta = max(1, dias_vencido_alerta)
 
     if logo and logo.filename:
         contenido = logo.file.read()

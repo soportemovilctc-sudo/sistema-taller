@@ -62,6 +62,7 @@ def _config(db: Session) -> Configuracion:
 @router.get("/ordenes")
 def ordenes_list(
     request: Request, q: str = "", estado: str = "", tecnico_id: str = "", prioridad: str = "",
+    vencidas: str = "",
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     query = db.query(OrdenServicio).options(joinedload(OrdenServicio.cliente), joinedload(OrdenServicio.tecnico))
@@ -81,10 +82,18 @@ def ordenes_list(
         query = query.filter(OrdenServicio.prioridad == prioridad)
 
     ordenes = query.order_by(OrdenServicio.fecha.desc()).all()
+    if vencidas:
+        cfg_general = _config(db)
+        umbral = cfg_general.dias_vencido_alerta if cfg_general else 3
+        ordenes = [
+            o for o in ordenes
+            if o.estado not in ("ENTREGADO", "CANCELADO") and o.dias_en_taller() >= umbral
+        ]
     opciones = _opciones_formulario(db)
     return templates.TemplateResponse("ordenes/list.html", {
         "request": request, "ordenes": ordenes, "usuario": usuario,
         "q": q, "estado": estado, "tecnico_id": tecnico_id, "prioridad": prioridad,
+        "vencidas": vencidas,
         **opciones,
     })
 

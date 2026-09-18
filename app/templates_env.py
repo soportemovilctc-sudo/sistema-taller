@@ -34,10 +34,13 @@ def obtener_config_actual():
         cfg = db.get(Configuracion, 1)
         if cfg:
             logo_url = "/configuracion/logo" if cfg.logo_data else None
-            return {"nombre_taller": cfg.nombre_taller, "moneda": cfg.moneda, "logo_path": cfg.logo_path, "logo_url": logo_url}
+            return {
+                "nombre_taller": cfg.nombre_taller, "moneda": cfg.moneda, "logo_path": cfg.logo_path,
+                "logo_url": logo_url, "dias_vencido_alerta": cfg.dias_vencido_alerta or 3,
+            }
     finally:
         db.close()
-    return {"nombre_taller": "Mi Taller", "moneda": "L", "logo_path": None, "logo_url": None}
+    return {"nombre_taller": "Mi Taller", "moneda": "L", "logo_path": None, "logo_url": None, "dias_vencido_alerta": 3}
 
 
 def fmt_tojson(valor):

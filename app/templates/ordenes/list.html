@@ -7,6 +7,7 @@
     <span class="actions"><a href="/ordenes/nueva" class="btn btn-primary btn-sm">+ Nueva orden</a></span>
   </div>
   <form method="get" class="form-row" style="margin-bottom:14px;">
+    <input type="hidden" name="vencidas" value="{{ vencidas }}">
     <div class="field" style="flex:2;"><input type="text" name="q" value="{{ q }}" placeholder="Buscar por N. orden, cliente, IMEI, marca, modelo..."></div>
     <div class="field">
       <select name="estado">
@@ -28,6 +29,12 @@
     </div>
     <div class="field" style="flex:0;"><button type="submit" class="btn btn-outline">Filtrar</button></div>
   </form>
+  {% if vencidas %}
+  <div class="flash flash-warning" style="margin-bottom:14px;">
+    Mostrando solo órdenes activas vencidas (sin entregar hace {{ config_taller().dias_vencido_alerta }} días o más).
+    <a href="/ordenes">Ver todas las órdenes</a>
+  </div>
+  {% endif %}
   <div class="table-wrap">
   <table>
     <thead><tr><th>N. Orden</th><th>Fecha</th><th>Días</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th></tr></thead>
@@ -36,7 +43,8 @@
       <tr>
         <td><a href="/ordenes/{{ o.id }}"><b>{{ o.numero_orden }}</b></a></td>
         <td>{{ o.fecha|fecha }}</td>
-        <td><span class="dias-chip {{ 'dias-chip-alerta' if o.dias_en_taller() >= 15 and o.estado not in ('ENTREGADO', 'CANCELADO') else '' }}">{{ o.dias_en_taller() }}d</span></td>
+        {% set _venc = o.dias_en_taller() >= config_taller().dias_vencido_alerta and o.estado not in ('ENTREGADO', 'CANCELADO') %}
+        <td><span class="dias-chip {{ 'dias-chip-alerta' if _venc else '' }}">{{ 'Vencido ' if _venc else '' }}{{ o.dias_en_taller() }}d</span></td>
         <td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
         <td>{{ o.tipo_equipo }} {{ o.marca }} {{ o.modelo }}</td>
         <td>{{ o.tecnico.nombre if o.tecnico else '-' }}</td>

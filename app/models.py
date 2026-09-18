@@ -129,6 +129,7 @@ class Configuracion(Base):
     condiciones_servicio = Column(Text, default=CONDICIONES_SERVICIO_DEFAULT)
     logo_data = Column(LargeBinary, nullable=True)
     logo_mime = Column(String(50), nullable=True)
+    dias_vencido_alerta = Column(Integer, default=3, nullable=False)
 
 
 class OrdenServicio(Base):

@@ -108,9 +108,16 @@ def ordenes_list(
 @router.get("/ordenes/nueva")
 def ordenes_nueva_form(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     cfg = _config(db)
+    productos_disponibles = (
+        db.query(Producto)
+        .filter(Producto.estado == "activo", Producto.existencia > 0)
+        .order_by(Producto.nombre)
+        .all()
+    )
     return templates.TemplateResponse("ordenes/form.html", {
         "request": request, "orden": None, "usuario": usuario,
         "recargo_default": cfg.recargo_default_pct if cfg else 0,
+        "productos_disponibles": productos_disponibles,
         **_opciones_formulario(db),
     })
 
@@ -141,6 +148,8 @@ def ordenes_crear(
     recargo_pct: str = Form("0"),
     forma_pago: str = Form("Efectivo"),
     fecha_entrega: str = Form(""),
+    repuesto_producto_id: list[str] = Form([]),
+    repuesto_cantidad: list[str] = Form([]),
     db: Session = Depends(get_db),
     usuario=Depends(login_required),
 ):
@@ -175,8 +184,42 @@ def ordenes_crear(
     historial = HistorialEstado(orden_id=orden.id, estado_anterior=None, estado_nuevo=estado,
                                  usuario_nombre=usuario["nombre_completo"], observacion="Orden creada")
     db.add(historial)
+
+    repuestos_agregados = []
+    repuestos_con_error = []
+    for producto_id_raw, cantidad_raw in zip(repuesto_producto_id, repuesto_cantidad):
+        producto_id_raw = (producto_id_raw or "").strip()
+        if not producto_id_raw:
+            continue
+        try:
+            producto_id_val = int(producto_id_raw)
+            cantidad_val = int(cantidad_raw)
+        except (TypeError, ValueError):
+            continue
+        if cantidad_val <= 0:
+            continue
+        producto = db.get(Producto, producto_id_val)
+        if not producto:
+            continue
+        if cantidad_val > producto.existencia:
+            repuestos_con_error.append(f"{producto.nombre} (disponible: {producto.existencia})")
+            continue
+        _agregar_repuesto_a_orden(db, orden, producto, cantidad_val, usuario["nombre_completo"])
+        repuestos_agregados.append(producto.nombre)
+
+    if repuestos_agregados:
+        db.flush()
+        db.refresh(orden)
+        recalcular_orden(orden)
+
     db.commit()
-    flash(request, f"Orden {orden.numero_orden} creada correctamente.", "success")
+
+    if repuestos_con_error:
+        flash(request, "No se pudieron agregar estos repuestos por falta de existencia: " + ", ".join(repuestos_con_error), "error")
+    mensaje = f"Orden {orden.numero_orden} creada correctamente."
+    if repuestos_agregados:
+        mensaje += f" Repuestos agregados: {', '.join(repuestos_agregados)}."
+    flash(request, mensaje, "success")
     return RedirectResponse(f"/ordenes/{orden.id}", status_code=303)
 
 
@@ -331,6 +374,49 @@ def ordenes_registrar_abono(
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
+def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Producto, cantidad: int, usuario_nombre: str) -> OrdenRepuesto:
+    """Descuenta `cantidad` unidades de `producto` y las agrega a `orden`:
+    crea la Venta/DetalleVenta (igual que en POS, enlazada a la orden),
+    el MovimientoInventario de salida, el MovimientoFinanciero de ingreso
+    y el registro OrdenRepuesto. No valida existencia disponible (el
+    llamador debe validarla antes) ni hace commit ni recalcula la orden."""
+    precio = to_decimal(producto.precio_venta)
+    subtotal = (precio * cantidad).quantize(Decimal("0.01"))
+
+    venta = Venta(
+        numero_venta=generar_numero_venta(db), cliente_id=orden.cliente_id, orden_id=orden.id,
+        subtotal=subtotal, descuento=Decimal("0.00"), total=subtotal,
+        forma_pago=orden.forma_pago or "Efectivo", monto_recibido=subtotal, cambio=Decimal("0.00"),
+        usuario_nombre=usuario_nombre,
+    )
+    db.add(venta)
+    db.flush()
+
+    db.add(DetalleVenta(venta_id=venta.id, producto_id=producto.id, cantidad=cantidad,
+                         precio_unitario=precio, subtotal=subtotal))
+
+    producto.existencia -= cantidad
+    db.add(MovimientoInventario(
+        producto_id=producto.id, tipo="salida", cantidad=cantidad,
+        existencia_resultante=producto.existencia, usuario_nombre=usuario_nombre,
+        motivo=f"Orden {orden.numero_orden}",
+    ))
+
+    db.add(MovimientoFinanciero(
+        tipo="ingreso", categoria="Venta de repuesto (orden)", monto=subtotal,
+        descripcion=f"{producto.nombre} x{cantidad} - Orden {orden.numero_orden}",
+        usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
+    ))
+
+    orden_repuesto = OrdenRepuesto(
+        orden_id=orden.id, producto_id=producto.id, venta_id=venta.id,
+        cantidad=cantidad, precio_unitario=precio, subtotal=subtotal,
+        usuario_nombre=usuario_nombre,
+    )
+    db.add(orden_repuesto)
+    return orden_repuesto
+
+
 @router.post("/ordenes/{orden_id}/repuestos")
 def ordenes_agregar_repuesto(
     orden_id: int, request: Request,
@@ -361,39 +447,7 @@ def ordenes_agregar_repuesto(
         flash(request, f"No hay suficiente existencia de '{producto.nombre}' (disponible: {producto.existencia}).", "error")
         return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
-    precio = to_decimal(producto.precio_venta)
-    subtotal = (precio * cantidad_int).quantize(Decimal("0.01"))
-
-    venta = Venta(
-        numero_venta=generar_numero_venta(db), cliente_id=orden.cliente_id, orden_id=orden.id,
-        subtotal=subtotal, descuento=Decimal("0.00"), total=subtotal,
-        forma_pago=orden.forma_pago or "Efectivo", monto_recibido=subtotal, cambio=Decimal("0.00"),
-        usuario_nombre=usuario["nombre_completo"],
-    )
-    db.add(venta)
-    db.flush()
-
-    db.add(DetalleVenta(venta_id=venta.id, producto_id=producto.id, cantidad=cantidad_int,
-                         precio_unitario=precio, subtotal=subtotal))
-
-    producto.existencia -= cantidad_int
-    db.add(MovimientoInventario(
-        producto_id=producto.id, tipo="salida", cantidad=cantidad_int,
-        existencia_resultante=producto.existencia, usuario_nombre=usuario["nombre_completo"],
-        motivo=f"Orden {orden.numero_orden}",
-    ))
-
-    db.add(MovimientoFinanciero(
-        tipo="ingreso", categoria="Venta de repuesto (orden)", monto=subtotal,
-        descripcion=f"{producto.nombre} x{cantidad_int} - Orden {orden.numero_orden}",
-        usuario_nombre=usuario["nombre_completo"], referencia=orden.numero_orden,
-    ))
-
-    db.add(OrdenRepuesto(
-        orden_id=orden.id, producto_id=producto.id, venta_id=venta.id,
-        cantidad=cantidad_int, precio_unitario=precio, subtotal=subtotal,
-        usuario_nombre=usuario["nombre_completo"],
-    ))
+    _agregar_repuesto_a_orden(db, orden, producto, cantidad_int, usuario["nombre_completo"])
     db.flush()
     db.refresh(orden)
     recalcular_orden(orden)

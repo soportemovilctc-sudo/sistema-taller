@@ -209,6 +209,34 @@
     </div>
   </div>
 
+  {% if not orden %}
+  <div class="card">
+    <div class="card-title">Repuestos utilizados (opcional)</div>
+    <p class="help">Si ya sabes qué repuestos vas a usar en esta reparación, agrégalos aquí: se descontarán del inventario, se registrarán como venta y se sumarán al total en cuanto crees la orden. También puedes agregarlos más adelante desde el detalle de la orden.</p>
+    <div id="repuestosFilas">
+      <div class="form-row repuesto-fila">
+        <div class="field" style="flex:3;">
+          <label>Repuesto</label>
+          <select name="repuesto_producto_id">
+            <option value="">Ninguno</option>
+            {% for p in productos_disponibles %}
+            <option value="{{ p.id }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_venta|moneda(config_taller().moneda) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field" style="flex:1;">
+          <label>Cantidad</label>
+          <input type="number" step="1" min="1" name="repuesto_cantidad" value="1">
+        </div>
+        <div class="field" style="flex:0 0 auto; align-self:flex-end;">
+          <button type="button" class="btn btn-outline btn-sm repuesto-quitar">Quitar</button>
+        </div>
+      </div>
+    </div>
+    <button type="button" id="repuestoAgregarFila" class="btn btn-outline btn-sm">+ Agregar otro repuesto</button>
+  </div>
+  {% endif %}
+
   <div class="card">
     <button type="submit" class="btn btn-primary">{{ 'Guardar cambios' if orden else 'Crear orden' }}</button>
     <a href="{{ '/ordenes/' + orden.id|string if orden else '/ordenes' }}" class="btn btn-outline">Cancelar</a>
@@ -245,4 +273,31 @@
   window.ORDEN_FECHA_ENTRADA = {{ (orden.fecha_entrada.isoformat() if orden and orden.fecha_entrada else '')|tojson }};
 </script>
 <script src="/static/js/orden.js"></script>
+<script>
+  (function () {
+    var cont = document.getElementById('repuestosFilas');
+    var btnAgregar = document.getElementById('repuestoAgregarFila');
+    if (!cont || !btnAgregar) return;
+
+    cont.addEventListener('click', function (e) {
+      if (!e.target.classList.contains('repuesto-quitar')) return;
+      var fila = e.target.closest('.repuesto-fila');
+      var filas = cont.querySelectorAll('.repuesto-fila');
+      if (filas.length > 1) {
+        fila.remove();
+      } else {
+        fila.querySelector('select[name="repuesto_producto_id"]').value = '';
+        fila.querySelector('input[name="repuesto_cantidad"]').value = 1;
+      }
+    });
+
+    btnAgregar.addEventListener('click', function () {
+      var filas = cont.querySelectorAll('.repuesto-fila');
+      var nueva = filas[0].cloneNode(true);
+      nueva.querySelector('select[name="repuesto_producto_id"]').value = '';
+      nueva.querySelector('input[name="repuesto_cantidad"]').value = 1;
+      cont.appendChild(nueva);
+    });
+  })();
+</script>
 {% endblock %}

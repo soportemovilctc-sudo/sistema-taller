@@ -1,6 +1,13 @@
 /* ============================================================
    Sistema de Taller - Tema oscuro profesional
    ============================================================ */
+
+/* Transicion nativa entre paginas (navegador la anima solo; en
+   navegadores que no la soportan simplemente no hace nada). */
+@view-transition {
+  navigation: auto;
+}
+
 :root {
   --bg: #0b1220;
   --bg-alt: #0f1a2e;
@@ -130,7 +137,16 @@ a:hover { text-decoration: underline; }
 }
 .topbar .user-chip b { color: var(--text); }
 
-.content { padding: 20px; flex: 1; }
+.content { padding: 20px; flex: 1; animation: contenidoEntrada .35s ease; }
+
+@keyframes contenidoEntrada {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content { animation: none; }
+}
 
 /* ---------- Cards / paneles ---------- */
 .card {

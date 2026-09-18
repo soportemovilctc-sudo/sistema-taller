@@ -1,5 +1,5 @@
 """Modelos de base de datos (SQLAlchemy). Compatibles con SQLite y PostgreSQL."""
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 from sqlalchemy import (
     Column, Integer, String, Text, Numeric, Date, DateTime, Boolean,
     ForeignKey, UniqueConstraint, Index, LargeBinary
@@ -13,6 +13,11 @@ from app.database import Base
 # PostgreSQL y así poder usar SQLite en desarrollo sin fricciones).
 # ---------------------------------------------------------------------------
 TIPOS_EQUIPO = ["Celular", "Tablet", "Laptop", "PC", "Smartwatch", "Consola", "Otro"]
+
+# Honduras no observa horario de verano: UTC-6 fijo. Se usa para que el
+# contador de dias en el taller cambie a la medianoche local, no cada 24h
+# exactas desde la hora de creacion.
+HN_TZ = timezone(timedelta(hours=-6))
 
 ESTADOS_ORDEN = [
     "RECIBIDO", "EN DIAGNOSTICO", "COTIZADO", "ESPERANDO APROBACION",
@@ -187,13 +192,17 @@ class OrdenServicio(Base):
         return [c for c in (self.condicion_fisica or "").split(",") if c]
 
     def dias_en_taller(self):
-        """Días transcurridos desde que se recibió el equipo. Se congela
-        en la fecha en que la orden llegó a ENTREGADO/CANCELADO (fecha_cierre);
-        si sigue activa, sigue contando hasta hoy."""
+        """Días calendario (hora de Honduras, UTC-6) desde que se recibió
+        el equipo. El día que llega cuenta como día 1, y el número sube
+        al pasar la medianoche local (no espera 24h exactas). Se congela
+        en la fecha en que la orden llegó a ENTREGADO/CANCELADO
+        (fecha_cierre); si sigue activa, sigue contando hasta hoy."""
         if not self.fecha:
             return 0
-        fin = self.fecha_cierre or datetime.utcnow()
-        return max((fin - self.fecha).days, 0)
+        inicio = self.fecha.replace(tzinfo=timezone.utc).astimezone(HN_TZ).date()
+        fin_dt = self.fecha_cierre or datetime.utcnow()
+        fin = fin_dt.replace(tzinfo=timezone.utc).astimezone(HN_TZ).date()
+        return max((fin - inicio).days + 1, 1)
 
 
 Index("ix_ordenes_marca_modelo", OrdenServicio.marca, OrdenServicio.modelo)

@@ -30,21 +30,29 @@
   </form>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>N. Orden</th><th>Fecha</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th></tr></thead>
+    <thead><tr><th>N. Orden</th><th>Fecha</th><th>Días</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th></tr></thead>
     <tbody>
       {% for o in ordenes %}
       <tr>
         <td><a href="/ordenes/{{ o.id }}"><b>{{ o.numero_orden }}</b></a></td>
         <td>{{ o.fecha|fecha }}</td>
+        <td><span class="dias-chip {{ 'dias-chip-alerta' if o.dias_en_taller() >= 15 and o.estado not in ('ENTREGADO', 'CANCELADO') else '' }}">{{ o.dias_en_taller() }}d</span></td>
         <td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
         <td>{{ o.tipo_equipo }} {{ o.marca }} {{ o.modelo }}</td>
         <td>{{ o.tecnico.nombre if o.tecnico else '-' }}</td>
         <td><span class="{{ 'badge badge-' + o.prioridad.lower() }}">{{ o.prioridad }}</span></td>
-        <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+        <td>
+          <form method="post" action="/ordenes/{{ o.id }}/estado" class="quick-estado">
+            <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+            <select name="nuevo_estado" class="badge badge-select {{ 'badge-' + o.estado.lower().replace(' ', '-') }}" onchange="this.form.submit()" title="Cambiar estado">
+              {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == o.estado else '' }}>{{ e }}</option>{% endfor %}
+            </select>
+          </form>
+        </td>
         <td>{{ o.saldo|moneda(config_taller().moneda) }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="empty-state">No se encontraron órdenes con esos filtros.</td></tr>
+      <tr><td colspan="9" class="empty-state">No se encontraron órdenes con esos filtros.</td></tr>
       {% endfor %}
     </tbody>
   </table>

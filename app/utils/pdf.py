@@ -61,8 +61,14 @@ def generar_pdf_orden(data: dict) -> bytes:
     story = []
 
     logo_path = taller.get("logo_path")
+    logo_data = taller.get("logo_data")
     logo_cell = ""
-    if logo_path:
+    if logo_data:
+        try:
+            logo_cell = Image(BytesIO(logo_data), width=2.2 * cm, height=2.2 * cm)
+        except Exception:
+            logo_cell = ""
+    elif logo_path:
         try:
             logo_cell = Image(logo_path, width=2.2 * cm, height=2.2 * cm)
         except Exception:
@@ -121,14 +127,22 @@ def generar_pdf_orden(data: dict) -> bytes:
     story.append(Spacer(1, 6))
 
     story.append(Paragraph("CONDICIÓN, FALLA Y TRABAJO REALIZADO", styles["Seccion"]))
-    detalle_tbl = Table([
+    filas_detalle = [
         [Paragraph("Estado físico:", styles["CeldaBold"]), Paragraph(data.get("condicion_fisica", "") or "-", styles["Celda"])],
         [Paragraph("Falla reportada:", styles["CeldaBold"]), Paragraph(data.get("falla_reportada", "") or "-", styles["Celda"])],
         [Paragraph("Diagnóstico:", styles["CeldaBold"]), Paragraph(data.get("diagnostico", "") or "-", styles["Celda"])],
         [Paragraph("Trabajo realizado:", styles["CeldaBold"]), Paragraph(data.get("trabajo_realizado", "") or "-", styles["Celda"])],
         [Paragraph("Observaciones:", styles["CeldaBold"]), Paragraph(data.get("observaciones", "") or "-", styles["Celda"])],
         [Paragraph("Técnico:", styles["CeldaBold"]), Paragraph(data.get("tecnico", "") or "-", styles["Celda"])],
-    ], colWidths=[3.2 * cm, 14.4 * cm])
+    ]
+    if data.get("mostrar_seguridad_en_pdf") and (data.get("pin") or data.get("patron")):
+        seguridad_partes = []
+        if data.get("pin"):
+            seguridad_partes.append(f"PIN: {data['pin']}")
+        if data.get("patron"):
+            seguridad_partes.append(f"Patrón: {data['patron']}")
+        filas_detalle.append([Paragraph("Acceso al equipo:", styles["CeldaBold"]), Paragraph(" / ".join(seguridad_partes), styles["Celda"])])
+    detalle_tbl = Table(filas_detalle, colWidths=[3.2 * cm, 14.4 * cm])
     detalle_tbl.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
     story.append(detalle_tbl)
     story.append(Spacer(1, 6))
@@ -199,6 +213,7 @@ def construir_contexto_pdf(orden, config) -> dict:
             "correo": config.correo if config else "",
             "moneda": config.moneda if config else "L",
             "logo_path": config.logo_path if config else None,
+            "logo_data": config.logo_data if config else None,
             "info_pdf_extra": config.info_pdf_extra if config else "",
             "condiciones_servicio": (config.condiciones_servicio if config and config.condiciones_servicio else "") if config else "",
         },
@@ -206,6 +221,9 @@ def construir_contexto_pdf(orden, config) -> dict:
         "fecha": orden.fecha.strftime("%d/%m/%Y") if orden.fecha else "",
         "estado": orden.estado,
         "prioridad": orden.prioridad,
+        "pin": orden.pin,
+        "patron": orden.patron,
+        "mostrar_seguridad_en_pdf": bool(orden.mostrar_seguridad_en_pdf),
         "cliente": {
             "nombre": orden.cliente.nombre if orden.cliente else "",
             "telefono": orden.cliente.telefono if orden.cliente else "",
@@ -271,8 +289,14 @@ def generar_pdf_factura(data: dict) -> bytes:
     story = []
 
     logo_path = taller.get("logo_path")
+    logo_data = taller.get("logo_data")
     logo_cell = ""
-    if logo_path:
+    if logo_data:
+        try:
+            logo_cell = Image(BytesIO(logo_data), width=2.2 * cm, height=2.2 * cm)
+        except Exception:
+            logo_cell = ""
+    elif logo_path:
         try:
             logo_cell = Image(logo_path, width=2.2 * cm, height=2.2 * cm)
         except Exception:
@@ -378,6 +402,11 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
             partes.append(f"Diagnóstico: {orden.diagnostico}")
         if orden.numero_orden:
             partes.append(f"Orden relacionada: {orden.numero_orden}")
+        if getattr(orden, "mostrar_seguridad_en_pdf", False):
+            if orden.pin:
+                partes.append(f"PIN: {orden.pin}")
+            if orden.patron:
+                partes.append(f"Patrón: {orden.patron}")
         descripcion = " · ".join(p for p in partes if p)
 
     texto_legal = (config_facturacion.texto_legal_fiscal if es_fiscal else config_facturacion.texto_legal_interno) if config_facturacion else ""
@@ -390,7 +419,9 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
             "correo": config_general.correo if config_general else "",
             "moneda": config_general.moneda if config_general else "L",
             "logo_path": config_general.logo_path if config_general else None,
-            "info_pdf_extra": "",
+            "logo_data": config_general.logo_data if config_general else None,
+            "info_pdf_extra": config_general.info_pdf_extra if config_general else "",
+            "condiciones_servicio": (config_general.condiciones_servicio if config_general and config_general.condiciones_servicio else "") if config_general else "",
         },
         "tipo": factura.tipo,
         "numero_documento": factura.numero_documento,

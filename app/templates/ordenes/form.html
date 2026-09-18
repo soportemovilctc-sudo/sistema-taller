@@ -181,6 +181,10 @@
         </div>
       </div>
       <p class="help">Esta información nunca se muestra en los listados generales, solo dentro de la orden.</p>
+      <label class="checkbox-chip" style="margin-top:10px; display:inline-flex;">
+        <input type="checkbox" name="mostrar_seguridad_en_pdf" {{ 'checked' if orden and orden.mostrar_seguridad_en_pdf else '' }}>
+        Mostrar el PIN/patrón en el documento impreso (orden y factura)
+      </label>
     </div>
 
     <div class="card">

@@ -120,6 +120,7 @@ def ordenes_crear(
     estado: str = Form("RECIBIDO"),
     pin: str = Form(""),
     patron: str = Form(""),
+    mostrar_seguridad_en_pdf: bool = Form(False),
     cotizacion: str = Form("0"),
     recargo_pct: str = Form("0"),
     forma_pago: str = Form("Efectivo"),
@@ -145,11 +146,12 @@ def ordenes_crear(
         observaciones_condicion=observaciones_condicion,
         falla_reportada=falla_reportada, diagnostico=diagnostico, trabajo_realizado=trabajo_realizado,
         observaciones=observaciones, prioridad=prioridad, estado=estado,
-        pin=pin or None, patron=patron or None,
+        pin=pin or None, patron=patron or None, mostrar_seguridad_en_pdf=mostrar_seguridad_en_pdf,
         cotizacion=cot, recargo_pct=pct, recargo_monto=recargo, total=total, abonado=Decimal("0"), saldo=total,
         forma_pago=forma_pago,
         fecha_entrada=date.today(),
         fecha_entrega=datetime.strptime(fecha_entrega, "%Y-%m-%d").date() if fecha_entrega else None,
+        fecha_cierre=datetime.utcnow() if estado in ("ENTREGADO", "CANCELADO") else None,
     )
     db.add(orden)
     db.flush()
@@ -208,6 +210,7 @@ def ordenes_actualizar(
     prioridad: str = Form("Normal"),
     pin: str = Form(""),
     patron: str = Form(""),
+    mostrar_seguridad_en_pdf: bool = Form(False),
     cotizacion: str = Form("0"),
     recargo_pct: str = Form("0"),
     forma_pago: str = Form("Efectivo"),
@@ -244,6 +247,7 @@ def ordenes_actualizar(
     orden.prioridad = prioridad
     orden.pin = pin or None
     orden.patron = patron or None
+    orden.mostrar_seguridad_en_pdf = mostrar_seguridad_en_pdf
     orden.forma_pago = forma_pago
     orden.fecha_entrega = datetime.strptime(fecha_entrega, "%Y-%m-%d").date() if fecha_entrega else None
 
@@ -256,7 +260,7 @@ def ordenes_actualizar(
 @router.post("/ordenes/{orden_id}/estado")
 def ordenes_cambiar_estado(
     orden_id: int, request: Request,
-    nuevo_estado: str = Form(...), observacion: str = Form(""),
+    nuevo_estado: str = Form(...), observacion: str = Form(""), redirect_to: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
@@ -266,10 +270,16 @@ def ordenes_cambiar_estado(
             usuario_nombre=usuario["nombre_completo"], observacion=observacion,
         )
         orden.estado = nuevo_estado
+        if nuevo_estado in ("ENTREGADO", "CANCELADO"):
+            if not orden.fecha_cierre:
+                orden.fecha_cierre = datetime.utcnow()
+        else:
+            orden.fecha_cierre = None
         db.add(historial)
         db.commit()
         flash(request, f"Estado actualizado a {nuevo_estado}.", "success")
-    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+    destino = redirect_to if redirect_to.startswith("/") else f"/ordenes/{orden_id}"
+    return RedirectResponse(destino, status_code=303)
 
 
 @router.post("/ordenes/{orden_id}/abono")

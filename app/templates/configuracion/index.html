@@ -30,7 +30,7 @@
         </div>
         {% endif %}
         <input type="file" name="logo" accept="image/*">
-        <div class="help">{{ 'Selecciona una imagen para reemplazar el logo actual.' if config.logo_path else 'Aparecerá en el menú lateral, en la orden de servicio y en la factura (formato carta).' }}</div>
+        <div class="help">{{ 'Selecciona una imagen para reemplazar el logo actual.' if config.logo_data else 'Aparecerá en el menú lateral, en la orden de servicio y en la factura (formato carta), en cualquier dispositivo que abra el sistema.' }}</div>
       </div>
       <button type="submit" class="btn btn-primary">Guardar configuración</button>
     </form>

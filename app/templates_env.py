@@ -1,6 +1,5 @@
 """Instancia compartida de Jinja2Templates con filtros y funciones globales."""
 import json
-import os
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from app.utils.flash import obtener_flashes
@@ -34,7 +33,7 @@ def obtener_config_actual():
     try:
         cfg = db.get(Configuracion, 1)
         if cfg:
-            logo_url = ("/static/uploads/" + os.path.basename(cfg.logo_path)) if cfg.logo_path else None
+            logo_url = "/configuracion/logo" if cfg.logo_data else None
             return {"nombre_taller": cfg.nombre_taller, "moneda": cfg.moneda, "logo_path": cfg.logo_path, "logo_url": logo_url}
     finally:
         db.close()

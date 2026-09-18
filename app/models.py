@@ -2,7 +2,7 @@
 from datetime import datetime, date
 from sqlalchemy import (
     Column, Integer, String, Text, Numeric, Date, DateTime, Boolean,
-    ForeignKey, UniqueConstraint, Index
+    ForeignKey, UniqueConstraint, Index, LargeBinary
 )
 from sqlalchemy.orm import relationship
 
@@ -122,6 +122,8 @@ class Configuracion(Base):
     recargo_default_pct = Column(Numeric(6, 2), default=0)
     info_pdf_extra = Column(Text, default="")
     condiciones_servicio = Column(Text, default=CONDICIONES_SERVICIO_DEFAULT)
+    logo_data = Column(LargeBinary, nullable=True)
+    logo_mime = Column(String(50), nullable=True)
 
 
 class OrdenServicio(Base):
@@ -154,6 +156,7 @@ class OrdenServicio(Base):
     # Seguridad del dispositivo (dato sensible: no exponer en listados)
     pin = Column(String(20), nullable=True)
     patron = Column(String(50), nullable=True)  # ej: "1,2,3,6,9"
+    mostrar_seguridad_en_pdf = Column(Boolean, default=False, nullable=False)
 
     # Financiero
     cotizacion = Column(Numeric(10, 2), default=0)
@@ -166,6 +169,7 @@ class OrdenServicio(Base):
 
     fecha_entrada = Column(Date, default=date.today)
     fecha_entrega = Column(Date, nullable=True)
+    fecha_cierre = Column(DateTime, nullable=True)  # se marca al llegar a ENTREGADO/CANCELADO
 
     creado_en = Column(DateTime, default=datetime.utcnow)
     actualizado_en = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -181,6 +185,15 @@ class OrdenServicio(Base):
 
     def lista_condicion(self):
         return [c for c in (self.condicion_fisica or "").split(",") if c]
+
+    def dias_en_taller(self):
+        """Días transcurridos desde que se recibió el equipo. Se congela
+        en la fecha en que la orden llegó a ENTREGADO/CANCELADO (fecha_cierre);
+        si sigue activa, sigue contando hasta hoy."""
+        if not self.fecha:
+            return 0
+        fin = self.fecha_cierre or datetime.utcnow()
+        return max((fin - self.fecha).days, 0)
 
 
 Index("ix_ordenes_marca_modelo", OrdenServicio.marca, OrdenServicio.modelo)

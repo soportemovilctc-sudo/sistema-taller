@@ -19,6 +19,7 @@
     <div><label>IMEI / Serie</label><p>{{ orden.imei or orden.numero_serie or '-' }}</p></div>
     <div><label>Técnico</label><p>{{ orden.tecnico.nombre if orden.tecnico else 'Sin asignar' }}</p></div>
     <div><label>Fecha</label><p>{{ orden.fecha|fecha }}</p></div>
+    <div><label>Días en el taller</label><p><span class="dias-chip {{ 'dias-chip-alerta' if orden.dias_en_taller() >= 15 and orden.estado not in ('ENTREGADO', 'CANCELADO') else '' }}">{{ orden.dias_en_taller() }} día{{ 's' if orden.dias_en_taller() != 1 else '' }}</span>{{ ' (cerrada)' if orden.fecha_cierre else '' }}</p></div>
     <div><label>Prioridad</label><p><span class="{{ 'badge badge-' + orden.prioridad.lower() }}">{{ orden.prioridad }}</span></p></div>
     <div><label>Estado actual</label><p><span class="{{ 'badge badge-' + orden.estado.lower().replace(' ', '-') }}">{{ orden.estado }}</span></p></div>
     <div><label>Accesorios</label><p>{{ orden.lista_accesorios()|join(', ') or 'Ninguno' }}</p></div>
@@ -38,6 +39,7 @@
     <details>
       <summary style="cursor:pointer;">Mostrar datos sensibles</summary>
       <p style="margin-top:8px;">PIN: <b>{{ orden.pin or 'No registrado' }}</b><br>Patrón: <b>{{ orden.patron or 'No registrado' }}</b></p>
+      <p class="help">{{ 'Se incluye en el documento impreso (orden/factura).' if orden.mostrar_seguridad_en_pdf else 'No se incluye en el documento impreso.' }} Puedes cambiarlo en "Editar".</p>
     </details>
   </div>
 

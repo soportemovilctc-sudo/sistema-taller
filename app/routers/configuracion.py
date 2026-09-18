@@ -1,9 +1,6 @@
 """Configuración general del taller (nombre, logo, contacto, moneda, recargo) y QR local."""
-import os
-import shutil
-
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse, Response
 from sqlalchemy.orm import Session
 from io import BytesIO
 
@@ -16,8 +13,6 @@ from app.utils.flash import flash
 from app.deps import login_required, roles_required
 
 router = APIRouter()
-
-UPLOADS_DIR = "app/static/uploads"
 
 
 def get_or_create_config(db: Session) -> Configuracion:
@@ -61,12 +56,10 @@ def configuracion_actualizar(
     cfg.condiciones_servicio = condiciones_servicio
 
     if logo and logo.filename:
-        os.makedirs(UPLOADS_DIR, exist_ok=True)
-        extension = os.path.splitext(logo.filename)[1] or ".png"
-        destino = os.path.join(UPLOADS_DIR, f"logo{extension}")
-        with open(destino, "wb") as buffer:
-            shutil.copyfileobj(logo.file, buffer)
-        cfg.logo_path = destino
+        contenido = logo.file.read()
+        if contenido:
+            cfg.logo_data = contenido
+            cfg.logo_mime = logo.content_type or "image/png"
 
     db.commit()
     flash(request, "Configuración guardada correctamente.", "success")
@@ -78,6 +71,17 @@ def configuracion_qr(usuario=Depends(roles_required("admin"))):
     url = url_acceso_local()
     png_bytes = generar_qr_png(url)
     return StreamingResponse(BytesIO(png_bytes), media_type="image/png")
+
+
+@router.get("/configuracion/logo")
+def configuracion_logo(db: Session = Depends(get_db)):
+    """Sirve el logo guardado en la base de datos (no en el disco del
+    contenedor), para que se vea igual en cualquier dispositivo y no se
+    pierda con cada despliegue."""
+    cfg = db.get(Configuracion, 1)
+    if not cfg or not cfg.logo_data:
+        return Response(status_code=404)
+    return StreamingResponse(BytesIO(cfg.logo_data), media_type=cfg.logo_mime or "image/png")
 
 
 @router.post("/admin/limpiar-datos-prueba")

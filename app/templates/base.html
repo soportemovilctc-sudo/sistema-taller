@@ -25,17 +25,23 @@
       <a class="nav-link {{ 'active' if request.url.path == '/ordenes/nueva' else '' }}" href="/ordenes/nueva"><span class="ic">&#10133;</span> Nueva Orden</a>
       <a class="nav-link {{ 'active' if request.url.path.startswith('/ordenes') and request.url.path != '/ordenes/nueva' else '' }}" href="/ordenes"><span class="ic">&#128221;</span> Órdenes</a>
       <a class="nav-link {{ 'active' if request.url.path.startswith('/clientes') else '' }}" href="/clientes"><span class="ic">&#128100;</span> Clientes</a>
+      {% if usuario.rol == 'admin' %}
       <a class="nav-link {{ 'active' if request.url.path.startswith('/tecnicos') else '' }}" href="/tecnicos"><span class="ic">&#128119;</span> Técnicos</a>
+      {% endif %}
       <a class="nav-link {{ 'active' if request.url.path.startswith('/inventario') else '' }}" href="/inventario"><span class="ic">&#128230;</span> Inventario</a>
       <a class="nav-link {{ 'active' if request.url.path.startswith('/pos') else '' }}" href="/pos"><span class="ic">&#128179;</span> Punto de Venta</a>
+      {% if usuario.rol == 'admin' %}
       <a class="nav-link {{ 'active' if request.url.path.startswith('/contabilidad') else '' }}" href="/contabilidad"><span class="ic">&#128176;</span> Contabilidad</a>
+      {% endif %}
       <a class="nav-link {{ 'active' if request.url.path.startswith('/reportes') else '' }}" href="/reportes"><span class="ic">&#128200;</span> Reportes</a>
       <a class="nav-link {{ 'active' if request.url.path.startswith('/facturas') else '' }}" href="/facturas"><span class="ic">&#128179;</span> Facturas</a>
       {% if usuario.rol == 'admin' %}
       <a class="nav-link {{ 'active' if request.url.path.startswith('/usuarios') else '' }}" href="/usuarios"><span class="ic">&#128101;</span> Usuarios</a>
       {% endif %}
       <a class="nav-link {{ 'active' if request.url.path.startswith('/catalogo') else '' }}" href="/catalogo"><span class="ic">&#128241;</span> Marcas y modelos</a>
+      {% if usuario.rol == 'admin' %}
       <a class="nav-link {{ 'active' if request.url.path.startswith('/configuracion') else '' }}" href="/configuracion"><span class="ic">&#9881;</span> Configuración</a>
+      {% endif %}
       <a class="nav-link" href="/logout"><span class="ic">&#128274;</span> Cerrar sesión</a>
     </nav>
   </aside>
@@ -49,7 +55,7 @@
       </div>
       <div class="user-chip">
         <span>&#128100;</span>
-        <span><b>{{ usuario.nombre_completo }}</b> · {{ usuario.rol }}</span>
+        <span><b>{{ usuario.nombre_completo }}</b> · {{ {'admin': 'Administrador', 'tecnico': 'Técnico', 'vendedor': 'Caja'}.get(usuario.rol, usuario.rol) }}</span>
       </div>
     </div>
     <div class="content">

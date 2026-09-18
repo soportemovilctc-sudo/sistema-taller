@@ -12,7 +12,7 @@ from app.database import get_db
 from app.models import MovimientoFinanciero
 from app.utils.calculations import to_decimal
 from app.utils.flash import flash
-from app.deps import login_required
+from app.deps import roles_required
 
 router = APIRouter()
 
@@ -41,7 +41,7 @@ def _rango_fechas(periodo: str, desde: str, hasta: str):
 @router.get("/contabilidad")
 def contabilidad_index(
     request: Request, periodo: str = "mes", desde: str = "", hasta: str = "",
-    db: Session = Depends(get_db), usuario=Depends(login_required),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
 ):
     ini, fin = _rango_fechas(periodo, desde, hasta)
     movimientos = db.query(MovimientoFinanciero).filter(
@@ -64,7 +64,7 @@ def contabilidad_index(
 def contabilidad_crear(
     request: Request,
     tipo: str = Form(...), categoria: str = Form(...), monto: str = Form(...),
-    descripcion: str = Form(""), db: Session = Depends(get_db), usuario=Depends(login_required),
+    descripcion: str = Form(""), db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
 ):
     try:
         monto_dec = to_decimal(monto)

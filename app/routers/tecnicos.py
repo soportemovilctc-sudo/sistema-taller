@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 from app.templates_env import templates
 from app.database import get_db
 from app.models import Tecnico
-from app.deps import login_required, roles_required
+from app.deps import roles_required
 
 router = APIRouter()
 
 
 @router.get("/tecnicos")
-def tecnicos_list(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
+def tecnicos_list(request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
     tecnicos = db.query(Tecnico).order_by(Tecnico.nombre).all()
     return templates.TemplateResponse("tecnicos/list.html", {"request": request, "tecnicos": tecnicos, "usuario": usuario})
 

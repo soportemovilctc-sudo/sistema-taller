@@ -24,13 +24,12 @@ PRIORIDADES = ["Normal", "Alta", "Urgente"]
 FORMAS_PAGO = ["Efectivo", "Transferencia", "Tarjeta", "Otro"]
 
 ACCESORIOS_DISPONIBLES = [
-    "Cargador", "Cable", "Estuche", "SIM", "Memoria", "Audífonos",
-    "Batería externa", "Otro",
+    "Cobertor", "Vidrio", "Micro SD", "S Pen", "SIM tipo", "SIM Claro",
 ]
 
 CONDICIONES_FISICAS = [
-    "Pantalla", "Carcasa", "Cámaras", "Botones", "Puertos",
-    "Golpes", "Rayones", "Piezas faltantes", "Daños visibles",
+    "Apagado", "Pantalla dañada", "Housing dañado", "Batería dañada",
+    "Se reinicia", "Mojado",
 ]
 
 TIPOS_MOVIMIENTO_INVENTARIO = ["entrada", "salida", "ajuste"]

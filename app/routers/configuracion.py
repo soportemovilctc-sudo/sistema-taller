@@ -31,7 +31,7 @@ def get_or_create_config(db: Session) -> Configuracion:
 
 
 @router.get("/configuracion")
-def configuracion_index(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
+def configuracion_index(request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
     cfg = get_or_create_config(db)
     return templates.TemplateResponse("configuracion/index.html", {
         "request": request, "config": cfg, "usuario": usuario,
@@ -72,7 +72,7 @@ def configuracion_actualizar(
 
 
 @router.get("/configuracion/qr")
-def configuracion_qr(usuario=Depends(login_required)):
+def configuracion_qr(usuario=Depends(roles_required("admin"))):
     url = url_acceso_local()
     png_bytes = generar_qr_png(url)
     return StreamingResponse(BytesIO(png_bytes), media_type="image/png")

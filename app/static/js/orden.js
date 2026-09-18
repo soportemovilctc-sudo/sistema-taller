@@ -433,3 +433,41 @@ function inicializarServicioRapido() {
 
   poblarSelect("");
 }
+
+// Permite agregar accesorios/condiciones personalizados que no están en la
+// lista rápida, sin perder la posibilidad de marcar varios a la vez.
+function agregarChip(gridId, inputId, fieldName) {
+  var input = document.getElementById(inputId);
+  var grid = document.getElementById(gridId);
+  if (!input || !grid) return;
+  var valor = input.value.trim();
+  if (!valor) return;
+
+  var yaExiste = Array.prototype.some.call(
+    grid.querySelectorAll("input[type=checkbox]"),
+    function (chk) { return chk.value.toLowerCase() === valor.toLowerCase(); }
+  );
+  if (yaExiste) {
+    var existente = Array.prototype.find.call(
+      grid.querySelectorAll("input[type=checkbox]"),
+      function (chk) { return chk.value.toLowerCase() === valor.toLowerCase(); }
+    );
+    if (existente) existente.checked = true;
+    input.value = "";
+    return;
+  }
+
+  var label = document.createElement("label");
+  label.className = "checkbox-chip";
+  var checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.name = fieldName;
+  checkbox.value = valor;
+  checkbox.checked = true;
+  label.appendChild(checkbox);
+  label.appendChild(document.createTextNode(" " + valor));
+  grid.appendChild(label);
+
+  input.value = "";
+  input.focus();
+}

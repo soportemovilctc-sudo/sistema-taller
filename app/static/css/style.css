@@ -180,6 +180,8 @@ textarea { resize: vertical; min-height: 64px; }
 }
 .checkbox-chip input { width: auto; }
 .checkbox-chip:has(input:checked) { border-color: var(--primary); background: rgba(37,99,235,.15); }
+.add-chip-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.add-chip-row input[type="text"] { flex: 1; min-width: 160px; }
 
 /* ---------- Botones ---------- */
 .btn {

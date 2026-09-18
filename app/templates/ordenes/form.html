@@ -85,21 +85,39 @@
 
       <div class="field">
         <label>Accesorios entregados</label>
-        <div class="checkbox-grid">
+        <div class="checkbox-grid" id="accesoriosGrid">
           {% set acc_actuales = orden.lista_accesorios() if orden else [] %}
           {% for a in accesorios_disponibles %}
           <label class="checkbox-chip"><input type="checkbox" name="accesorios" value="{{ a }}" {{ 'checked' if a in acc_actuales else '' }}> {{ a }}</label>
           {% endfor %}
+          {% for a in acc_actuales %}
+          {% if a not in accesorios_disponibles %}
+          <label class="checkbox-chip"><input type="checkbox" name="accesorios" value="{{ a }}" checked> {{ a }}</label>
+          {% endif %}
+          {% endfor %}
+        </div>
+        <div class="add-chip-row">
+          <input type="text" id="accesorioNuevoInput" placeholder="Agregar otro accesorio..." onkeydown="if(event.key==='Enter'){event.preventDefault(); agregarChip('accesoriosGrid','accesorioNuevoInput','accesorios');}">
+          <button type="button" class="btn btn-outline btn-sm" onclick="agregarChip('accesoriosGrid','accesorioNuevoInput','accesorios')">+ Agregar</button>
         </div>
       </div>
 
       <div class="field">
         <label>Condición física / estado al recibir</label>
-        <div class="checkbox-grid">
+        <div class="checkbox-grid" id="condicionGrid">
           {% set cond_actuales = orden.lista_condicion() if orden else [] %}
           {% for c in condiciones_disponibles %}
           <label class="checkbox-chip"><input type="checkbox" name="condicion" value="{{ c }}" {{ 'checked' if c in cond_actuales else '' }}> {{ c }}</label>
           {% endfor %}
+          {% for c in cond_actuales %}
+          {% if c not in condiciones_disponibles %}
+          <label class="checkbox-chip"><input type="checkbox" name="condicion" value="{{ c }}" checked> {{ c }}</label>
+          {% endif %}
+          {% endfor %}
+        </div>
+        <div class="add-chip-row">
+          <input type="text" id="condicionNuevaInput" placeholder="Agregar otro estado..." onkeydown="if(event.key==='Enter'){event.preventDefault(); agregarChip('condicionGrid','condicionNuevaInput','condicion');}">
+          <button type="button" class="btn btn-outline btn-sm" onclick="agregarChip('condicionGrid','condicionNuevaInput','condicion')">+ Agregar</button>
         </div>
         <textarea name="observaciones_condicion" placeholder="Detalles adicionales del estado físico...">{{ orden.observaciones_condicion if orden else '' }}</textarea>
       </div>

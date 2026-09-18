@@ -35,6 +35,35 @@ CONDICIONES_FISICAS = [
 TIPOS_MOVIMIENTO_INVENTARIO = ["entrada", "salida", "ajuste"]
 TIPOS_MOVIMIENTO_FINANCIERO = ["ingreso", "gasto"]
 
+CONDICIONES_SERVICIO_DEFAULT = (
+    "Equipos Mojados: No cuentan con garantía debido a que el daño puede ser progresivo.\n"
+    "Equipos Apagados: Se reciben bajo responsabilidad del cliente, ya que no se pueden "
+    "verificar otras fallas hasta que enciendan; cualquier daño extra se cobrará por separado.\n"
+    "Privacidad: Se garantiza la total confidencialidad de su información personal.\n"
+    "Tiempo Límite: Tiene un plazo máximo de 30 días para retirar su equipo después de ser "
+    "notificado, de lo contrario este pasará a ser propiedad de la empresa para cubrir costos "
+    "de repuestos, mano de obra y almacenamiento."
+)
+
+
+def parse_condiciones_servicio(texto):
+    """Convierte el texto editable de Configuración (una condición por línea,
+    formato "Título: texto") en una lista de tuplas (titulo, texto) lista
+    para imprimir en los PDF (orden/factura, carta y tirilla)."""
+    resultado = []
+    if not texto:
+        return resultado
+    for linea in texto.strip().split("\n"):
+        linea = linea.strip()
+        if not linea:
+            continue
+        if ":" in linea:
+            titulo, resto = linea.split(":", 1)
+            resultado.append((titulo.strip() + ":", resto.strip()))
+        else:
+            resultado.append(("", linea))
+    return resultado
+
 
 class Usuario(Base):
     __tablename__ = "usuarios"
@@ -92,6 +121,7 @@ class Configuracion(Base):
     moneda = Column(String(5), default="L")
     recargo_default_pct = Column(Numeric(6, 2), default=0)
     info_pdf_extra = Column(Text, default="")
+    condiciones_servicio = Column(Text, default=CONDICIONES_SERVICIO_DEFAULT)
 
 
 class OrdenServicio(Base):

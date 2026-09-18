@@ -9,6 +9,8 @@ from reportlab.lib.units import mm
 from reportlab.lib.pagesizes import letter  # noqa: F401 (compatibilidad)
 from reportlab.pdfgen import canvas
 
+from app.models import parse_condiciones_servicio
+
 ANCHO_TICKET = 80 * mm
 MARGEN = 3 * mm
 ANCHO_UTIL_CHARS = 42  # caracteres aprox. que caben por línea a 8pt
@@ -101,22 +103,19 @@ class _ConstructorTicket:
         return buffer.getvalue()
 
 
-CONDICIONES_SERVICIO = [
-    ("Equipos Mojados:", "No cuentan con garantía debido a que el daño puede ser progresivo."),
-    ("Equipos Apagados:", "Se reciben bajo responsabilidad del cliente, ya que no se pueden verificar otras fallas hasta que enciendan; cualquier daño extra se cobrará por separado."),
-    ("Privacidad:", "Se garantiza la total confidencialidad de su información personal."),
-    ("Tiempo Límite:", "Tiene un plazo máximo de 30 días para retirar su equipo después de ser notificado, de lo contrario este pasará a ser propiedad de la empresa para cubrir costos de repuestos, mano de obra y almacenamiento."),
-]
-
-
-def _condiciones_servicio(t):
-    """Agrega, al final de la tirilla, el bloque fijo de condiciones de
-    servicio y retiro de equipos (orden de servicio y factura)."""
+def _condiciones_servicio(t, texto_condiciones=""):
+    """Agrega, al final de la tirilla, el bloque (editable desde
+    Configuración) de condiciones de servicio y retiro de equipos (orden de
+    servicio y factura). Si no hay texto configurado, no agrega nada."""
+    condiciones = parse_condiciones_servicio(texto_condiciones)
+    if not condiciones:
+        return
     t.separador()
     t.texto("Condiciones de Servicio y Retiro de Equipos", tam=7, negrita=True, centrado=True, alto=9)
     t.espacio(1)
-    for titulo, texto in CONDICIONES_SERVICIO:
-        t.parrafo(f"{titulo} {texto}", tam=6, alto=8)
+    for titulo, texto in condiciones:
+        contenido = f"{titulo} {texto}" if titulo else texto
+        t.parrafo(contenido, tam=6, alto=8)
 
 
 def _encabezado_taller(t, taller: dict):
@@ -184,7 +183,7 @@ def generar_ticket_orden(data: dict) -> bytes:
     t.texto("Firma del cliente", centrado=True, tam=7, alto=10)
     t.espacio(4)
 
-    _condiciones_servicio(t)
+    _condiciones_servicio(t, data.get("taller", {}).get("condiciones_servicio", ""))
 
     return t.renderizar()
 
@@ -245,6 +244,6 @@ def generar_ticket_factura(data: dict) -> bytes:
         t.texto("*** DOCUMENTO ANULADO ***", tam=9, negrita=True, centrado=True, alto=12)
 
     t.espacio(6)
-    _condiciones_servicio(t)
+    _condiciones_servicio(t, data.get("taller", {}).get("condiciones_servicio", ""))
 
     return t.renderizar()

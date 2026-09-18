@@ -18,6 +18,11 @@
       </div>
       <div class="field"><label>Información adicional para el PDF</label><textarea name="info_pdf_extra">{{ config.info_pdf_extra }}</textarea></div>
       <div class="field">
+        <label>Condiciones de Servicio y Retiro de Equipos</label>
+        <textarea name="condiciones_servicio" style="min-height:150px;">{{ config.condiciones_servicio }}</textarea>
+        <div class="help">Se imprime al final de las órdenes y facturas (carta y tirilla). Una condición por línea, formato "Título: texto". Deja el cuadro vacío para no imprimir este bloque.</div>
+      </div>
+      <div class="field">
         <label>Logo del taller</label>
         {% if config_taller().logo_url %}
         <div style="margin-bottom:8px;">

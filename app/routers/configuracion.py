@@ -45,6 +45,7 @@ def configuracion_actualizar(
     nombre_taller: str = Form(...), telefono: str = Form(""), whatsapp: str = Form(""),
     direccion: str = Form(""), correo: str = Form(""), moneda: str = Form("L"),
     recargo_default_pct: str = Form("0"), info_pdf_extra: str = Form(""),
+    condiciones_servicio: str = Form(""),
     logo: UploadFile | None = File(None),
     db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
 ):
@@ -57,6 +58,7 @@ def configuracion_actualizar(
     cfg.moneda = moneda or "L"
     cfg.recargo_default_pct = to_decimal(recargo_default_pct or 0)
     cfg.info_pdf_extra = info_pdf_extra
+    cfg.condiciones_servicio = condiciones_servicio
 
     if logo and logo.filename:
         os.makedirs(UPLOADS_DIR, exist_ok=True)

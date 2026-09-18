@@ -9,23 +9,24 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_RIGHT
 
-
-CONDICIONES_SERVICIO = [
-    ("Equipos Mojados:", "No cuentan con garantía debido a que el daño puede ser progresivo."),
-    ("Equipos Apagados:", "Se reciben bajo responsabilidad del cliente, ya que no se pueden verificar otras fallas hasta que enciendan; cualquier daño extra se cobrará por separado."),
-    ("Privacidad:", "Se garantiza la total confidencialidad de su información personal."),
-    ("Tiempo Límite:", "Tiene un plazo máximo de 30 días para retirar su equipo después de ser notificado, de lo contrario este pasará a ser propiedad de la empresa para cubrir costos de repuestos, mano de obra y almacenamiento."),
-]
+from app.models import parse_condiciones_servicio
 
 
-def _agregar_condiciones_servicio(story, titulo_style, texto_style):
-    """Agrega, al final del documento, el bloque fijo de condiciones de
-    servicio y retiro de equipos (orden de servicio y factura, carta)."""
+def _agregar_condiciones_servicio(story, titulo_style, texto_style, texto_condiciones=""):
+    """Agrega, al final del documento, el bloque (editable desde Configuración)
+    de condiciones de servicio y retiro de equipos (orden de servicio y
+    factura, carta). Si no hay texto configurado, no agrega nada."""
+    condiciones = parse_condiciones_servicio(texto_condiciones)
+    if not condiciones:
+        return
     story.append(Spacer(1, 14))
     story.append(Paragraph("Condiciones de Servicio y Retiro de Equipos", titulo_style))
     story.append(Spacer(1, 3))
-    for titulo, texto in CONDICIONES_SERVICIO:
-        story.append(Paragraph(f"<b>{titulo}</b> {texto}", texto_style))
+    for titulo, texto in condiciones:
+        if titulo:
+            story.append(Paragraph(f"<b>{titulo}</b> {texto}", texto_style))
+        else:
+            story.append(Paragraph(texto, texto_style))
 
 
 def _moneda(valor, simbolo="L"):
@@ -180,7 +181,7 @@ def generar_pdf_orden(data: dict) -> bytes:
     firmas.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
     story.append(firmas)
 
-    _agregar_condiciones_servicio(story, styles["CondTitulo"], styles["CondTexto"])
+    _agregar_condiciones_servicio(story, styles["CondTitulo"], styles["CondTexto"], data.get("taller", {}).get("condiciones_servicio", ""))
 
     doc.build(story)
     return buffer.getvalue()
@@ -199,6 +200,7 @@ def construir_contexto_pdf(orden, config) -> dict:
             "moneda": config.moneda if config else "L",
             "logo_path": config.logo_path if config else None,
             "info_pdf_extra": config.info_pdf_extra if config else "",
+            "condiciones_servicio": (config.condiciones_servicio if config and config.condiciones_servicio else "") if config else "",
         },
         "numero_orden": orden.numero_orden,
         "fecha": orden.fecha.strftime("%d/%m/%Y") if orden.fecha else "",
@@ -356,7 +358,7 @@ def generar_pdf_factura(data: dict) -> bytes:
     firmas.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
     story.append(firmas)
 
-    _agregar_condiciones_servicio(story, styles["CondTitulo"], styles["CondTexto"])
+    _agregar_condiciones_servicio(story, styles["CondTitulo"], styles["CondTexto"], data.get("taller", {}).get("condiciones_servicio", ""))
 
     doc.build(story)
     return buffer.getvalue()

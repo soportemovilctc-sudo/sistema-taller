@@ -14,8 +14,9 @@ from app.models import (
     OrdenServicio, Cliente, Tecnico, HistorialEstado, Pago, Configuracion,
     TIPOS_EQUIPO, ESTADOS_ORDEN, PRIORIDADES, FORMAS_PAGO,
     ACCESORIOS_DISPONIBLES, CONDICIONES_FISICAS, MarcaEquipo, ServicioRapido,
+    Producto, OrdenRepuesto, Venta, DetalleVenta, MovimientoInventario, MovimientoFinanciero,
 )
-from app.utils.numbering import generar_numero_orden
+from app.utils.numbering import generar_numero_orden, generar_numero_venta
 from app.utils.calculations import calcular_recargo, calcular_total, calcular_saldo, validar_abono, to_decimal, recalcular_orden
 from app.utils.pdf import generar_pdf_orden, construir_contexto_pdf
 from app.utils.pdf_ticket import generar_ticket_orden
@@ -186,8 +187,15 @@ def ordenes_detalle(orden_id: int, request: Request, db: Session = Depends(get_d
         flash(request, "Orden no encontrada.", "error")
         return RedirectResponse("/ordenes", status_code=303)
     opciones = _opciones_formulario(db)
+    productos_disponibles = (
+        db.query(Producto)
+        .filter(Producto.estado == "activo", Producto.existencia > 0)
+        .order_by(Producto.nombre)
+        .all()
+    )
     return templates.TemplateResponse("ordenes/detail.html", {
-        "request": request, "orden": orden, "usuario": usuario, **opciones,
+        "request": request, "orden": orden, "usuario": usuario,
+        "productos_disponibles": productos_disponibles, **opciones,
     })
 
 
@@ -320,6 +328,77 @@ def ordenes_registrar_abono(
     recalcular_orden(orden)
     db.commit()
     flash(request, f"Abono de {monto_validado} registrado correctamente.", "success")
+    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
+@router.post("/ordenes/{orden_id}/repuestos")
+def ordenes_agregar_repuesto(
+    orden_id: int, request: Request,
+    producto_id: int = Form(...), cantidad: str = Form("1"),
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    """Descuenta un repuesto del inventario y lo agrega a la orden: baja la
+    existencia del producto, queda registrado como venta (para reportes y
+    contabilidad) y su costo se suma al total de la orden y a la factura
+    que se genere a partir de ella."""
+    orden = db.get(OrdenServicio, orden_id)
+    if not orden:
+        return RedirectResponse("/ordenes", status_code=303)
+
+    producto = db.get(Producto, producto_id)
+    if not producto:
+        flash(request, "Producto no encontrado.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    try:
+        cantidad_int = int(cantidad)
+    except (TypeError, ValueError):
+        cantidad_int = 0
+    if cantidad_int <= 0:
+        flash(request, "La cantidad debe ser mayor a cero.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+    if cantidad_int > producto.existencia:
+        flash(request, f"No hay suficiente existencia de '{producto.nombre}' (disponible: {producto.existencia}).", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    precio = to_decimal(producto.precio_venta)
+    subtotal = (precio * cantidad_int).quantize(Decimal("0.01"))
+
+    venta = Venta(
+        numero_venta=generar_numero_venta(db), cliente_id=orden.cliente_id, orden_id=orden.id,
+        subtotal=subtotal, descuento=Decimal("0.00"), total=subtotal,
+        forma_pago=orden.forma_pago or "Efectivo", monto_recibido=subtotal, cambio=Decimal("0.00"),
+        usuario_nombre=usuario["nombre_completo"],
+    )
+    db.add(venta)
+    db.flush()
+
+    db.add(DetalleVenta(venta_id=venta.id, producto_id=producto.id, cantidad=cantidad_int,
+                         precio_unitario=precio, subtotal=subtotal))
+
+    producto.existencia -= cantidad_int
+    db.add(MovimientoInventario(
+        producto_id=producto.id, tipo="salida", cantidad=cantidad_int,
+        existencia_resultante=producto.existencia, usuario_nombre=usuario["nombre_completo"],
+        motivo=f"Orden {orden.numero_orden}",
+    ))
+
+    db.add(MovimientoFinanciero(
+        tipo="ingreso", categoria="Venta de repuesto (orden)", monto=subtotal,
+        descripcion=f"{producto.nombre} x{cantidad_int} - Orden {orden.numero_orden}",
+        usuario_nombre=usuario["nombre_completo"], referencia=orden.numero_orden,
+    ))
+
+    db.add(OrdenRepuesto(
+        orden_id=orden.id, producto_id=producto.id, venta_id=venta.id,
+        cantidad=cantidad_int, precio_unitario=precio, subtotal=subtotal,
+        usuario_nombre=usuario["nombre_completo"],
+    ))
+    db.flush()
+    db.refresh(orden)
+    recalcular_orden(orden)
+    db.commit()
+    flash(request, f"Repuesto '{producto.nombre}' agregado a la orden y descontado del inventario.", "success")
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 

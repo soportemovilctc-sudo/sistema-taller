@@ -149,23 +149,44 @@ def generar_pdf_orden(data: dict) -> bytes:
 
     fin = data.get("financiero", {}) or {}
     story.append(Paragraph("RESUMEN FINANCIERO", styles["Seccion"]))
-    fin_tbl = Table([
-        ["Cotización", _moneda(fin.get("cotizacion", 0), moneda)],
-        [f"Recargo ({fin.get('recargo_pct', 0)}%)", _moneda(fin.get("recargo_monto", 0), moneda)],
-        ["TOTAL DEL SERVICIO", _moneda(fin.get("total", 0), moneda)],
-        ["Total abonado", _moneda(fin.get("abonado", 0), moneda)],
-        ["SALDO PENDIENTE", _moneda(fin.get("saldo", 0), moneda)],
-        ["Forma de pago", fin.get("forma_pago", "-")],
-    ], colWidths=[8 * cm, 9.6 * cm])
+    filas_fin = [["Cotización", _moneda(fin.get("cotizacion", 0), moneda)],
+                 [f"Recargo ({fin.get('recargo_pct', 0)}%)", _moneda(fin.get("recargo_monto", 0), moneda)]]
+    if float(fin.get("repuestos_subtotal", 0) or 0) > 0:
+        filas_fin.append(["Repuestos utilizados", _moneda(fin.get("repuestos_subtotal", 0), moneda)])
+    fila_total_idx = len(filas_fin)
+    filas_fin.append(["TOTAL DEL SERVICIO", _moneda(fin.get("total", 0), moneda)])
+    filas_fin.append(["Total abonado", _moneda(fin.get("abonado", 0), moneda)])
+    fila_saldo_idx = len(filas_fin)
+    filas_fin.append(["SALDO PENDIENTE", _moneda(fin.get("saldo", 0), moneda)])
+    filas_fin.append(["Forma de pago", fin.get("forma_pago", "-")])
+    fin_tbl = Table(filas_fin, colWidths=[8 * cm, 9.6 * cm])
     fin_tbl.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
         ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-        ("FONTNAME", (0, 2), (-1, 2), "Helvetica-Bold"),
-        ("FONTNAME", (0, 4), (-1, 4), "Helvetica-Bold"),
-        ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#e0e7ff")),
-        ("BACKGROUND", (0, 4), (-1, 4), colors.HexColor("#dcfce7")),
+        ("FONTNAME", (0, fila_total_idx), (-1, fila_total_idx), "Helvetica-Bold"),
+        ("FONTNAME", (0, fila_saldo_idx), (-1, fila_saldo_idx), "Helvetica-Bold"),
+        ("BACKGROUND", (0, fila_total_idx), (-1, fila_total_idx), colors.HexColor("#e0e7ff")),
+        ("BACKGROUND", (0, fila_saldo_idx), (-1, fila_saldo_idx), colors.HexColor("#dcfce7")),
     ]))
     story.append(fin_tbl)
+
+    repuestos = data.get("repuestos") or []
+    if repuestos:
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("REPUESTOS UTILIZADOS", styles["Seccion"]))
+        filas = [["Repuesto", "Cant.", "P. unitario", "Subtotal"]]
+        for r in repuestos:
+            filas.append([r.get("producto", ""), str(r.get("cantidad", "")),
+                          _moneda(r.get("precio_unitario", 0), moneda), _moneda(r.get("subtotal", 0), moneda)])
+        rep_tbl = Table(filas, colWidths=[7.6 * cm, 2 * cm, 3.5 * cm, 4.5 * cm])
+        rep_tbl.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ]))
+        story.append(rep_tbl)
 
     pagos = data.get("pagos") or []
     if pagos:
@@ -250,6 +271,7 @@ def construir_contexto_pdf(orden, config) -> dict:
             "cotizacion": orden.cotizacion,
             "recargo_pct": orden.recargo_pct,
             "recargo_monto": orden.recargo_monto,
+            "repuestos_subtotal": orden.repuestos_subtotal,
             "total": orden.total,
             "abonado": orden.abonado,
             "saldo": orden.saldo,
@@ -258,6 +280,15 @@ def construir_contexto_pdf(orden, config) -> dict:
         "pagos": [
             {"fecha": p.fecha.strftime("%d/%m/%Y"), "monto": p.monto, "forma_pago": p.forma_pago}
             for p in orden.pagos
+        ],
+        "repuestos": [
+            {
+                "producto": r.producto.nombre if r.producto else "",
+                "cantidad": r.cantidad,
+                "precio_unitario": r.precio_unitario,
+                "subtotal": r.subtotal,
+            }
+            for r in orden.repuestos
         ],
     }
 
@@ -402,6 +433,14 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
             partes.append(f"Diagnóstico: {orden.diagnostico}")
         if orden.numero_orden:
             partes.append(f"Orden relacionada: {orden.numero_orden}")
+        if getattr(orden, "repuestos", None):
+            moneda_factura = config_general.moneda if config_general else "L"
+            items_repuestos = ", ".join(
+                f"{r.producto.nombre if r.producto else 'Repuesto'} x{r.cantidad} ({_moneda(r.subtotal, moneda_factura)})"
+                for r in orden.repuestos
+            )
+            if items_repuestos:
+                partes.append(f"Repuestos utilizados: {items_repuestos}")
         if getattr(orden, "mostrar_seguridad_en_pdf", False):
             if orden.pin:
                 partes.append(f"PIN: {orden.pin}")

@@ -168,6 +168,7 @@ class OrdenServicio(Base):
     cotizacion = Column(Numeric(10, 2), default=0)
     recargo_pct = Column(Numeric(6, 2), default=0)
     recargo_monto = Column(Numeric(10, 2), default=0)
+    repuestos_subtotal = Column(Numeric(10, 2), default=0)
     total = Column(Numeric(10, 2), default=0)
     abonado = Column(Numeric(10, 2), default=0)
     saldo = Column(Numeric(10, 2), default=0)
@@ -184,6 +185,7 @@ class OrdenServicio(Base):
     tecnico = relationship("Tecnico", back_populates="ordenes")
     historial = relationship("HistorialEstado", back_populates="orden", cascade="all,delete-orphan", order_by="HistorialEstado.fecha")
     pagos = relationship("Pago", back_populates="orden", cascade="all,delete-orphan", order_by="Pago.fecha")
+    repuestos = relationship("OrdenRepuesto", back_populates="orden", cascade="all,delete-orphan", order_by="OrdenRepuesto.fecha")
     facturas = relationship("Factura", back_populates="orden", order_by="Factura.id")
 
     def lista_accesorios(self):
@@ -207,6 +209,27 @@ class OrdenServicio(Base):
 
 
 Index("ix_ordenes_marca_modelo", OrdenServicio.marca, OrdenServicio.modelo)
+
+
+class OrdenRepuesto(Base):
+    """Repuesto/producto del inventario consumido en una orden de servicio.
+    Cada registro descuenta existencia del producto y genera una venta
+    (ver app/routers/ordenes.py) para que quede reflejado en reportes."""
+    __tablename__ = "orden_repuestos"
+
+    id = Column(Integer, primary_key=True)
+    orden_id = Column(Integer, ForeignKey("ordenes_servicio.id"), nullable=False)
+    producto_id = Column(Integer, ForeignKey("productos.id"), nullable=False)
+    venta_id = Column(Integer, ForeignKey("ventas.id"), nullable=True)
+    cantidad = Column(Integer, nullable=False)
+    precio_unitario = Column(Numeric(10, 2), nullable=False)
+    subtotal = Column(Numeric(10, 2), nullable=False)
+    fecha = Column(DateTime, default=datetime.utcnow)
+    usuario_nombre = Column(String(150))
+
+    orden = relationship("OrdenServicio", back_populates="repuestos")
+    producto = relationship("Producto")
+    venta = relationship("Venta")
 
 
 class HistorialEstado(Base):
@@ -279,6 +302,7 @@ class Venta(Base):
     numero_venta = Column(String(20), unique=True, nullable=False, index=True)
     fecha = Column(DateTime, default=datetime.utcnow)
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=True)
+    orden_id = Column(Integer, ForeignKey("ordenes_servicio.id"), nullable=True)
     subtotal = Column(Numeric(10, 2), default=0)
     descuento = Column(Numeric(10, 2), default=0)
     total = Column(Numeric(10, 2), default=0)
@@ -288,6 +312,7 @@ class Venta(Base):
     usuario_nombre = Column(String(150))
 
     cliente = relationship("Cliente", back_populates="ventas")
+    orden = relationship("OrdenServicio")
     detalles = relationship("DetalleVenta", back_populates="venta", cascade="all,delete-orphan")
 
 

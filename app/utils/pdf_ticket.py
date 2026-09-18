@@ -173,10 +173,20 @@ def generar_ticket_orden(data: dict) -> bytes:
         t.parrafo(data["diagnostico"], alto=9)
         t.espacio(2)
 
+    repuestos = data.get("repuestos") or []
+    if repuestos:
+        t.separador()
+        t.texto("REPUESTOS UTILIZADOS", tam=8, negrita=True, alto=10)
+        for r in repuestos:
+            t.parrafo(f"{r.get('producto', '')} x{r.get('cantidad', '')}", tam=7, alto=9)
+            t.linea_doble("", _moneda(r.get("subtotal", 0), moneda), alto=9)
+
     t.separador()
     fin = data.get("financiero", {}) or {}
     t.linea_doble("Cotizacion", _moneda(fin.get("cotizacion", 0), moneda), alto=10)
     t.linea_doble(f"Recargo ({fin.get('recargo_pct', 0)}%)", _moneda(fin.get("recargo_monto", 0), moneda), alto=10)
+    if float(fin.get("repuestos_subtotal", 0) or 0) > 0:
+        t.linea_doble("Repuestos utilizados", _moneda(fin.get("repuestos_subtotal", 0), moneda), alto=10)
     t.linea_doble("TOTAL", _moneda(fin.get("total", 0), moneda), tam=9, negrita=True, alto=12)
     t.linea_doble("Abonado", _moneda(fin.get("abonado", 0), moneda), alto=10)
     t.linea_doble("SALDO PENDIENTE", _moneda(fin.get("saldo", 0), moneda), tam=9, negrita=True, alto=12)

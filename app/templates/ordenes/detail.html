@@ -49,6 +49,9 @@
     <table>
       <tr><td>Cotización</td><td style="text-align:right;">{{ orden.cotizacion|moneda(config_taller().moneda) }}</td></tr>
       <tr><td>Recargo ({{ orden.recargo_pct }}%)</td><td style="text-align:right;">{{ orden.recargo_monto|moneda(config_taller().moneda) }}</td></tr>
+      {% if orden.repuestos_subtotal and orden.repuestos_subtotal > 0 %}
+      <tr><td>Repuestos utilizados</td><td style="text-align:right;">{{ orden.repuestos_subtotal|moneda(config_taller().moneda) }}</td></tr>
+      {% endif %}
       <tr><td><b>Total del servicio</b></td><td style="text-align:right;"><b>{{ orden.total|moneda(config_taller().moneda) }}</b></td></tr>
       <tr><td>Abonado</td><td style="text-align:right;">{{ orden.abonado|moneda(config_taller().moneda) }}</td></tr>
       <tr><td><b>Saldo pendiente</b></td><td style="text-align:right;"><b class="{{ 'money-negative' if orden.saldo > 0 else 'money-positive' }}">{{ orden.saldo|moneda(config_taller().moneda) }}</b></td></tr>
@@ -82,6 +85,45 @@
       </tbody>
     </table>
   </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Repuestos usados</div>
+    <p class="help">Los repuestos agregados se descuentan del inventario, se registran como venta y se suman al total de la orden y de la factura.</p>
+    <form method="post" action="/ordenes/{{ orden.id }}/repuestos">
+      <div class="form-row">
+        <div class="field">
+          <label>Producto</label>
+          <select name="producto_id" required>
+            <option value="">Selecciona un repuesto...</option>
+            {% for p in productos_disponibles %}
+            <option value="{{ p.id }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_venta|moneda(config_taller().moneda) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Cantidad</label><input type="number" step="1" min="1" name="cantidad" value="1" required></div>
+      </div>
+      <button type="submit" class="btn btn-success">Agregar repuesto</button>
+    </form>
+
+    <div class="card-title" style="font-size:13px; margin-top:16px;">Repuestos agregados a esta orden</div>
+    <table>
+      <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th><th>Usuario</th></tr></thead>
+      <tbody>
+        {% for r in orden.repuestos %}
+        <tr>
+          <td>{{ r.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ r.producto.nombre if r.producto else '-' }}</td>
+          <td>{{ r.cantidad }}</td>
+          <td>{{ r.precio_unitario|moneda(config_taller().moneda) }}</td>
+          <td>{{ r.subtotal|moneda(config_taller().moneda) }}</td>
+          <td>{{ r.usuario_nombre }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">Sin repuestos agregados a esta orden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
 </div>
 
 <div class="card">

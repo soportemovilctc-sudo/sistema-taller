@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Facturas{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">Facturas emitidas</div>
+  <form method="get" action="/facturas" class="form-row">
+    <div class="field">
+      <label>Tipo</label>
+      <select name="tipo" onchange="this.form.submit()">
+        <option value="" {{ 'selected' if not tipo else '' }}>Todas</option>
+        <option value="interno" {{ 'selected' if tipo == 'interno' else '' }}>Internas</option>
+        <option value="fiscal" {{ 'selected' if tipo == 'fiscal' else '' }}>Fiscales</option>
+      </select>
+    </div>
+  </form>
+  <table>
+    <thead><tr><th>N.o Documento</th><th>Tipo</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+      {% for f in facturas %}
+      <tr>
+        <td>{{ f.numero_documento }}</td>
+        <td>{{ 'Fiscal' if f.tipo == 'fiscal' else 'Interno' }}</td>
+        <td>{{ f.cliente_nombre }}</td>
+        <td>{{ f.fecha_emision|fecha('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ f.total|moneda(config_taller().moneda) }}</td>
+        <td>{{ 'ANULADA' if f.anulada else 'Vigente' }}</td>
+        <td><a href="/facturas/{{ f.id }}" class="btn btn-outline btn-sm">Ver</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty-state">Aún no se ha emitido ninguna factura.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

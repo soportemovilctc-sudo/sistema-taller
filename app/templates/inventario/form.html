@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar producto' if producto else 'Nuevo producto' }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+  <div class="card-title">{{ 'Editar producto' if producto else 'Nuevo producto' }}</div>
+  <form method="post" action="{{ '/inventario/' + producto.id|string + '/editar' if producto else '/inventario/nuevo' }}">
+    <div class="form-row">
+      <div class="field">
+        <label>Código *</label>
+        <input type="text" name="codigo" required value="{{ producto.codigo if producto else '' }}" {{ 'readonly' if producto else '' }}>
+      </div>
+      <div class="field"><label>Nombre *</label><input type="text" name="nombre" required value="{{ producto.nombre if producto else '' }}"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Categoría</label><input type="text" name="categoria" value="{{ producto.categoria if producto else '' }}"></div>
+      <div class="field"><label>Marca</label><input type="text" name="marca" value="{{ producto.marca if producto else '' }}"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Costo</label><input type="number" step="0.01" min="0" name="costo" value="{{ producto.costo if producto else '0' }}"></div>
+      <div class="field"><label>Precio de venta</label><input type="number" step="0.01" min="0" name="precio_venta" value="{{ producto.precio_venta if producto else '0' }}"></div>
+    </div>
+    <div class="form-row">
+      {% if not producto %}
+      <div class="field"><label>Existencia inicial</label><input type="number" min="0" name="existencia" value="0"></div>
+      {% endif %}
+      <div class="field"><label>Stock mínimo</label><input type="number" min="0" name="stock_minimo" value="{{ producto.stock_minimo if producto else '0' }}"></div>
+    </div>
+    <div class="field"><label>Proveedor</label><input type="text" name="proveedor" value="{{ producto.proveedor if producto else '' }}"></div>
+    {% if producto %}
+    <div class="field">
+      <label>Estado</label>
+      <select name="estado">
+        <option value="activo" {{ 'selected' if producto.estado == 'activo' else '' }}>Activo</option>
+        <option value="inactivo" {{ 'selected' if producto.estado == 'inactivo' else '' }}>Inactivo</option>
+      </select>
+    </div>
+    {% endif %}
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a href="/inventario" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

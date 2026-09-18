@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title">Usuarios del sistema</div>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td>{{ u.nombre_completo }}</td>
+          <td>{{ u.rol }}</td>
+          <td>{% if u.activo %}<span class="badge badge-listo-para-entregar">Activo</span>{% else %}<span class="badge badge-cancelado">Inactivo</span>{% endif %}</td>
+          <td>
+            <form method="post" action="/usuarios/{{ u.id }}/toggle">
+              <button type="submit" class="btn btn-outline btn-sm">{{ 'Desactivar' if u.activo else 'Activar' }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Nuevo usuario</div>
+    <form method="post" action="/usuarios/nuevo">
+      <div class="field"><label>Usuario (para iniciar sesión)</label><input type="text" name="username" required></div>
+      <div class="field"><label>Nombre completo</label><input type="text" name="nombre_completo" required></div>
+      <div class="field"><label>Contraseña</label><input type="password" name="password" required></div>
+      <div class="field">
+        <label>Rol</label>
+        <select name="rol">
+          <option value="tecnico">Técnico</option>
+          <option value="vendedor">Vendedor</option>
+          <option value="admin">Administrador</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Crear usuario</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

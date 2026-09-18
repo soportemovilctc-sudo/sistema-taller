@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Movimientos de {{ producto.nombre }}{% endblock %}
+{% block content %}
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title">{{ producto.nombre }} <span class="badge badge-en-reparacion">{{ producto.codigo }}</span></div>
+    <p>Existencia actual: <b>{{ producto.existencia }}</b> · Stock mínimo: {{ producto.stock_minimo }}</p>
+    <form method="post" action="/inventario/{{ producto.id }}/movimiento">
+      <div class="field">
+        <label>Tipo de movimiento</label>
+        <select name="tipo">
+          <option value="entrada">Entrada (compra / ingreso de stock)</option>
+          <option value="salida">Salida (uso interno / merma)</option>
+          <option value="ajuste">Ajuste (fijar existencia exacta)</option>
+        </select>
+      </div>
+      <div class="field"><label>Cantidad</label><input type="number" min="1" name="cantidad" required></div>
+      <div class="field"><label>Motivo</label><input type="text" name="motivo" placeholder="Ej: compra a proveedor, uso en orden OS-000012..."></div>
+      <button type="submit" class="btn btn-primary">Registrar movimiento</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Historial de movimientos</div>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Existencia resultante</th><th>Usuario</th></tr></thead>
+      <tbody>
+        {% for m in movimientos %}
+        <tr>
+          <td>{{ m.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ m.tipo }}</td>
+          <td>{{ m.cantidad }}</td>
+          <td>{{ m.existencia_resultante }}</td>
+          <td>{{ m.usuario_nombre }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">Sin movimientos registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

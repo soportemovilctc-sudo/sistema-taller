@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Configuración{% endblock %}
+{% block content %}
+<div class="grid cols-2" style="align-items:start;">
+  <div class="card">
+    <div class="card-title">Datos del taller</div>
+    <form method="post" action="/configuracion" enctype="multipart/form-data">
+      <div class="field"><label>Nombre del taller *</label><input type="text" name="nombre_taller" required value="{{ config.nombre_taller }}"></div>
+      <div class="form-row">
+        <div class="field"><label>Teléfono</label><input type="text" name="telefono" value="{{ config.telefono }}"></div>
+        <div class="field"><label>WhatsApp</label><input type="text" name="whatsapp" value="{{ config.whatsapp }}"></div>
+      </div>
+      <div class="field"><label>Dirección</label><input type="text" name="direccion" value="{{ config.direccion }}"></div>
+      <div class="field"><label>Correo</label><input type="email" name="correo" value="{{ config.correo }}"></div>
+      <div class="form-row">
+        <div class="field"><label>Moneda (símbolo)</label><input type="text" name="moneda" value="{{ config.moneda }}" maxlength="5"></div>
+        <div class="field"><label>Recargo predeterminado (%)</label><input type="number" step="0.01" min="0" name="recargo_default_pct" value="{{ config.recargo_default_pct }}"></div>
+      </div>
+      <div class="field"><label>Información adicional para el PDF</label><textarea name="info_pdf_extra">{{ config.info_pdf_extra }}</textarea></div>
+      <div class="field">
+        <label>Logo del taller</label>
+        {% if config_taller().logo_url %}
+        <div style="margin-bottom:8px;">
+          <img src="{{ config_taller().logo_url }}" alt="Logo actual" style="max-height:70px; max-width:200px; background:#fff; padding:6px; border-radius:6px;">
+        </div>
+        {% endif %}
+        <input type="file" name="logo" accept="image/*">
+        <div class="help">{{ 'Selecciona una imagen para reemplazar el logo actual.' if config.logo_path else 'Aparecerá en el menú lateral, en la orden de servicio y en la factura (formato carta).' }}</div>
+      </div>
+      <button type="submit" class="btn btn-primary">Guardar configuración</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Facturación</div>
+    <p>Configura los datos de tu comprobante interno y de tu factura fiscal (CAI, RTN, rango autorizado por la SAR).</p>
+    <a href="/configuracion/facturacion" class="btn btn-primary">Ir a Configuración de facturación</a>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Acceso desde el celular (misma red Wi-Fi)</div>
+    <p>Abre esta dirección desde el navegador del celular, conectado a la misma red Wi-Fi que esta computadora:</p>
+    <p style="font-size:16px;"><b>{{ url_local }}</b></p>
+    <div style="text-align:center; margin-top:14px;">
+      <img src="/configuracion/qr" alt="Código QR de acceso local" style="background:#fff; padding:12px; border-radius:8px;">
+    </div>
+    <p class="help" style="margin-top:10px;">Si cambias de red Wi-Fi, recarga esta página para generar un nuevo código QR con la nueva dirección.</p>
+  </div>
+</div>
+{% endblock %}

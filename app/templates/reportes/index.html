@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Reportes{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/reportes?tipo=ordenes" class="{{ 'active' if tipo in ['ordenes','reparaciones'] else '' }}">Órdenes</a>
+  <a href="/reportes?tipo=ingresos" class="{{ 'active' if tipo == 'ingresos' else '' }}">Ingresos</a>
+  <a href="/reportes?tipo=gastos" class="{{ 'active' if tipo == 'gastos' else '' }}">Gastos</a>
+  <a href="/reportes?tipo=ventas" class="{{ 'active' if tipo == 'ventas' else '' }}">Ventas</a>
+  <a href="/reportes?tipo=inventario" class="{{ 'active' if tipo == 'inventario' else '' }}">Inventario</a>
+  <a href="/reportes?tipo=saldos" class="{{ 'active' if tipo == 'saldos' else '' }}">Saldos pendientes</a>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    Filtros
+    <span class="actions"><a href="/reportes/exportar/{{ tipo }}?desde={{ desde }}&hasta={{ hasta }}&tecnico_id={{ tecnico_id }}&estado={{ estado }}" class="btn btn-outline btn-sm">Exportar CSV</a></span>
+  </div>
+  <form method="get" class="form-row">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <div class="field"><label>Desde</label><input type="date" name="desde" value="{{ desde }}"></div>
+    <div class="field"><label>Hasta</label><input type="date" name="hasta" value="{{ hasta }}"></div>
+    {% if tipo in ['ordenes', 'reparaciones'] %}
+    <div class="field">
+      <label>Técnico</label>
+      <select name="tecnico_id"><option value="">Todos</option>{% for t in tecnicos %}<option value="{{ t.id }}" {{ 'selected' if t.id|string == tecnico_id else '' }}>{{ t.nombre }}</option>{% endfor %}</select>
+    </div>
+    <div class="field">
+      <label>Estado</label>
+      <select name="estado"><option value="">Todos</option>{% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == estado else '' }}>{{ e }}</option>{% endfor %}</select>
+    </div>
+    {% endif %}
+    <div class="field" style="flex:0; align-self:flex-end;"><button type="submit" class="btn btn-outline">Aplicar</button></div>
+  </form>
+</div>
+
+<div class="card">
+  {% if tipo in ['ordenes', 'reparaciones'] %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>N. Orden</th><th>Fecha</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Estado</th><th>Total</th><th>Saldo</th></tr></thead>
+      <tbody>
+        {% for o in ordenes %}
+        <tr><td>{{ o.numero_orden }}</td><td>{{ o.fecha|fecha }}</td><td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
+          <td>{{ o.marca }} {{ o.modelo }}</td><td>{{ o.tecnico.nombre if o.tecnico else '-' }}</td>
+          <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+          <td>{{ o.total|moneda(config_taller().moneda) }}</td><td>{{ o.saldo|moneda(config_taller().moneda) }}</td></tr>
+        {% else %}<tr><td colspan="8" class="empty-state">Sin resultados.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  {% elif tipo in ['ingresos', 'gastos'] %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Fecha</th><th>Categoría</th><th>Monto</th><th>Descripción</th><th>Referencia</th></tr></thead>
+      <tbody>
+        {% for m in movimientos %}
+        <tr><td>{{ m.fecha|fecha('%d/%m/%Y %H:%M') }}</td><td>{{ m.categoria }}</td><td>{{ m.monto|moneda(config_taller().moneda) }}</td><td>{{ m.descripcion or '-' }}</td><td>{{ m.referencia or '-' }}</td></tr>
+        {% else %}<tr><td colspan="5" class="empty-state">Sin resultados.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  {% elif tipo == 'ventas' %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>N. Venta</th><th>Fecha</th><th>Subtotal</th><th>Descuento</th><th>Total</th><th>Forma de pago</th></tr></thead>
+      <tbody>
+        {% for v in ventas %}
+        <tr><td>{{ v.numero_venta }}</td><td>{{ v.fecha|fecha('%d/%m/%Y %H:%M') }}</td><td>{{ v.subtotal|moneda(config_taller().moneda) }}</td><td>{{ v.descuento|moneda(config_taller().moneda) }}</td><td>{{ v.total|moneda(config_taller().moneda) }}</td><td>{{ v.forma_pago }}</td></tr>
+        {% else %}<tr><td colspan="6" class="empty-state">Sin resultados.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  {% elif tipo == 'inventario' %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Costo</th><th>Precio</th><th>Existencia</th><th>Mín.</th></tr></thead>
+      <tbody>
+        {% for p in productos %}
+        <tr><td>{{ p.codigo }}</td><td>{{ p.nombre }}</td><td>{{ p.categoria or '-' }}</td><td>{{ p.costo|moneda(config_taller().moneda) }}</td><td>{{ p.precio_venta|moneda(config_taller().moneda) }}</td><td>{{ p.existencia }}</td><td>{{ p.stock_minimo }}</td></tr>
+        {% else %}<tr><td colspan="7" class="empty-state">Sin resultados.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  {% elif tipo == 'saldos' %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>N. Orden</th><th>Cliente</th><th>Total</th><th>Abonado</th><th>Saldo</th></tr></thead>
+      <tbody>
+        {% for o in ordenes %}
+        <tr><td><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td><td>{{ o.cliente.nombre if o.cliente else '-' }}</td><td>{{ o.total|moneda(config_taller().moneda) }}</td><td>{{ o.abonado|moneda(config_taller().moneda) }}</td><td class="money-negative">{{ o.saldo|moneda(config_taller().moneda) }}</td></tr>
+        {% else %}<tr><td colspan="5" class="empty-state">No hay saldos pendientes.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  {% endif %}
+</div>
+{% endblock %}

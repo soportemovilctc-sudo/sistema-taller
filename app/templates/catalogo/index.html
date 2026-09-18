@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Marcas y modelos{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">Agregar marca nueva</div>
+  <form method="post" action="/catalogo/marcas/nueva" class="form-row">
+    <div class="field"><label>Nombre de la marca</label><input type="text" name="nombre" placeholder="Ej: NUEVA MARCA 2027" required></div>
+    <div class="field" style="align-self:flex-end;"><button type="submit" class="btn btn-primary">+ Agregar marca</button></div>
+  </form>
+  <p class="help">Las marcas y modelos que agregues aquí aparecerán de inmediato en el desplegable de "Nueva orden de servicio".</p>
+</div>
+
+{% for marca in marcas %}
+<div class="card">
+  <div class="card-title">
+    {{ marca.nombre }} {% if not marca.activo %}<span class="badge">Inactiva</span>{% endif %}
+    <span class="actions">
+      <form method="post" action="/catalogo/marcas/{{ marca.id }}/estado" style="display:inline;">
+        <button type="submit" class="btn btn-outline btn-sm">{{ 'Desactivar' if marca.activo else 'Activar' }}</button>
+      </form>
+    </span>
+  </div>
+  <div class="checkbox-grid">
+    {% for modelo in marca.modelos|sort(attribute='nombre') %}
+    <span class="checkbox-chip" style="{{ 'opacity:0.5;' if not modelo.activo else '' }}">
+      {{ modelo.nombre }}
+      <form method="post" action="/catalogo/modelos/{{ modelo.id }}/estado" style="display:inline;">
+        <button type="submit" class="btn-link" style="font-size:11px; margin-left:6px;">{{ 'reactivar' if not modelo.activo else 'desactivar' }}</button>
+      </form>
+    </span>
+    {% else %}
+    <span class="help">Sin modelos precargados todavía.</span>
+    {% endfor %}
+  </div>
+  <form method="post" action="/catalogo/marcas/{{ marca.id }}/modelos/nuevo" class="form-row" style="margin-top:10px;">
+    <div class="field"><input type="text" name="nombre" placeholder="Nombre del modelo nuevo..." required></div>
+    <div class="field" style="align-self:flex-end;"><button type="submit" class="btn btn-outline btn-sm">+ Agregar modelo</button></div>
+  </form>
+</div>
+{% endfor %}
+{% endblock %}

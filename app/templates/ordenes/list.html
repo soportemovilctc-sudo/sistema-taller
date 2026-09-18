@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Órdenes de servicio{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">
+    Órdenes de servicio
+    <span class="actions"><a href="/ordenes/nueva" class="btn btn-primary btn-sm">+ Nueva orden</a></span>
+  </div>
+  <form method="get" class="form-row" style="margin-bottom:14px;">
+    <div class="field" style="flex:2;"><input type="text" name="q" value="{{ q }}" placeholder="Buscar por N. orden, cliente, IMEI, marca, modelo..."></div>
+    <div class="field">
+      <select name="estado">
+        <option value="">Todos los estados</option>
+        {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == estado else '' }}>{{ e }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <select name="tecnico_id">
+        <option value="">Todos los técnicos</option>
+        {% for t in tecnicos %}<option value="{{ t.id }}" {{ 'selected' if t.id|string == tecnico_id else '' }}>{{ t.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <select name="prioridad">
+        <option value="">Toda prioridad</option>
+        {% for p in prioridades %}<option value="{{ p }}" {{ 'selected' if p == prioridad else '' }}>{{ p }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field" style="flex:0;"><button type="submit" class="btn btn-outline">Filtrar</button></div>
+  </form>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>N. Orden</th><th>Fecha</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th></tr></thead>
+    <tbody>
+      {% for o in ordenes %}
+      <tr>
+        <td><a href="/ordenes/{{ o.id }}"><b>{{ o.numero_orden }}</b></a></td>
+        <td>{{ o.fecha|fecha }}</td>
+        <td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
+        <td>{{ o.tipo_equipo }} {{ o.marca }} {{ o.modelo }}</td>
+        <td>{{ o.tecnico.nombre if o.tecnico else '-' }}</td>
+        <td><span class="{{ 'badge badge-' + o.prioridad.lower() }}">{{ o.prioridad }}</span></td>
+        <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+        <td>{{ o.saldo|moneda(config_taller().moneda) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty-state">No se encontraron órdenes con esos filtros.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

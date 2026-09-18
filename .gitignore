@@ -1,0 +1,25 @@
+# Entornos virtuales
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Variables de entorno y secretos
+.env
+
+# Base de datos local
+*.db
+*.sqlite3
+
+# Archivos subidos por el usuario (logos, etc.)
+app/static/uploads/
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Reportes/exportaciones generadas
+*.pdf
+!app/static/img/*.pdf

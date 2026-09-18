@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Configuración de facturación{% endblock %}
+{% block content %}
+<form method="post" action="/configuracion/facturacion">
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title">Facturación interna (comprobante, no válido ante la SAR)</div>
+    <div class="field"><label>Prefijo del comprobante</label><input type="text" name="prefijo_interno" value="{{ cfg.prefijo_interno }}" maxlength="20"></div>
+    <p class="help">Próximo número interno a emitir: <b>{{ cfg.prefijo_interno }}-{{ '%06d'|format((cfg.correlativo_interno_actual or 0) + 1) }}</b></p>
+    <div class="field"><label>Texto legal del comprobante interno</label><textarea name="texto_legal_interno">{{ cfg.texto_legal_interno }}</textarea></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Facturación fiscal (SAR - Honduras)</div>
+    <p class="help">Estos datos te los entrega la SAR al autorizar tu régimen de facturación (CAI). Sin esto no se puede emitir factura fiscal.</p>
+    <div class="form-row">
+      <div class="field"><label>RTN del taller</label><input type="text" name="rtn_taller" value="{{ cfg.rtn_taller }}"></div>
+      <div class="field"><label>Razón social</label><input type="text" name="razon_social" value="{{ cfg.razon_social }}"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Nombre comercial</label><input type="text" name="nombre_comercial" value="{{ cfg.nombre_comercial }}"></div>
+      <div class="field"><label>Domicilio fiscal</label><input type="text" name="domicilio_fiscal" value="{{ cfg.domicilio_fiscal }}"></div>
+    </div>
+    <div class="field"><label>CAI</label><input type="text" name="cai" value="{{ cfg.cai }}" placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX-XX"></div>
+    <div class="form-row">
+      <div class="field"><label>Establecimiento</label><input type="text" name="establecimiento" value="{{ cfg.establecimiento }}" maxlength="10"></div>
+      <div class="field"><label>Punto de emisión</label><input type="text" name="punto_emision" value="{{ cfg.punto_emision }}" maxlength="10"></div>
+      <div class="field"><label>Tipo de documento</label><input type="text" name="tipo_documento_codigo" value="{{ cfg.tipo_documento_codigo }}" maxlength="5"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Rango autorizado - inicio</label><input type="text" name="rango_autorizado_inicio" value="{{ cfg.rango_autorizado_inicio }}" placeholder="000-001-01-00000001"></div>
+      <div class="field"><label>Rango autorizado - fin</label><input type="text" name="rango_autorizado_fin" value="{{ cfg.rango_autorizado_fin }}" placeholder="000-001-01-00050000"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Fecha límite de emisión</label><input type="date" name="fecha_limite_emision" value="{{ cfg.fecha_limite_emision or '' }}"></div>
+      <div class="field"><label>ISV (%)</label><input type="number" step="0.01" min="0" name="isv_tasa" value="{{ cfg.isv_tasa }}"></div>
+    </div>
+    <div class="field">
+      <label class="checkbox-chip"><input type="checkbox" name="servicios_exentos_default" {{ 'checked' if cfg.servicios_exentos_default else '' }}> Marcar servicios como exentos de ISV por defecto</label>
+    </div>
+    <p class="help">Próximo número fiscal a emitir: <b>{{ cfg.establecimiento }}-{{ cfg.punto_emision }}-{{ cfg.tipo_documento_codigo }}-{{ '%08d'|format((cfg.correlativo_fiscal_actual or 0) + 1) }}</b></p>
+    <div class="field"><label>Texto legal de la factura fiscal</label><textarea name="texto_legal_fiscal">{{ cfg.texto_legal_fiscal }}</textarea></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="field">
+    <label>Tipo de documento por defecto al generar factura</label>
+    <select name="tipo_documento_default">
+      <option value="interno" {{ 'selected' if cfg.tipo_documento_default == 'interno' else '' }}>Interno</option>
+      <option value="fiscal" {{ 'selected' if cfg.tipo_documento_default == 'fiscal' else '' }}>Fiscal</option>
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">Guardar configuración de facturación</button>
+  <a href="/configuracion" class="btn btn-outline">Volver a Configuración</a>
+</div>
+</form>
+<p class="help">Nota: esta configuración cubre el régimen tradicional de facturación por CAI (el que usa la mayoría de talleres pequeños en Honduras). Te recomendamos que tu contador o asesor fiscal revise estos datos antes de emitir tu primera factura fiscal real.</p>
+{% endblock %}

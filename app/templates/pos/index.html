@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Punto de Venta{% endblock %}
+{% block content %}
+<div class="pos-layout">
+  <div class="card">
+    <div class="card-title">Productos</div>
+    <input type="text" id="posBuscarProducto" placeholder="Buscar producto..." style="margin-bottom:12px;">
+    <div class="product-grid">
+      {% for p in productos %}
+      <div class="product-card" data-id="{{ p.id }}" data-nombre="{{ p.nombre }}" data-precio="{{ p.precio_venta }}" data-existencia="{{ p.existencia }}">
+        <div class="pname">{{ p.nombre }}</div>
+        <div class="pprice">{{ p.precio_venta|moneda(config_taller().moneda) }}</div>
+        <div class="pstock">Disponible: {{ p.existencia }}</div>
+      </div>
+      {% else %}
+      <p class="empty-state">No hay productos con existencia disponible.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Carrito</div>
+    <div id="carritoLista"></div>
+    <div class="cart-totales">
+      <div class="line"><span>Subtotal</span><span id="posSubtotal">0.00</span></div>
+      <div class="field" style="margin-top:8px;"><label>Descuento</label><input type="number" min="0" step="0.01" id="posDescuento" value="0"></div>
+      <div class="field">
+        <label>Cliente (opcional)</label>
+        <select id="posCliente">
+          <option value="">Cliente general</option>
+          {% for c in clientes %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Forma de pago</label>
+        <select id="posFormaPago">
+          <option value="Efectivo">Efectivo</option>
+          <option value="Transferencia">Transferencia</option>
+          <option value="Tarjeta">Tarjeta</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div class="field"><label>Monto recibido</label><input type="number" min="0" step="0.01" id="posMontoRecibido"></div>
+      <div class="line total"><span>TOTAL</span><span id="posTotal">0.00</span></div>
+      <div class="line"><span>Cambio</span><span id="posCambio">0.00</span></div>
+      <div id="posMensaje"></div>
+      <button type="button" id="posFinalizar" class="btn btn-success" style="width:100%; margin-top:10px;" disabled>Finalizar venta</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/pos.js"></script>{% endblock %}

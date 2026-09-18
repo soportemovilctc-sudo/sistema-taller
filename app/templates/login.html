@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión{% endblock %}
+{% block content_public %}
+<div class="login-page">
+  <div class="login-box">
+    <h1>{{ config_taller().nombre_taller }}</h1>
+    <p class="sub">Sistema de administración de taller</p>
+    {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+    <form method="post" action="/login">
+      <div class="field">
+        <label>Usuario</label>
+        <input type="text" name="username" required autofocus>
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" name="password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;">Ingresar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

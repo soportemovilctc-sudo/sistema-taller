@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Orden {{ orden.numero_orden }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">
+    Orden {{ orden.numero_orden }}
+    <span class="actions">
+      <a href="/ordenes/{{ orden.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF (carta)</a>
+      <a href="/ordenes/{{ orden.id }}/pdf/descargar" class="btn btn-outline btn-sm">Descargar PDF (carta)</a>
+      <a href="/ordenes/{{ orden.id }}/pdf/tirilla" target="_blank" class="btn btn-outline btn-sm">Ver tirilla 80mm</a>
+      <a href="/ordenes/{{ orden.id }}/pdf/tirilla/descargar" class="btn btn-outline btn-sm">Descargar tirilla 80mm</a>
+      <a href="/ordenes/{{ orden.id }}/whatsapp" target="_blank" class="btn btn-success btn-sm">Enviar por WhatsApp</a>
+      <a href="/ordenes/{{ orden.id }}/editar" class="btn btn-primary btn-sm">Editar</a>
+    </span>
+  </div>
+  <div class="grid cols-4">
+    <div><label>Cliente</label><p><a href="/clientes/{{ orden.cliente_id }}">{{ orden.cliente.nombre if orden.cliente else '-' }}</a></p></div>
+    <div><label>Equipo</label><p>{{ orden.tipo_equipo }} {{ orden.marca }} {{ orden.modelo }}</p></div>
+    <div><label>IMEI / Serie</label><p>{{ orden.imei or orden.numero_serie or '-' }}</p></div>
+    <div><label>Técnico</label><p>{{ orden.tecnico.nombre if orden.tecnico else 'Sin asignar' }}</p></div>
+    <div><label>Fecha</label><p>{{ orden.fecha|fecha }}</p></div>
+    <div><label>Prioridad</label><p><span class="{{ 'badge badge-' + orden.prioridad.lower() }}">{{ orden.prioridad }}</span></p></div>
+    <div><label>Estado actual</label><p><span class="{{ 'badge badge-' + orden.estado.lower().replace(' ', '-') }}">{{ orden.estado }}</span></p></div>
+    <div><label>Accesorios</label><p>{{ orden.lista_accesorios()|join(', ') or 'Ninguno' }}</p></div>
+  </div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title">Detalle técnico</div>
+    <p><label>Condición física</label>{{ orden.lista_condicion()|join(', ') or '-' }} {{ orden.observaciones_condicion }}</p>
+    <p><label>Falla reportada</label>{{ orden.falla_reportada or '-' }}</p>
+    <p><label>Diagnóstico</label>{{ orden.diagnostico or '-' }}</p>
+    <p><label>Trabajo realizado</label>{{ orden.trabajo_realizado or '-' }}</p>
+    <p><label>Observaciones</label>{{ orden.observaciones or '-' }}</p>
+
+    <div class="card-title" style="font-size:13px; margin-top:16px;">Seguridad (PIN / Patrón)</div>
+    <details>
+      <summary style="cursor:pointer;">Mostrar datos sensibles</summary>
+      <p style="margin-top:8px;">PIN: <b>{{ orden.pin or 'No registrado' }}</b><br>Patrón: <b>{{ orden.patron or 'No registrado' }}</b></p>
+    </details>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Resumen financiero</div>
+    <table>
+      <tr><td>Cotización</td><td style="text-align:right;">{{ orden.cotizacion|moneda(config_taller().moneda) }}</td></tr>
+      <tr><td>Recargo ({{ orden.recargo_pct }}%)</td><td style="text-align:right;">{{ orden.recargo_monto|moneda(config_taller().moneda) }}</td></tr>
+      <tr><td><b>Total del servicio</b></td><td style="text-align:right;"><b>{{ orden.total|moneda(config_taller().moneda) }}</b></td></tr>
+      <tr><td>Abonado</td><td style="text-align:right;">{{ orden.abonado|moneda(config_taller().moneda) }}</td></tr>
+      <tr><td><b>Saldo pendiente</b></td><td style="text-align:right;"><b class="{{ 'money-negative' if orden.saldo > 0 else 'money-positive' }}">{{ orden.saldo|moneda(config_taller().moneda) }}</b></td></tr>
+    </table>
+
+    {% if orden.saldo > 0 %}
+    <form method="post" action="/ordenes/{{ orden.id }}/abono" style="margin-top:14px;">
+      <div class="form-row">
+        <div class="field"><label>Monto del abono</label><input type="number" step="0.01" min="0.01" max="{{ orden.saldo }}" name="monto" required></div>
+        <div class="field">
+          <label>Forma de pago</label>
+          <select name="forma_pago">{% for fp in formas_pago %}<option value="{{ fp }}">{{ fp }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <div class="field"><label>Observación</label><input type="text" name="observacion"></div>
+      <button type="submit" class="btn btn-success">Registrar abono</button>
+    </form>
+    {% else %}
+    <p class="help" style="margin-top:10px;">Esta orden ya está totalmente pagada.</p>
+    {% endif %}
+
+    <div class="card-title" style="font-size:13px; margin-top:16px;">Abonos registrados</div>
+    <table>
+      <thead><tr><th>Fecha</th><th>Monto</th><th>Forma de pago</th><th>Usuario</th></tr></thead>
+      <tbody>
+        {% for p in orden.pagos %}
+        <tr><td>{{ p.fecha|fecha('%d/%m/%Y %H:%M') }}</td><td>{{ p.monto|moneda(config_taller().moneda) }}</td><td>{{ p.forma_pago }}</td><td>{{ p.usuario_nombre }}</td></tr>
+        {% else %}
+        <tr><td colspan="4" class="empty-state">Sin abonos registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    Facturación
+    <span class="actions">
+      <a href="/ordenes/{{ orden.id }}/factura/nueva" class="btn btn-primary btn-sm">+ Generar factura</a>
+    </span>
+  </div>
+  <table>
+    <thead><tr><th>N.o Documento</th><th>Tipo</th><th>Fecha</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+      {% for f in orden.facturas %}
+      <tr>
+        <td>{{ f.numero_documento }}</td>
+        <td>{{ 'Fiscal' if f.tipo == 'fiscal' else 'Interno' }}</td>
+        <td>{{ f.fecha_emision|fecha('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ f.total|moneda(config_taller().moneda) }}</td>
+        <td>{{ 'ANULADA' if f.anulada else 'Vigente' }}</td>
+        <td><a href="/facturas/{{ f.id }}" class="btn btn-outline btn-sm">Ver</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-state">Aún no se ha generado ninguna factura para esta orden.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title">Cambiar estado</div>
+    <form method="post" action="/ordenes/{{ orden.id }}/estado">
+      <div class="field">
+        <label>Nuevo estado</label>
+        <select name="nuevo_estado">
+          {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == orden.estado else '' }}>{{ e }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Observación</label><input type="text" name="observacion" placeholder="Motivo del cambio (opcional)"></div>
+      <button type="submit" class="btn btn-primary">Actualizar estado</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Historial de estados</div>
+    <table>
+      <thead><tr><th>Fecha</th><th>De</th><th>A</th><th>Usuario</th></tr></thead>
+      <tbody>
+        {% for h in orden.historial|reverse %}
+        <tr>
+          <td>{{ h.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ h.estado_anterior or '-' }}</td>
+          <td><span class="{{ 'badge badge-' + h.estado_nuevo.lower().replace(' ', '-') }}">{{ h.estado_nuevo }}</span></td>
+          <td>{{ h.usuario_nombre }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty-state">Sin historial.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Generar factura - Orden {{ orden.numero_orden }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+  <div class="card-title">Generar factura para la orden {{ orden.numero_orden }}</div>
+  <p><b>Cliente:</b> {{ orden.cliente.nombre if orden.cliente else '-' }}<br>
+     <b>Total del servicio:</b> {{ orden.total|moneda(config_taller().moneda) }}</p>
+
+  <form method="post" action="/ordenes/{{ orden.id }}/factura/nueva">
+    <div class="field">
+      <label>Tipo de documento</label>
+      <select name="tipo">
+        <option value="interno" {{ 'selected' if cfg.tipo_documento_default == 'interno' else '' }}>Comprobante interno (no válido ante la SAR)</option>
+        <option value="fiscal" {{ 'selected' if cfg.tipo_documento_default == 'fiscal' else '' }} {{ 'disabled' if error_fiscal else '' }}>Factura fiscal{{ ' (no disponible)' if error_fiscal else '' }}</option>
+      </select>
+    </div>
+    {% if error_fiscal %}
+    <p class="flash flash-error">{{ error_fiscal }} <a href="/configuracion/facturacion">Ir a Configuración de facturación</a></p>
+    {% endif %}
+    <div class="field">
+      <label class="checkbox-chip"><input type="checkbox" name="exento" {{ 'checked' if cfg.servicios_exentos_default else '' }}> Este servicio está exento de ISV</label>
+    </div>
+    <p class="help">El monto total que paga el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda.</p>
+    <button type="submit" class="btn btn-primary">Generar factura</button>
+    <a href="/ordenes/{{ orden.id }}" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ cliente.nombre }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">
+    {{ cliente.nombre }}
+    <span class="actions"><a href="/clientes/{{ cliente.id }}/editar" class="btn btn-outline btn-sm">Editar</a></span>
+  </div>
+  <div class="grid cols-3">
+    <div><label>Teléfono</label><p>{{ cliente.telefono or '-' }}</p></div>
+    <div><label>WhatsApp</label><p>{{ cliente.whatsapp or '-' }}</p></div>
+    <div><label>DNI</label><p>{{ cliente.dni or '-' }}</p></div>
+    <div><label>Correo</label><p>{{ cliente.correo or '-' }}</p></div>
+    <div><label>Dirección</label><p>{{ cliente.direccion or '-' }}</p></div>
+  </div>
+</div>
+
+<div class="grid cols-4">
+  <div class="kpi accent-blue"><div class="kpi-label">Órdenes</div><div class="kpi-value">{{ resumen.cantidad_ordenes }}</div></div>
+  <div class="kpi"><div class="kpi-label">Total facturado</div><div class="kpi-value">{{ resumen.total_facturado|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Total pagado</div><div class="kpi-value">{{ resumen.total_pagado|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Saldo pendiente</div><div class="kpi-value">{{ resumen.saldo_pendiente|moneda(config_taller().moneda) }}</div></div>
+</div>
+
+<div class="card">
+  <div class="card-title">Historial de órdenes</div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>N. Orden</th><th>Fecha</th><th>Equipo</th><th>Estado</th><th>Total</th><th>Saldo</th></tr></thead>
+    <tbody>
+      {% for o in ordenes %}
+      <tr>
+        <td><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td>
+        <td>{{ o.fecha|fecha }}</td>
+        <td>{{ o.marca }} {{ o.modelo }}</td>
+        <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+        <td>{{ o.total|moneda(config_taller().moneda) }}</td>
+        <td>{{ o.saldo|moneda(config_taller().moneda) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-state">Este cliente aún no tiene órdenes.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

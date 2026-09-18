@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Factura {{ factura.numero_documento }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">
+    Factura {{ factura.numero_documento }} {% if factura.anulada %}<span class="badge badge-cancelado">ANULADA</span>{% endif %}
+    <span class="actions">
+      <a href="/facturas/{{ factura.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF (carta)</a>
+      <a href="/facturas/{{ factura.id }}/pdf/descargar" class="btn btn-outline btn-sm">Descargar (carta)</a>
+      <a href="/facturas/{{ factura.id }}/pdf/tirilla" target="_blank" class="btn btn-outline btn-sm">Ver tirilla 80mm</a>
+      <a href="/facturas/{{ factura.id }}/pdf/tirilla/descargar" class="btn btn-outline btn-sm">Descargar tirilla 80mm</a>
+    </span>
+  </div>
+  <div class="grid cols-4">
+    <div><label>Tipo</label><p>{{ 'Factura fiscal' if factura.tipo == 'fiscal' else 'Comprobante interno' }}</p></div>
+    <div><label>Cliente</label><p>{{ factura.cliente_nombre }}</p></div>
+    <div><label>RTN cliente</label><p>{{ factura.cliente_rtn or '-' }}</p></div>
+    <div><label>Fecha de emisión</label><p>{{ factura.fecha_emision|fecha('%d/%m/%Y %H:%M') }}</p></div>
+    {% if factura.orden %}
+    <div><label>Orden relacionada</label><p><a href="/ordenes/{{ factura.orden.id }}">{{ factura.orden.numero_orden }}</a></p></div>
+    {% endif %}
+    {% if factura.tipo == 'fiscal' %}
+    <div><label>CAI</label><p>{{ factura.cai_usado }}</p></div>
+    <div><label>Rango autorizado</label><p>{{ factura.rango_autorizado_inicio }} al {{ factura.rango_autorizado_fin }}</p></div>
+    <div><label>Fecha límite de emisión</label><p>{{ factura.fecha_limite_emision|fecha('%d/%m/%Y') if factura.fecha_limite_emision else '-' }}</p></div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title">Resumen</div>
+    <table>
+      <tr><td>Subtotal</td><td style="text-align:right;">{{ factura.subtotal|moneda(config_taller().moneda) }}</td></tr>
+      {% if factura.importe_exento > 0 %}<tr><td>Importe exento</td><td style="text-align:right;">{{ factura.importe_exento|moneda(config_taller().moneda) }}</td></tr>{% endif %}
+      {% if factura.importe_gravado > 0 %}
+      <tr><td>Importe gravado</td><td style="text-align:right;">{{ factura.importe_gravado|moneda(config_taller().moneda) }}</td></tr>
+      <tr><td>ISV ({{ factura.isv_tasa }}%)</td><td style="text-align:right;">{{ factura.isv_monto|moneda(config_taller().moneda) }}</td></tr>
+      {% endif %}
+      <tr><td><b>TOTAL</b></td><td style="text-align:right;"><b>{{ factura.total|moneda(config_taller().moneda) }}</b></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Anular factura</div>
+    {% if factura.anulada %}
+    <p class="help">Esta factura fue anulada.<br><b>Motivo:</b> {{ factura.motivo_anulacion }}</p>
+    {% elif usuario.rol == 'admin' %}
+    <form method="post" action="/facturas/{{ factura.id }}/anular">
+      <div class="field"><label>Motivo de anulación</label><input type="text" name="motivo" required></div>
+      <button type="submit" class="btn btn-danger" onclick="return confirm('¿Anular esta factura? El número de documento no se podrá reutilizar.');">Anular factura</button>
+    </form>
+    {% else %}
+    <p class="help">Solo un administrador puede anular una factura.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

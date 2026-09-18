@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Técnicos{% endblock %}
+{% block content %}
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title">Técnicos</div>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Nombre</th><th>Teléfono</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for t in tecnicos %}
+        <tr>
+          <td>{{ t.nombre }}</td>
+          <td>{{ t.telefono or '-' }}</td>
+          <td>{% if t.activo %}<span class="badge badge-listo-para-entregar">Activo</span>{% else %}<span class="badge badge-cancelado">Inactivo</span>{% endif %}</td>
+          <td>
+            <form method="post" action="/tecnicos/{{ t.id }}/toggle" style="display:inline;">
+              <button type="submit" class="btn btn-outline btn-sm">{{ 'Desactivar' if t.activo else 'Activar' }}</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty-state">No hay técnicos registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Nuevo técnico</div>
+    <form method="post" action="/tecnicos/nuevo">
+      <div class="field"><label>Nombre *</label><input type="text" name="nombre" required></div>
+      <div class="field"><label>Teléfono</label><input type="text" name="telefono"></div>
+      <button type="submit" class="btn btn-primary">Agregar técnico</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar cliente' if cliente else 'Nuevo cliente' }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+  <div class="card-title">{{ 'Editar cliente' if cliente else 'Nuevo cliente' }}</div>
+  <form method="post" action="{{ '/clientes/' + cliente.id|string + '/editar' if cliente else '/clientes/nuevo' }}">
+    <div class="form-row">
+      <div class="field"><label>Nombre completo *</label><input type="text" name="nombre" required value="{{ cliente.nombre if cliente else '' }}"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Teléfono</label><input type="text" name="telefono" value="{{ cliente.telefono if cliente else '' }}"></div>
+      <div class="field"><label>WhatsApp</label><input type="text" name="whatsapp" value="{{ cliente.whatsapp if cliente else '' }}"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>DNI</label><input type="text" name="dni" value="{{ cliente.dni if cliente else '' }}"></div>
+      <div class="field"><label>RTN (para facturas fiscales)</label><input type="text" name="rtn" value="{{ cliente.rtn if cliente else '' }}"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Correo</label><input type="email" name="correo" value="{{ cliente.correo if cliente else '' }}"></div>
+    </div>
+    <div class="field"><label>Dirección</label><input type="text" name="direccion" value="{{ cliente.direccion if cliente else '' }}"></div>
+    <div class="field"><label>Notas</label><textarea name="notas">{{ cliente.notas if cliente else '' }}</textarea></div>
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a href="/clientes" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

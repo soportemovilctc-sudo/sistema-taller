@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar orden ' + orden.numero_orden if orden else 'Nueva orden de servicio' }}{% endblock %}
+{% block content %}
+<form method="post" action="{{ '/ordenes/' + orden.id|string + '/editar' if orden else '/ordenes/nueva' }}">
+
+  <div class="card">
+    <div class="card-title">
+      &#9889; Servicio rápido
+      <span class="actions">
+        <button type="button" id="srAgregar" class="btn btn-outline btn-sm">+ Nuevo</button>
+        <button type="button" id="srEditar" class="btn btn-outline btn-sm">Editar</button>
+        <button type="button" id="srBorrar" class="btn btn-danger btn-sm">Borrar</button>
+      </span>
+    </div>
+    <div class="form-row">
+      <div class="field" style="flex:3;">
+        <select id="selectServicioRapido">
+          <option value="">Selecciona un servicio rápido...</option>
+        </select>
+      </div>
+      <div class="field" style="flex:0 0 auto; align-self:flex-start;">
+        <button type="button" id="srAplicar" class="btn btn-primary">Aplicar</button>
+      </div>
+    </div>
+    <div class="help" id="srPreview"></div>
+    <p class="help">Al aplicar, se sobrescriben Estado físico, Observaciones, Falla reportada, Reparación/Trabajo, Fecha de entrega, Cotización y Recargo con los datos de la plantilla.</p>
+  </div>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-title">Datos del cliente y equipo</div>
+      <div class="form-row">
+        <div class="field">
+          <label>Cliente *</label>
+          <select name="cliente_id" required>
+            <option value="">Selecciona un cliente...</option>
+            {% for c in clientes %}
+            <option value="{{ c.id }}" {{ 'selected' if orden and orden.cliente_id == c.id else '' }}>{{ c.nombre }} · {{ c.telefono or '' }}</option>
+            {% endfor %}
+          </select>
+          <div class="help">¿No existe el cliente? <a href="/clientes/nuevo" target="_blank">Créalo aquí</a> y recarga esta página.</div>
+        </div>
+        <div class="field">
+          <label>Técnico asignado</label>
+          <select name="tecnico_id">
+            <option value="">Sin asignar</option>
+            {% for t in tecnicos %}
+            <option value="{{ t.id }}" {{ 'selected' if orden and orden.tecnico_id == t.id else '' }}>{{ t.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label>Tipo de equipo</label>
+          <select name="tipo_equipo">
+            {% for tp in tipos_equipo %}<option value="{{ tp }}" {{ 'selected' if orden and orden.tipo_equipo == tp else '' }}>{{ tp }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Marca</label>
+          <select id="selectMarca">
+            <option value="">Selecciona una marca...</option>
+            {% for m in marcas_catalogo %}<option value="{{ m.nombre }}">{{ m.nombre }}</option>{% endfor %}
+            <option value="__otro__">Otra marca (especificar)</option>
+          </select>
+          <input type="text" id="inputMarcaOtro" placeholder="Escribe la marca..." style="display:none; margin-top:6px;">
+          <input type="hidden" name="marca" id="hiddenMarca" value="{{ orden.marca if orden else '' }}">
+          <div class="help">¿Falta una marca? Agrégala en <a href="/catalogo" target="_blank">Marcas y modelos</a>.</div>
+        </div>
+        <div class="field">
+          <label>Modelo</label>
+          <select id="selectModelo">
+            <option value="">Selecciona una marca primero...</option>
+          </select>
+          <input type="text" id="inputModeloOtro" placeholder="Escribe el modelo..." style="display:none; margin-top:6px;">
+          <input type="hidden" name="modelo" id="hiddenModelo" value="{{ orden.modelo if orden else '' }}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>IMEI</label><input type="text" name="imei" value="{{ orden.imei if orden else '' }}"></div>
+        <div class="field"><label>Número de serie</label><input type="text" name="numero_serie" value="{{ orden.numero_serie if orden else '' }}"></div>
+      </div>
+
+      <div class="field">
+        <label>Accesorios entregados</label>
+        <div class="checkbox-grid">
+          {% set acc_actuales = orden.lista_accesorios() if orden else [] %}
+          {% for a in accesorios_disponibles %}
+          <label class="checkbox-chip"><input type="checkbox" name="accesorios" value="{{ a }}" {{ 'checked' if a in acc_actuales else '' }}> {{ a }}</label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Condición física / estado al recibir</label>
+        <div class="checkbox-grid">
+          {% set cond_actuales = orden.lista_condicion() if orden else [] %}
+          {% for c in condiciones_disponibles %}
+          <label class="checkbox-chip"><input type="checkbox" name="condicion" value="{{ c }}" {{ 'checked' if c in cond_actuales else '' }}> {{ c }}</label>
+          {% endfor %}
+        </div>
+        <textarea name="observaciones_condicion" placeholder="Detalles adicionales del estado físico...">{{ orden.observaciones_condicion if orden else '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Diagnóstico y trabajo</div>
+      <div class="field"><label>Falla reportada por el cliente</label><textarea name="falla_reportada">{{ orden.falla_reportada if orden else '' }}</textarea></div>
+      <div class="field"><label>Diagnóstico técnico</label><textarea name="diagnostico">{{ orden.diagnostico if orden else '' }}</textarea></div>
+      <div class="field"><label>Trabajo realizado</label><textarea name="trabajo_realizado">{{ orden.trabajo_realizado if orden else '' }}</textarea></div>
+      <div class="field"><label>Observaciones generales</label><textarea name="observaciones">{{ orden.observaciones if orden else '' }}</textarea></div>
+
+      <div class="form-row">
+        <div class="field">
+          <label>Prioridad</label>
+          <select name="prioridad">
+            {% for p in prioridades %}<option value="{{ p }}" {{ 'selected' if orden and orden.prioridad == p else '' }}>{{ p }}</option>{% endfor %}
+          </select>
+        </div>
+        {% if not orden %}
+        <div class="field">
+          <label>Estado inicial</label>
+          <select name="estado">
+            {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == 'RECIBIDO' else '' }}>{{ e }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div class="field"><label>Fecha estimada de entrega</label><input type="date" name="fecha_entrega" value="{{ orden.fecha_entrega if orden and orden.fecha_entrega else '' }}"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-title">Seguridad del equipo (dato sensible)</div>
+      <div class="grid cols-2">
+        <div>
+          <label>PIN</label>
+          <div class="pin-display" id="pinDisplay">Sin PIN</div>
+          <input type="hidden" id="pinValor" name="pin" value="{{ orden.pin if orden and orden.pin else '' }}">
+          <div class="pin-pad" id="pinPad">
+            {% for n in range(1,10) %}<button type="button" data-num="{{ n }}">{{ n }}</button>{% endfor %}
+            <button type="button" id="pinLimpiar">Limpiar</button>
+            <button type="button" data-num="0">0</button>
+            <button type="button" id="pinBorrar">&#9003;</button>
+          </div>
+          <div style="text-align:center; margin-top:8px;">
+            <button type="button" id="pinToggleVer" class="btn btn-outline btn-sm">Mostrar</button>
+          </div>
+        </div>
+        <div>
+          <label>Patrón</label>
+          <div id="patronDisplay" class="help" style="text-align:center;">Sin patrón</div>
+          <input type="hidden" id="patronValor" name="patron" value="{{ orden.patron if orden and orden.patron else '' }}">
+          <div class="patron-grid" id="patronGrid">
+            {% for n in range(1,10) %}<div class="patron-dot" data-id="{{ n }}"></div>{% endfor %}
+          </div>
+          <div style="text-align:center; margin-top:8px;">
+            <button type="button" id="patronLimpiar" class="btn btn-outline btn-sm">Limpiar patrón</button>
+          </div>
+        </div>
+      </div>
+      <p class="help">Esta información nunca se muestra en los listados generales, solo dentro de la orden.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Información financiera</div>
+      <div class="form-row">
+        <div class="field"><label>Cotización</label><input type="number" step="0.01" min="0" id="inputCotizacion" name="cotizacion" value="{{ orden.cotizacion if orden else '0' }}"></div>
+        <div class="field"><label>Recargo (%)</label><input type="number" step="0.01" min="0" id="inputRecargoPct" name="recargo_pct" value="{{ orden.recargo_pct if orden else recargo_default }}"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Recargo calculado</label><input type="text" disabled value="0.00" id="outRecargo"></div>
+        <div class="field"><label>Total del servicio</label><input type="text" disabled value="0.00" id="outTotal"></div>
+      </div>
+      <div class="field">
+        <label>Forma de pago preferida</label>
+        <select name="forma_pago">
+          {% for fp in formas_pago %}<option value="{{ fp }}" {{ 'selected' if orden and orden.forma_pago == fp else '' }}>{{ fp }}</option>{% endfor %}
+        </select>
+      </div>
+      {% if orden %}
+      <p class="help">Total actual: <b>{{ orden.total|moneda(config_taller().moneda) }}</b> · Abonado: <b>{{ orden.abonado|moneda(config_taller().moneda) }}</b> · Saldo: <b>{{ orden.saldo|moneda(config_taller().moneda) }}</b><br>Los abonos se registran desde el detalle de la orden.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <button type="submit" class="btn btn-primary">{{ 'Guardar cambios' if orden else 'Crear orden' }}</button>
+    <a href="{{ '/ordenes/' + orden.id|string if orden else '/ordenes' }}" class="btn btn-outline">Cancelar</a>
+  </div>
+</form>
+
+<div class="modal-overlay" id="srModalOverlay" style="display:none;">
+  <div class="modal-box card">
+    <div class="card-title" id="srModalTitulo">Nuevo servicio rápido</div>
+    <div class="field"><label>Nombre</label><input type="text" id="srNombre" placeholder="Ej: Puesto / revisión sin reparar"></div>
+    <div class="field"><label>Falla reportada</label><textarea id="srFalla"></textarea></div>
+    <div class="field"><label>Estado físico al recibir</label><textarea id="srEstadoFisico"></textarea></div>
+    <div class="field"><label>Observaciones / Notas</label><textarea id="srObservaciones"></textarea></div>
+    <div class="field"><label>Reparación / Trabajo</label><textarea id="srTrabajo"></textarea></div>
+    <div class="form-row">
+      <div class="field"><label>Plazo estimado (días)</label><input type="number" min="0" step="1" id="srDias" value="0"></div>
+      <div class="field"><label>Cotización (opcional, si el precio es fijo)</label><input type="number" min="0" step="0.01" id="srCotizacion" value="0"></div>
+      <div class="field"><label>Recargo (%)</label><input type="number" min="0" step="0.01" id="srRecargoPct" value="0"></div>
+    </div>
+    <div id="srModalError" class="flash flash-error" style="display:none;"></div>
+    <div>
+      <button type="button" id="srGuardar" class="btn btn-primary">Guardar</button>
+      <button type="button" id="srCancelar" class="btn btn-outline">Cancelar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  window.MARCA_MODELOS = {{ marca_modelos_map|tojson }};
+  window.ORDEN_MARCA_ACTUAL = {{ (orden.marca if orden else '')|tojson }};
+  window.ORDEN_MODELO_ACTUAL = {{ (orden.modelo if orden else '')|tojson }};
+  window.SERVICIOS_RAPIDOS = {{ servicios_rapidos|tojson }};
+  window.ORDEN_FECHA_ENTRADA = {{ (orden.fecha_entrada.isoformat() if orden and orden.fecha_entrada else '')|tojson }};
+</script>
+<script src="/static/js/orden.js"></script>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Contabilidad{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/contabilidad?periodo=dia" class="{{ 'active' if periodo == 'dia' else '' }}">Hoy</a>
+  <a href="/contabilidad?periodo=semana" class="{{ 'active' if periodo == 'semana' else '' }}">Esta semana</a>
+  <a href="/contabilidad?periodo=mes" class="{{ 'active' if periodo == 'mes' else '' }}">Este mes</a>
+</div>
+<form method="get" class="form-row" style="margin-bottom:16px;">
+  <input type="hidden" name="periodo" value="rango">
+  <div class="field"><label>Desde</label><input type="date" name="desde" value="{{ desde }}"></div>
+  <div class="field"><label>Hasta</label><input type="date" name="hasta" value="{{ hasta }}"></div>
+  <div class="field" style="flex:0; align-self:flex-end;"><button type="submit" class="btn btn-outline">Ver rango</button></div>
+</form>
+
+<div class="grid cols-3">
+  <div class="kpi accent-green"><div class="kpi-label">Ingresos</div><div class="kpi-value">{{ ingresos|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Gastos</div><div class="kpi-value">{{ gastos|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi {{ 'accent-green' if balance >= 0 else 'accent-red' }}"><div class="kpi-label">Balance</div><div class="kpi-value">{{ balance|moneda(config_taller().moneda) }}</div></div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title">Registrar ingreso / gasto</div>
+    <form method="post" action="/contabilidad/nuevo">
+      <div class="field">
+        <label>Tipo</label>
+        <select name="tipo" id="tipoMovimiento" onchange="document.getElementById('catIngreso').style.display=this.value=='ingreso'?'block':'none'; document.getElementById('catGasto').style.display=this.value=='gasto'?'block':'none';">
+          <option value="ingreso">Ingreso</option>
+          <option value="gasto">Gasto</option>
+        </select>
+      </div>
+      <div class="field" id="catIngreso">
+        <label>Categoría</label>
+        <select name="categoria">{% for c in categorias_ingreso %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+      </div>
+      <div class="field" id="catGasto" style="display:none;">
+        <label>Categoría (gasto)</label>
+        <select name="categoria">{% for c in categorias_gasto %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+      </div>
+      <div class="field"><label>Monto</label><input type="number" step="0.01" min="0.01" name="monto" required></div>
+      <div class="field"><label>Descripción</label><input type="text" name="descripcion"></div>
+      <button type="submit" class="btn btn-primary">Registrar</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Movimientos del período</div>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Monto</th><th>Descripción</th></tr></thead>
+      <tbody>
+        {% for m in movimientos %}
+        <tr>
+          <td>{{ m.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
+          <td>{% if m.tipo == 'ingreso' %}<span class="badge badge-listo-para-entregar">Ingreso</span>{% else %}<span class="badge badge-cancelado">Gasto</span>{% endif %}</td>
+          <td>{{ m.categoria }}</td>
+          <td>{{ m.monto|moneda(config_taller().moneda) }}</td>
+          <td>{{ m.descripcion or m.referencia or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">Sin movimientos en este período.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

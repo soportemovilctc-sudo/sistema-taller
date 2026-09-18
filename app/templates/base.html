@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Sistema de Taller{% endblock %} - {{ config_taller().nombre_taller }}</title>
+<link rel="stylesheet" href="/static/css/style.css">
+{% block head %}{% endblock %}
+</head>
+<body>
+{% if usuario %}
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo-circle">
+        {% if config_taller().logo_url %}<img src="{{ config_taller().logo_url }}" alt="Logo">{% else %}{{ config_taller().nombre_taller[:1] }}{% endif %}
+      </div>
+      <div>
+        <div class="name">{{ config_taller().nombre_taller }}</div>
+        <div class="tag">Sistema de Taller</div>
+      </div>
+    </div>
+    <nav>
+      <a class="nav-link {{ 'active' if request.url.path == '/' else '' }}" href="/"><span class="ic">&#128202;</span> Dashboard</a>
+      <a class="nav-link {{ 'active' if request.url.path == '/ordenes/nueva' else '' }}" href="/ordenes/nueva"><span class="ic">&#10133;</span> Nueva Orden</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/ordenes') and request.url.path != '/ordenes/nueva' else '' }}" href="/ordenes"><span class="ic">&#128221;</span> Órdenes</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/clientes') else '' }}" href="/clientes"><span class="ic">&#128100;</span> Clientes</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/tecnicos') else '' }}" href="/tecnicos"><span class="ic">&#128119;</span> Técnicos</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/inventario') else '' }}" href="/inventario"><span class="ic">&#128230;</span> Inventario</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/pos') else '' }}" href="/pos"><span class="ic">&#128179;</span> Punto de Venta</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/contabilidad') else '' }}" href="/contabilidad"><span class="ic">&#128176;</span> Contabilidad</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/reportes') else '' }}" href="/reportes"><span class="ic">&#128200;</span> Reportes</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/facturas') else '' }}" href="/facturas"><span class="ic">&#128179;</span> Facturas</a>
+      {% if usuario.rol == 'admin' %}
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/usuarios') else '' }}" href="/usuarios"><span class="ic">&#128101;</span> Usuarios</a>
+      {% endif %}
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/catalogo') else '' }}" href="/catalogo"><span class="ic">&#128241;</span> Marcas y modelos</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/configuracion') else '' }}" href="/configuracion"><span class="ic">&#9881;</span> Configuración</a>
+      <a class="nav-link" href="/logout"><span class="ic">&#128274;</span> Cerrar sesión</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="menu-toggle" id="menuToggle">&#9776;</button>
+      <div class="search-box">
+        <input type="text" id="globalSearch" placeholder="Buscar orden, cliente, IMEI, marca, modelo...">
+        <div class="search-results" id="searchResults"></div>
+      </div>
+      <div class="user-chip">
+        <span>&#128100;</span>
+        <span><b>{{ usuario.nombre_completo }}</b> · {{ usuario.rol }}</span>
+      </div>
+    </div>
+    <div class="content">
+      {% for f in get_flashes(request) %}
+        <div class="flash flash-{{ f.categoria }}">{{ f.mensaje }}</div>
+      {% endfor %}
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+{% else %}
+  {% block content_public %}{% endblock %}
+{% endif %}
+
+<script src="/static/js/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

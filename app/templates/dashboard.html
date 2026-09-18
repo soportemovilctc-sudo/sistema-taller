@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="grid cols-5">
+  <div class="kpi accent-blue"><div class="kpi-label">Recibidas hoy</div><div class="kpi-value">{{ recibidas_hoy }}</div></div>
+  <div class="kpi accent-orange"><div class="kpi-label">En diagnóstico</div><div class="kpi-value">{{ en_diagnostico }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">En reparación</div><div class="kpi-value">{{ en_reparacion }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Listas para entregar</div><div class="kpi-value">{{ listas }}</div></div>
+  <div class="kpi"><div class="kpi-label">Entregadas (total)</div><div class="kpi-value">{{ entregadas }}</div></div>
+</div>
+
+<div class="grid cols-4" style="margin-top:4px;">
+  <div class="kpi accent-green"><div class="kpi-label">Ingresos de hoy</div><div class="kpi-value">{{ ingresos_dia|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Gastos de hoy</div><div class="kpi-value">{{ gastos_dia|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Ingresos del mes</div><div class="kpi-value">{{ ingresos_mes|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Gastos del mes</div><div class="kpi-value">{{ gastos_mes|moneda(config_taller().moneda) }}</div></div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-title">Ingresos últimos 7 días</div>
+    <div class="chart-bar-wrap">
+      {% set maximo = (serie_ingresos|map(attribute='total')|list + [1])|max %}
+      {% for punto in serie_ingresos %}
+        <div class="chart-bar" style="height: {{ (punto.total / maximo * 100) if maximo > 0 else 0 }}%;">
+          <span class="val">{{ '%.0f'|format(punto.total) }}</span>
+          <span class="lbl">{{ punto.dia }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Saldos y alertas
+      <span class="actions"><a href="/reportes?tipo=saldos" class="btn btn-outline btn-sm">Ver saldos</a></span>
+    </div>
+    <p>Saldo pendiente total: <b class="money-negative">{{ saldos_pendientes|moneda(config_taller().moneda) }}</b></p>
+    <p>Ventas POS de hoy: <b>{{ ventas_hoy|moneda(config_taller().moneda) }}</b></p>
+    <hr style="border-color: var(--border);">
+    <div class="card-title" style="font-size:13px;">Stock bajo mínimo</div>
+    {% if stock_bajo %}
+      {% for p in stock_bajo %}
+        <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:12.5px;">
+          <span>{{ p.nombre }}</span>
+          <span class="badge badge-stock-bajo">{{ p.existencia }} / mín. {{ p.stock_minimo }}</span>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="help">No hay productos por debajo del stock mínimo.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Órdenes recientes
+    <span class="actions"><a href="/ordenes" class="btn btn-outline btn-sm">Ver todas</a></span>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>N. Orden</th><th>Cliente</th><th>Equipo</th><th>Estado</th><th>Prioridad</th><th>Saldo</th></tr></thead>
+    <tbody>
+      {% for o in ordenes_recientes %}
+      <tr>
+        <td><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td>
+        <td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
+        <td>{{ o.marca }} {{ o.modelo }}</td>
+        <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+        <td><span class="{{ 'badge badge-' + o.prioridad.lower() }}">{{ o.prioridad }}</span></td>
+        <td>{{ o.saldo|moneda(config_taller().moneda) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-state">Aún no hay órdenes registradas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

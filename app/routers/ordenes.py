@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from io import BytesIO
 
 from app.templates_env import templates
@@ -81,6 +81,11 @@ def ordenes_list(
     if prioridad:
         query = query.filter(OrdenServicio.prioridad == prioridad)
 
+    conteo_estados = dict(
+        db.query(OrdenServicio.estado, func.count(OrdenServicio.id)).group_by(OrdenServicio.estado).all()
+    )
+    total_ordenes = db.query(OrdenServicio).count()
+
     ordenes = query.order_by(OrdenServicio.fecha.desc()).all()
     if vencidas:
         cfg_general = _config(db)
@@ -94,6 +99,7 @@ def ordenes_list(
         "request": request, "ordenes": ordenes, "usuario": usuario,
         "q": q, "estado": estado, "tecnico_id": tecnico_id, "prioridad": prioridad,
         "vencidas": vencidas,
+        "conteo_estados": conteo_estados, "total_ordenes": total_ordenes,
         **opciones,
     })
 

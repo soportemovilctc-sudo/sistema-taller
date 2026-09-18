@@ -43,6 +43,19 @@ def obtener_config_actual():
     return {"nombre_taller": "Mi Taller", "moneda": "L", "logo_path": None, "logo_url": None, "dias_vencido_alerta": 3}
 
 
+def obtener_notificaciones():
+    """Cuenta rápida para la campana de la barra superior: equipos listos
+    para entregar que el cliente aún no ha recogido."""
+    from app.database import SessionLocal
+    from app.models import OrdenServicio
+    db = SessionLocal()
+    try:
+        listos = db.query(OrdenServicio).filter(OrdenServicio.estado == "LISTO PARA ENTREGAR").count()
+        return {"listos_entregar": listos}
+    finally:
+        db.close()
+
+
 def fmt_tojson(valor):
     return Markup(json.dumps(valor))
 
@@ -52,3 +65,4 @@ templates.env.filters["moneda"] = fmt_moneda
 templates.env.filters["fecha"] = fmt_fecha
 templates.env.globals["get_flashes"] = obtener_flashes
 templates.env.globals["config_taller"] = obtener_config_actual
+templates.env.globals["notificaciones_taller"] = obtener_notificaciones

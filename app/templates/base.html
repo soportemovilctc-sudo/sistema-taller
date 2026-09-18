@@ -53,6 +53,11 @@
         <input type="text" id="globalSearch" placeholder="Buscar orden, cliente, IMEI, marca, modelo...">
         <div class="search-results" id="searchResults"></div>
       </div>
+      {% set _notif = notificaciones_taller() %}
+      <a class="topbar-bell" href="/ordenes?estado={{ 'LISTO PARA ENTREGAR'|urlencode }}" title="Equipos listos para entregar">
+        &#128276;
+        {% if _notif.listos_entregar > 0 %}<span class="bell-count">{{ _notif.listos_entregar }}</span>{% endif %}
+      </a>
       <div class="user-chip">
         <span>&#128100;</span>
         <span><b>{{ usuario.nombre_completo }}</b> · {{ {'admin': 'Administrador', 'tecnico': 'Técnico', 'vendedor': 'Caja'}.get(usuario.rol, usuario.rol) }}</span>

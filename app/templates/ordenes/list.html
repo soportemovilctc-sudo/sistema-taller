@@ -14,6 +14,7 @@
         <option value="">Todos los estados</option>
         {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == estado else '' }}>{{ e }}</option>{% endfor %}
       </select>
+      <div class="help">El buscador y este menú se combinan con las pestañas de abajo.</div>
     </div>
     <div class="field">
       <select name="tecnico_id">
@@ -29,6 +30,16 @@
     </div>
     <div class="field" style="flex:0;"><button type="submit" class="btn btn-outline">Filtrar</button></div>
   </form>
+  <div class="estado-tabs">
+    <a href="/ordenes" class="estado-tab {{ '' if estado else 'estado-tab-todos-active' }} {{ 'estado-tab-muted' if estado else '' }}">
+      Todos <span class="count">{{ total_ordenes }}</span>
+    </a>
+    {% for e in estados %}
+    <a href="/ordenes?estado={{ e|urlencode }}" class="estado-tab {{ 'badge-' + e.lower().replace(' ', '-') if e == estado else 'estado-tab-muted' }}">
+      {{ e }} <span class="count">{{ conteo_estados.get(e, 0) }}</span>
+    </a>
+    {% endfor %}
+  </div>
   {% if vencidas %}
   <div class="flash flash-warning" style="margin-bottom:14px;">
     Mostrando solo órdenes activas vencidas (sin entregar hace {{ config_taller().dias_vencido_alerta }} días o más).
@@ -37,12 +48,12 @@
   {% endif %}
   <div class="table-wrap">
   <table>
-    <thead><tr><th>N. Orden</th><th>Fecha</th><th>Días</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th></tr></thead>
+    <thead><tr><th>N. Orden</th><th>Ingreso</th><th>Días</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th></tr></thead>
     <tbody>
       {% for o in ordenes %}
       <tr>
         <td><a href="/ordenes/{{ o.id }}"><b>{{ o.numero_orden }}</b></a></td>
-        <td>{{ o.fecha|fecha }}</td>
+        <td>{{ o.fecha|fecha('%d/%m/%Y %I:%M %p') }}</td>
         {% set _venc = o.dias_en_taller() >= config_taller().dias_vencido_alerta and o.estado not in ('ENTREGADO', 'CANCELADO') %}
         <td><span class="dias-chip {{ 'dias-chip-alerta' if _venc else '' }}">{{ 'Vencido ' if _venc else '' }}{{ o.dias_en_taller() }}d</span></td>
         <td>{{ o.cliente.nombre if o.cliente else '-' }}</td>

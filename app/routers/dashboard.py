@@ -57,10 +57,12 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
     activas = db.query(OrdenServicio).filter(
         OrdenServicio.estado.notin_(["ENTREGADO", "CANCELADO"])
     ).all()
-    ordenes_vencidas = sorted(
+    todas_vencidas = sorted(
         [o for o in activas if o.dias_en_taller() >= umbral_vencido],
         key=lambda o: o.dias_en_taller(), reverse=True,
-    )[:10]
+    )
+    total_vencidas = len(todas_vencidas)
+    ordenes_vencidas = todas_vencidas[:10]
 
     # Serie de últimos 7 días para el gráfico de ingresos
     dias = [hoy - timedelta(days=i) for i in range(6, -1, -1)]
@@ -85,5 +87,6 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
         "ordenes_recientes": ordenes_recientes,
         "serie_ingresos": serie_ingresos,
         "ordenes_vencidas": ordenes_vencidas,
+        "total_vencidas": total_vencidas,
         "umbral_vencido": umbral_vencido,
     })

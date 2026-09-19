@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models import Configuracion
 from app.utils.calculations import to_decimal
 from app.utils.qr_local import generar_qr_png, url_acceso_local
+from app.utils.richtext import condiciones_a_html_editor, sanear_html_condiciones
 from app.utils.flash import flash
 from app.deps import login_required, roles_required
 
@@ -31,6 +32,7 @@ def configuracion_index(request: Request, db: Session = Depends(get_db), usuario
     return templates.TemplateResponse("configuracion/index.html", {
         "request": request, "config": cfg, "usuario": usuario,
         "url_local": url_acceso_local(),
+        "condiciones_servicio_html": condiciones_a_html_editor(cfg.condiciones_servicio),
     })
 
 
@@ -54,7 +56,7 @@ def configuracion_actualizar(
     cfg.moneda = moneda or "L"
     cfg.recargo_default_pct = to_decimal(recargo_default_pct or 0)
     cfg.info_pdf_extra = info_pdf_extra
-    cfg.condiciones_servicio = condiciones_servicio
+    cfg.condiciones_servicio = sanear_html_condiciones(condiciones_servicio)
     cfg.dias_vencido_alerta = max(1, dias_vencido_alerta)
 
     if logo and logo.filename:

@@ -9,24 +9,23 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_RIGHT
 
-from app.models import parse_condiciones_servicio
+from app.utils.richtext import condiciones_a_bloques
 
 
 def _agregar_condiciones_servicio(story, titulo_style, texto_style, texto_condiciones=""):
-    """Agrega, al final del documento, el bloque (editable desde Configuración)
-    de condiciones de servicio y retiro de equipos (orden de servicio y
-    factura, carta). Si no hay texto configurado, no agrega nada."""
-    condiciones = parse_condiciones_servicio(texto_condiciones)
-    if not condiciones:
+    """Agrega, al final del documento, el bloque (editable con el editor de
+    texto enriquecido de Configuración: negrita, cursiva, subrayado, color y
+    alineación) de condiciones de servicio y retiro de equipos (orden de
+    servicio y factura, carta). Si no hay texto configurado, no agrega nada."""
+    bloques = condiciones_a_bloques(texto_condiciones)
+    if not bloques:
         return
     story.append(Spacer(1, 14))
     story.append(Paragraph("Condiciones de Servicio y Retiro de Equipos", titulo_style))
     story.append(Spacer(1, 3))
-    for titulo, texto in condiciones:
-        if titulo:
-            story.append(Paragraph(f"<b>{titulo}</b> {texto}", texto_style))
-        else:
-            story.append(Paragraph(texto, texto_style))
+    for markup, alineacion in bloques:
+        estilo_bloque = ParagraphStyle(name="CondBloque", parent=texto_style, alignment=alineacion)
+        story.append(Paragraph(markup, estilo_bloque))
 
 
 def _moneda(valor, simbolo="L"):
@@ -246,12 +245,12 @@ def construir_contexto_pdf(orden, config) -> dict:
         "patron": orden.patron,
         "mostrar_seguridad_en_pdf": bool(orden.mostrar_seguridad_en_pdf),
         "cliente": {
-            "nombre": orden.cliente.nombre if orden.cliente else "",
-            "telefono": orden.cliente.telefono if orden.cliente else "",
-            "whatsapp": orden.cliente.whatsapp if orden.cliente else "",
-            "dni": orden.cliente.dni if orden.cliente else "",
-            "correo": orden.cliente.correo if orden.cliente else "",
-            "direccion": orden.cliente.direccion if orden.cliente else "",
+            "nombre": (orden.cliente.nombre or "") if orden.cliente else "",
+            "telefono": (orden.cliente.telefono or "") if orden.cliente else "",
+            "whatsapp": (orden.cliente.whatsapp or "") if orden.cliente else "",
+            "dni": (orden.cliente.dni or "") if orden.cliente else "",
+            "correo": (orden.cliente.correo or "") if orden.cliente else "",
+            "direccion": (orden.cliente.direccion or "") if orden.cliente else "",
         },
         "equipo": {
             "tipo": orden.tipo_equipo,

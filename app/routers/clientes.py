@@ -68,7 +68,16 @@ def clientes_crear_rapido(
     nombre = (nombre or "").strip()
     if not nombre:
         return JSONResponse({"ok": False, "mensaje": "El nombre es obligatorio."}, status_code=400)
-    cliente = Cliente(nombre=nombre, telefono=(telefono or "").strip(), whatsapp=(whatsapp or "").strip())
+    cliente = Cliente(
+        nombre=nombre,
+        telefono=(telefono or "").strip(),
+        whatsapp=(whatsapp or "").strip(),
+        dni="",
+        rtn="",
+        correo="",
+        direccion="",
+        notas="",
+    )
     db.add(cliente)
     db.commit()
     db.refresh(cliente)

@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Configuración{% endblock %}
+{% block head %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
+<style>
+  #condicionesEditor { background:#fff; border-radius:0 0 6px 6px; }
+  #condicionesEditor .ql-editor { min-height:150px; font-size:14px; }
+  #condicionesToolbar.ql-toolbar { border-radius:6px 6px 0 0; }
+</style>
+{% endblock %}
 {% block content %}
 <div class="grid cols-2" style="align-items:start;">
   <div class="card">
@@ -24,8 +32,28 @@
       <div class="field"><label>Información adicional para el PDF</label><textarea name="info_pdf_extra">{{ config.info_pdf_extra }}</textarea></div>
       <div class="field">
         <label>Condiciones de Servicio y Retiro de Equipos</label>
-        <textarea name="condiciones_servicio" style="min-height:150px;">{{ config.condiciones_servicio }}</textarea>
-        <div class="help">Se imprime al final de las órdenes y facturas (carta y tirilla). Una condición por línea, formato "Título: texto". Deja el cuadro vacío para no imprimir este bloque.</div>
+        <div id="condicionesToolbar">
+          <span class="ql-formats">
+            <button class="ql-bold"></button>
+            <button class="ql-italic"></button>
+            <button class="ql-underline"></button>
+          </span>
+          <span class="ql-formats">
+            <select class="ql-color"></select>
+          </span>
+          <span class="ql-formats">
+            <button class="ql-align" value=""></button>
+            <button class="ql-align" value="center"></button>
+            <button class="ql-align" value="right"></button>
+            <button class="ql-align" value="justify"></button>
+          </span>
+          <span class="ql-formats">
+            <button class="ql-clean"></button>
+          </span>
+        </div>
+        <div id="condicionesEditor"></div>
+        <textarea name="condiciones_servicio" id="condicionesServicioInput" style="display:none;">{{ config.condiciones_servicio }}</textarea>
+        <div class="help">Se imprime al final de las órdenes y facturas (carta y tirilla). Usa negrita, cursiva, subrayado, color y alineación. Deja el editor vacío para no imprimir este bloque.</div>
       </div>
       <div class="field">
         <label>Logo del taller</label>
@@ -57,4 +85,31 @@
     <p class="help" style="margin-top:10px;">Si cambias de red Wi-Fi, recarga esta página para generar un nuevo código QR con la nueva dirección.</p>
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
+<script>
+  (function () {
+    var contenedorEditor = document.getElementById('condicionesEditor');
+    if (!contenedorEditor || typeof Quill === 'undefined') return;
+    var campoOculto = document.getElementById('condicionesServicioInput');
+    var valorInicial = {{ condiciones_servicio_html|tojson }};
+
+    var quill = new Quill('#condicionesEditor', {
+      theme: 'snow',
+      modules: { toolbar: '#condicionesToolbar' },
+    });
+    if (valorInicial) {
+      quill.clipboard.dangerouslyPasteHTML(valorInicial);
+    }
+
+    var formulario = contenedorEditor.closest('form');
+    if (formulario) {
+      formulario.addEventListener('submit', function () {
+        var vacio = quill.getText().trim().length === 0;
+        campoOculto.value = vacio ? '' : quill.root.innerHTML;
+      });
+    }
+  })();
+</script>
 {% endblock %}

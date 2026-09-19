@@ -8,8 +8,12 @@ from io import BytesIO
 from reportlab.lib.units import mm
 from reportlab.lib.pagesizes import letter  # noqa: F401 (compatibilidad)
 from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import ParagraphStyle
 
-from app.models import parse_condiciones_servicio
+from app.utils.richtext import condiciones_a_bloques
 
 ANCHO_TICKET = 80 * mm
 MARGEN = 3 * mm
@@ -56,6 +60,36 @@ class _ConstructorTicket:
     def espacio(self, alto=6):
         self.instrucciones.append(("espacio", None, None, None, None, alto))
 
+    def imagen(self, datos_bytes, alto_max=20 * mm, centrado=True):
+        """Reserva espacio y agenda el dibujo de una imagen (el logo del
+        taller), respetando su proporción original y sin pasarse del ancho
+        util de la tirilla ni de alto_max."""
+        try:
+            lector = ImageReader(BytesIO(datos_bytes))
+            ancho_original, alto_original = lector.getSize()
+        except Exception:
+            return
+        if not ancho_original or not alto_original:
+            return
+        ancho_util = ANCHO_TICKET - 2 * MARGEN
+        escala = min(ancho_util / ancho_original, alto_max / alto_original)
+        ancho_final = ancho_original * escala
+        alto_final = alto_original * escala
+        self.instrucciones.append(("imagen", lector, ancho_final, alto_final, centrado, alto_final))
+
+    def parrafo_rico(self, markup, alineacion, tam=6, color="#334155", interlineado=1.3):
+        """Dibuja un párrafo con negrita/cursiva/subrayado/color/alineación
+        (viene de condiciones_a_bloques), reusando reportlab.platypus.Paragraph
+        para interpretar ese marcado dentro del lienzo de la tirilla."""
+        ancho_util = ANCHO_TICKET - 2 * MARGEN
+        estilo = ParagraphStyle(
+            name="TicketRico", fontName="Helvetica", fontSize=tam,
+            leading=tam * interlineado, alignment=alineacion, textColor=colors.HexColor(color),
+        )
+        parrafo = Paragraph(markup, estilo)
+        _, alto = parrafo.wrap(ancho_util, 5000)
+        self.instrucciones.append(("parrafo_rico", parrafo, None, None, None, alto))
+
     def alto_total(self):
         return sum(item[-1] for item in self.instrucciones)
 
@@ -97,6 +131,16 @@ class _ConstructorTicket:
             elif tipo == "espacio":
                 alto = item[-1]
                 y -= alto
+            elif tipo == "imagen":
+                _, lector, ancho_img, alto_img, centrado_img, alto = item
+                y -= alto
+                x_img = (x_centro - ancho_img / 2) if centrado_img else x_izq
+                c.drawImage(lector, x_img, y, width=ancho_img, height=alto_img,
+                            mask="auto", preserveAspectRatio=True)
+            elif tipo == "parrafo_rico":
+                _, parrafo, _, _, _, alto = item
+                y -= alto
+                parrafo.drawOn(c, x_izq, y)
 
         c.showPage()
         c.save()
@@ -104,21 +148,25 @@ class _ConstructorTicket:
 
 
 def _condiciones_servicio(t, texto_condiciones=""):
-    """Agrega, al final de la tirilla, el bloque (editable desde
-    Configuración) de condiciones de servicio y retiro de equipos (orden de
+    """Agrega, al final de la tirilla, el bloque (editable con el editor de
+    texto enriquecido de Configuración: negrita, cursiva, subrayado, color y
+    alineación) de condiciones de servicio y retiro de equipos (orden de
     servicio y factura). Si no hay texto configurado, no agrega nada."""
-    condiciones = parse_condiciones_servicio(texto_condiciones)
-    if not condiciones:
+    bloques = condiciones_a_bloques(texto_condiciones)
+    if not bloques:
         return
     t.separador()
     t.texto("Condiciones de Servicio y Retiro de Equipos", tam=7, negrita=True, centrado=True, alto=9)
-    t.espacio(1)
-    for titulo, texto in condiciones:
-        contenido = f"{titulo} {texto}" if titulo else texto
-        t.parrafo(contenido, tam=6, alto=8)
+    t.espacio(2)
+    for markup, alineacion in bloques:
+        t.parrafo_rico(markup, alineacion, tam=6)
 
 
 def _encabezado_taller(t, taller: dict):
+    logo_data = taller.get("logo_data")
+    if logo_data:
+        t.imagen(logo_data, alto_max=22 * mm, centrado=True)
+        t.espacio(3)
     t.texto(taller.get("nombre", "Taller de Reparación"), tam=11, negrita=True, centrado=True, alto=14)
     if taller.get("direccion"):
         t.parrafo(taller["direccion"], tam=7, alto=9)

@@ -21,7 +21,7 @@ from app.utils.calculations import calcular_recargo, calcular_total, calcular_sa
 from app.utils.pdf import generar_pdf_orden, construir_contexto_pdf
 from app.utils.pdf_ticket import generar_ticket_orden
 from app.utils.flash import flash
-from app.deps import login_required
+from app.deps import login_required, roles_required
 
 router = APIRouter()
 
@@ -454,6 +454,38 @@ def ordenes_agregar_repuesto(
     db.commit()
     flash(request, f"Repuesto '{producto.nombre}' agregado a la orden y descontado del inventario.", "success")
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
+@router.post("/ordenes/{orden_id}/eliminar")
+def ordenes_eliminar(
+    orden_id: int, request: Request,
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    """Elimina definitivamente una orden de servicio (solo administradores).
+    No se permite si la orden tiene una factura FISCAL asociada (esas
+    facturas no se pueden eliminar, solo anular, por control de la SAR).
+    Las facturas internas generadas desde la orden se eliminan junto con
+    ella. Las ventas de repuestos que se hayan generado desde la orden NO
+    se eliminan (para no perder el historial real de inventario y
+    contabilidad ya consumido); solo quedan desvinculadas de la orden."""
+    orden = db.get(OrdenServicio, orden_id)
+    if not orden:
+        flash(request, "Orden no encontrada.", "error")
+        return RedirectResponse("/ordenes", status_code=303)
+
+    if any(f.tipo == "fiscal" for f in orden.facturas):
+        flash(request, "No se puede eliminar esta orden: tiene una factura fiscal asociada (las facturas fiscales no se pueden eliminar, solo anular).", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    numero_orden = orden.numero_orden
+    for f in list(orden.facturas):
+        db.delete(f)
+    db.query(Venta).filter(Venta.orden_id == orden.id).update({"orden_id": None})
+    db.flush()
+    db.delete(orden)  # cascada: historial de estados, abonos y repuestos de la orden
+    db.commit()
+    flash(request, f"Orden {numero_orden} eliminada definitivamente.", "success")
+    return RedirectResponse("/ordenes", status_code=303)
 
 
 def _generar_pdf_bytes(db: Session, orden_id: int):

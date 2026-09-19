@@ -15,9 +15,15 @@
           <td>{{ {'admin': 'Administrador', 'tecnico': 'Técnico', 'vendedor': 'Caja'}.get(u.rol, u.rol) }}</td>
           <td>{% if u.activo %}<span class="badge badge-listo-para-entregar">Activo</span>{% else %}<span class="badge badge-cancelado">Inactivo</span>{% endif %}</td>
           <td>
-            <form method="post" action="/usuarios/{{ u.id }}/toggle">
+            <form method="post" action="/usuarios/{{ u.id }}/toggle" style="display:inline;">
               <button type="submit" class="btn btn-outline btn-sm">{{ 'Desactivar' if u.activo else 'Activar' }}</button>
             </form>
+            <a href="/usuarios/{{ u.id }}/editar" class="btn btn-outline btn-sm">Editar</a>
+            {% if u.id != usuario.id %}
+            <form method="post" action="/usuarios/{{ u.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar definitivamente al usuario &quot;{{ u.username }}&quot;? Esta acción no se puede deshacer.');">
+              <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+            </form>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}

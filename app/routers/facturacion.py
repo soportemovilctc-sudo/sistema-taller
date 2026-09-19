@@ -237,6 +237,28 @@ def facturas_anular(
     return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
 
 
+@router.post("/facturas/{factura_id}/eliminar")
+def facturas_eliminar(
+    factura_id: int, request: Request,
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    """Elimina definitivamente un comprobante interno. Las facturas FISCALES
+    nunca se pueden eliminar (solo anular): su numeración está sujeta al
+    control correlativo de la SAR y borrarla rompería ese control."""
+    factura = db.get(Factura, factura_id)
+    if not factura:
+        flash(request, "Factura no encontrada.", "error")
+        return RedirectResponse("/facturas", status_code=303)
+    if factura.tipo == "fiscal":
+        flash(request, "Las facturas fiscales no se pueden eliminar, solo anular: su numeración está sujeta a control de la SAR.", "error")
+        return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
+    numero = factura.numero_documento
+    db.delete(factura)
+    db.commit()
+    flash(request, f"Comprobante {numero} eliminado definitivamente.", "success")
+    return RedirectResponse("/facturas", status_code=303)
+
+
 # ---------------------------------------------------------------------------
 # PDF: carta y tirilla 80mm
 # ---------------------------------------------------------------------------

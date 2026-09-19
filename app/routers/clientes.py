@@ -1,7 +1,7 @@
 """Módulo de clientes: crear, editar, buscar y ver historial/resumen."""
 from decimal import Decimal
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 
@@ -51,6 +51,28 @@ def clientes_crear(
     db.add(cliente)
     db.commit()
     return RedirectResponse(f"/clientes/{cliente.id}", status_code=303)
+
+
+@router.post("/clientes/rapido")
+def clientes_crear_rapido(
+    request: Request,
+    nombre: str = Form(...),
+    telefono: str = Form(""),
+    whatsapp: str = Form(""),
+    db: Session = Depends(get_db),
+    usuario=Depends(login_required),
+):
+    """Creación rápida de un cliente vía AJAX, pensada para usarse desde el
+    formulario de nueva orden sin perder los datos que ya se hayan llenado
+    ahí. Devuelve JSON en vez de redirigir."""
+    nombre = (nombre or "").strip()
+    if not nombre:
+        return JSONResponse({"ok": False, "mensaje": "El nombre es obligatorio."}, status_code=400)
+    cliente = Cliente(nombre=nombre, telefono=(telefono or "").strip(), whatsapp=(whatsapp or "").strip())
+    db.add(cliente)
+    db.commit()
+    db.refresh(cliente)
+    return JSONResponse({"ok": True, "id": cliente.id, "nombre": cliente.nombre, "telefono": cliente.telefono})
 
 
 @router.get("/clientes/{cliente_id}/editar")

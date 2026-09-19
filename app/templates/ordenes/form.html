@@ -32,13 +32,20 @@
       <div class="form-row">
         <div class="field">
           <label>Cliente *</label>
-          <select name="cliente_id" required>
-            <option value="">Selecciona un cliente...</option>
-            {% for c in clientes %}
-            <option value="{{ c.id }}" {{ 'selected' if orden and orden.cliente_id == c.id else '' }}>{{ c.nombre }} · {{ c.telefono or '' }}</option>
-            {% endfor %}
-          </select>
-          <div class="help">¿No existe el cliente? <a href="/clientes/nuevo" target="_blank">Créalo aquí</a> y recarga esta página.</div>
+          <div class="form-row" style="align-items:flex-end; margin-bottom:0;">
+            <div class="field" style="flex:1; margin-bottom:0;">
+              <select name="cliente_id" id="selectClienteId" required>
+                <option value="">Selecciona un cliente...</option>
+                {% for c in clientes %}
+                <option value="{{ c.id }}" {{ 'selected' if orden and orden.cliente_id == c.id else '' }}>{{ c.nombre }} · {{ c.telefono or '' }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field" style="flex:0 0 auto; margin-bottom:0;">
+              <button type="button" id="btnNuevoClienteRapido" class="btn btn-outline btn-sm">+ Nuevo cliente</button>
+            </div>
+          </div>
+          <div class="help">¿No existe el cliente? Créalo rápido con el botón de arriba (no perderás lo que ya llenaste aquí), o <a href="/clientes/nuevo" target="_blank">desde la sección de Clientes</a> para registrar más datos.</div>
         </div>
         <div class="field">
           <label>Técnico asignado</label>
@@ -243,6 +250,20 @@
   </div>
 </form>
 
+<div class="modal-overlay" id="clienteRapidoModalOverlay" style="display:none;">
+  <div class="modal-box card">
+    <div class="card-title">Nuevo cliente rápido</div>
+    <div class="field"><label>Nombre *</label><input type="text" id="clienteRapidoNombre"></div>
+    <div class="field"><label>Teléfono</label><input type="text" id="clienteRapidoTelefono"></div>
+    <div class="field"><label>WhatsApp</label><input type="text" id="clienteRapidoWhatsapp"></div>
+    <div id="clienteRapidoError" class="flash flash-error" style="display:none;"></div>
+    <div>
+      <button type="button" id="clienteRapidoGuardar" class="btn btn-primary">Guardar y seleccionar</button>
+      <button type="button" id="clienteRapidoCancelar" class="btn btn-outline">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="srModalOverlay" style="display:none;">
   <div class="modal-box card">
     <div class="card-title" id="srModalTitulo">Nuevo servicio rápido</div>
@@ -297,6 +318,67 @@
       nueva.querySelector('select[name="repuesto_producto_id"]').value = '';
       nueva.querySelector('input[name="repuesto_cantidad"]').value = 1;
       cont.appendChild(nueva);
+    });
+  })();
+
+  (function () {
+    var btnAbrir = document.getElementById('btnNuevoClienteRapido');
+    var overlay = document.getElementById('clienteRapidoModalOverlay');
+    if (!btnAbrir || !overlay) return;
+    var inputNombre = document.getElementById('clienteRapidoNombre');
+    var inputTelefono = document.getElementById('clienteRapidoTelefono');
+    var inputWhatsapp = document.getElementById('clienteRapidoWhatsapp');
+    var errorBox = document.getElementById('clienteRapidoError');
+    var selectCliente = document.getElementById('selectClienteId');
+
+    function abrir() {
+      errorBox.style.display = 'none';
+      inputNombre.value = '';
+      inputTelefono.value = '';
+      inputWhatsapp.value = '';
+      overlay.style.display = 'flex';
+      inputNombre.focus();
+    }
+    function cerrar() { overlay.style.display = 'none'; }
+
+    btnAbrir.addEventListener('click', abrir);
+    document.getElementById('clienteRapidoCancelar').addEventListener('click', cerrar);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) cerrar(); });
+
+    document.getElementById('clienteRapidoGuardar').addEventListener('click', function () {
+      var nombre = inputNombre.value.trim();
+      if (!nombre) {
+        errorBox.textContent = 'El nombre es obligatorio.';
+        errorBox.style.display = 'block';
+        return;
+      }
+      var params = new URLSearchParams();
+      params.set('nombre', nombre);
+      params.set('telefono', inputTelefono.value.trim());
+      params.set('whatsapp', inputWhatsapp.value.trim());
+      fetch('/clientes/rapido', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) {
+            errorBox.textContent = data.mensaje || 'No se pudo crear el cliente.';
+            errorBox.style.display = 'block';
+            return;
+          }
+          var opt = document.createElement('option');
+          opt.value = data.id;
+          opt.textContent = data.nombre + (data.telefono ? ' · ' + data.telefono : '');
+          opt.selected = true;
+          selectCliente.appendChild(opt);
+          cerrar();
+        })
+        .catch(function () {
+          errorBox.textContent = 'Error de conexión al crear el cliente.';
+          errorBox.style.display = 'block';
+        });
     });
   })();
 </script>

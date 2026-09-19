@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Editar usuario{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px;">
+  <div class="card-title">Editar usuario: {{ u.username }}</div>
+  <form method="post" action="/usuarios/{{ u.id }}/editar">
+    <div class="field"><label>Usuario (para iniciar sesión)</label><input type="text" name="username" value="{{ u.username }}" required></div>
+    <div class="field"><label>Nombre completo</label><input type="text" name="nombre_completo" value="{{ u.nombre_completo }}" required></div>
+    <div class="field">
+      <label>Rol</label>
+      <select name="rol">
+        <option value="tecnico" {{ 'selected' if u.rol == 'tecnico' else '' }}>Técnico</option>
+        <option value="vendedor" {{ 'selected' if u.rol == 'vendedor' else '' }}>Caja</option>
+        <option value="admin" {{ 'selected' if u.rol == 'admin' else '' }}>Administrador</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Nueva contraseña</label>
+      <input type="password" name="password" placeholder="Dejar en blanco para no cambiarla">
+      <div class="help">Solo se actualiza la contraseña si escribes una nueva aquí.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+    <a href="/usuarios" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

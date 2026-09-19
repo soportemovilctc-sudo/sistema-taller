@@ -53,6 +53,17 @@
     {% else %}
     <p class="help">Solo un administrador puede anular una factura.</p>
     {% endif %}
+
+    {% if usuario.rol == 'admin' %}
+    <hr style="margin:14px 0; border:none; border-top:1px solid #e2e8f0;">
+    {% if factura.tipo == 'interno' %}
+    <form method="post" action="/facturas/{{ factura.id }}/eliminar">
+      <button type="submit" class="btn btn-danger" onclick="return confirm('¿Eliminar definitivamente este comprobante interno? Esta acción no se puede deshacer.');">Eliminar definitivamente</button>
+    </form>
+    {% else %}
+    <p class="help">Las facturas fiscales no se pueden eliminar (solo anular), ya que su numeración está sujeta a control de la SAR.</p>
+    {% endif %}
+    {% endif %}
   </div>
 </div>
 {% endblock %}

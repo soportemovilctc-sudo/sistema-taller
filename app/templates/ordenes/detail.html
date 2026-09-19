@@ -11,6 +11,11 @@
       <a href="/ordenes/{{ orden.id }}/pdf/tirilla/descargar" class="btn btn-outline btn-sm">Descargar tirilla 80mm</a>
       <a href="/ordenes/{{ orden.id }}/whatsapp" target="_blank" class="btn btn-success btn-sm">Enviar por WhatsApp</a>
       <a href="/ordenes/{{ orden.id }}/editar" class="btn btn-primary btn-sm">Editar</a>
+      {% if usuario.rol == 'admin' %}
+      <form method="post" action="/ordenes/{{ orden.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar definitivamente la orden {{ orden.numero_orden }}? Esta acción no se puede deshacer y borrará su historial, abonos y repuestos asociados.');">
+        <button type="submit" class="btn btn-danger btn-sm">Eliminar orden</button>
+      </form>
+      {% endif %}
     </span>
   </div>
   <div class="grid cols-4">

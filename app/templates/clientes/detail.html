@@ -4,7 +4,14 @@
 <div class="card">
   <div class="card-title">
     {{ cliente.nombre }}
-    <span class="actions"><a href="/clientes/{{ cliente.id }}/editar" class="btn btn-outline btn-sm">Editar</a></span>
+    <span class="actions">
+      <a href="/clientes/{{ cliente.id }}/editar" class="btn btn-outline btn-sm">Editar</a>
+      {% if usuario.rol == 'admin' %}
+      <form method="post" action="/clientes/{{ cliente.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar definitivamente a {{ cliente.nombre }}? Esta acción no se puede deshacer.{% if resumen.cantidad_ordenes > 0 %} Este cliente tiene órdenes registradas y no podrá eliminarse hasta que se borren esas órdenes.{% endif %}');">
+        <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+      </form>
+      {% endif %}
+    </span>
   </div>
   <div class="grid cols-3">
     <div><label>Teléfono</label><p>{{ cliente.telefono or '-' }}</p></div>

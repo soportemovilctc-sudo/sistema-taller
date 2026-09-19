@@ -7,8 +7,8 @@ from sqlalchemy import or_, func
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Cliente, OrdenServicio
-from app.deps import login_required
+from app.models import Cliente, OrdenServicio, Venta
+from app.deps import login_required, roles_required
 from app.utils.flash import flash
 
 router = APIRouter()
@@ -110,6 +110,36 @@ def clientes_actualizar(
         cliente.notas = notas
         db.commit()
     return RedirectResponse(f"/clientes/{cliente_id}", status_code=303)
+
+
+@router.post("/clientes/{cliente_id}/eliminar")
+def clientes_eliminar(
+    cliente_id: int, request: Request,
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    """Elimina definitivamente un cliente (solo administradores). Se
+    bloquea si el cliente tiene órdenes de servicio registradas: hay que
+    eliminar (o conservar) esas órdenes primero, para no arriesgar borrar
+    en cadena historial, abonos o facturas fiscales. Las ventas de POS
+    ligadas directamente al cliente (sin pasar por una orden) sí se
+    conservan, solo quedan desvinculadas del cliente eliminado."""
+    cliente = db.get(Cliente, cliente_id)
+    if not cliente:
+        flash(request, "Cliente no encontrado.", "error")
+        return RedirectResponse("/clientes", status_code=303)
+
+    cantidad_ordenes = db.query(OrdenServicio).filter(OrdenServicio.cliente_id == cliente.id).count()
+    if cantidad_ordenes > 0:
+        flash(request, f"No se puede eliminar '{cliente.nombre}': tiene {cantidad_ordenes} orden(es) de servicio registrada(s). Elimínalas primero desde cada orden si de verdad quieres borrar al cliente.", "error")
+        return RedirectResponse(f"/clientes/{cliente_id}", status_code=303)
+
+    nombre = cliente.nombre
+    db.query(Venta).filter(Venta.cliente_id == cliente.id).update({"cliente_id": None})
+    db.flush()
+    db.delete(cliente)
+    db.commit()
+    flash(request, f"Cliente '{nombre}' eliminado definitivamente.", "success")
+    return RedirectResponse("/clientes", status_code=303)
 
 
 @router.get("/clientes/{cliente_id}")

@@ -11,7 +11,7 @@
   </form>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>Nombre</th><th>Teléfono</th><th>WhatsApp</th><th>DNI</th><th>Correo</th><th></th></tr></thead>
+    <thead><tr><th>Nombre</th><th>Teléfono</th><th>WhatsApp</th><th>DNI</th><th>Correo</th><th colspan="2"></th></tr></thead>
     <tbody>
       {% for c in clientes %}
       <tr>
@@ -21,9 +21,16 @@
         <td>{{ c.dni or '-' }}</td>
         <td>{{ c.correo or '-' }}</td>
         <td><a href="/clientes/{{ c.id }}/editar" class="btn btn-outline btn-sm">Editar</a></td>
+        <td>
+          {% if usuario.rol == 'admin' %}
+          <form method="post" action="/clientes/{{ c.id }}/eliminar" onsubmit="return confirm('¿Eliminar definitivamente al cliente &quot;{{ c.nombre }}&quot;? Esta acción no se puede deshacer.');">
+            <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+          </form>
+          {% endif %}
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="empty-state">No se encontraron clientes.</td></tr>
+      <tr><td colspan="7" class="empty-state">No se encontraron clientes.</td></tr>
       {% endfor %}
     </tbody>
   </table>

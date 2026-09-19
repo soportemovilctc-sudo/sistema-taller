@@ -12,7 +12,7 @@ configuraciones ya guardadas.
 """
 import re
 from html.parser import HTMLParser
-from xml.sax.saxutils import escape
+from xml.sax.saxutils import escape, unescape
 
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
 
@@ -154,6 +154,27 @@ def condiciones_a_bloques(texto_condiciones: str):
     parser.feed(texto_condiciones)
     parser.close()
     return parser.bloques
+
+
+def condiciones_a_texto_plano(texto_condiciones: str) -> str:
+    """Versión sin ningún formato del texto de condiciones, pensada para la
+    tirilla (que siempre imprime este bloque en texto plano, sin negrita,
+    cursiva, color ni alineación especial). Si lo guardado es HTML (viene
+    del editor enriquecido), se extrae el texto visible de cada bloque, uno
+    por línea; si ya es texto plano (formato heredado), se devuelve tal
+    cual."""
+    texto_condiciones = (texto_condiciones or "").strip()
+    if not texto_condiciones or not parece_html(texto_condiciones):
+        return texto_condiciones
+    parser = _ParserCondiciones()
+    parser.feed(texto_condiciones)
+    parser.close()
+    lineas = []
+    for markup, _alineacion in parser.bloques:
+        texto = unescape(re.sub(r"<[^>]+>", "", markup)).strip()
+        if texto:
+            lineas.append(texto)
+    return "\n".join(lineas)
 
 
 def condiciones_a_html_editor(texto_condiciones: str) -> str:

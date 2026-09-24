@@ -49,6 +49,11 @@
       <b style="{{ 'color:#f2545b;' if restantes_fiscal <= (cfg.alerta_umbral_fiscal or 50) else '' }}">{{ restantes_fiscal }}</b>
       {% endif %}
     </p>
+    <div class="field">
+      <label>Fijar el próximo número fiscal en (opcional)</label>
+      <input type="number" min="1" name="correlativo_fiscal_manual" value="" placeholder="Ej: 23001" style="max-width:180px;">
+      <p class="help" style="margin-top:4px;">Úsalo para que el número coincida con el rango que te dio la SAR (por ejemplo, si tu CAI empieza en 23001, escribe 23001 aquí y guarda). Solo cambia la <b>siguiente</b> factura fiscal que generes; las que ya emitiste no se modifican. Déjalo vacío para no cambiar la numeración actual.</p>
+    </div>
     <div class="field"><label>Texto legal de la factura fiscal</label><textarea name="texto_legal_fiscal">{{ cfg.texto_legal_fiscal }}</textarea></div>
   </div>
 </div>

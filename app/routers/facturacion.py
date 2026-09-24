@@ -76,6 +76,7 @@ def configuracion_facturacion_actualizar(
     rango_autorizado_fin: str = Form(""),
     fecha_limite_emision: str = Form(""),
     alerta_umbral_fiscal: str = Form("50"),
+    correlativo_fiscal_manual: str = Form(""),
     isv_tasa: str = Form("15"),
     servicios_exentos_default: bool = Form(False),
     prefijo_interno: str = Form("REC"),
@@ -101,6 +102,34 @@ def configuracion_facturacion_actualizar(
         cfg.alerta_umbral_fiscal = max(int(alerta_umbral_fiscal), 1)
     except (ValueError, TypeError):
         cfg.alerta_umbral_fiscal = 50
+
+    # Permite al admin fijar (o corregir) desde qué número fiscal debe
+    # continuar el sistema, para hacerlo coincidir con el rango real que
+    # entregó la SAR. Campo opcional: si se deja vacío, no se toca el
+    # correlativo actual.
+    error_correlativo = None
+    valor_manual = correlativo_fiscal_manual.strip()
+    if valor_manual:
+        try:
+            nuevo_siguiente = int(valor_manual)
+        except (ValueError, TypeError):
+            nuevo_siguiente = None
+        if nuevo_siguiente is None or nuevo_siguiente < 1:
+            error_correlativo = "El número inicial debe ser un número entero mayor a 0."
+        else:
+            numero_candidato = (
+                f"{establecimiento.strip() or '001'}-{punto_emision.strip() or '001'}-"
+                f"{tipo_documento_codigo.strip() or '01'}-{str(nuevo_siguiente).zfill(8)}"
+            )
+            ya_existe = db.query(Factura).filter(Factura.numero_documento == numero_candidato).first()
+            if ya_existe:
+                error_correlativo = (
+                    f"No se pudo ajustar el número: ya existe una factura con el número {numero_candidato}. "
+                    "Elige otro número inicial."
+                )
+            else:
+                cfg.correlativo_fiscal_actual = nuevo_siguiente - 1
+
     try:
         cfg.isv_tasa = to_decimal(isv_tasa or 15)
     except (InvalidOperation, ValueError):
@@ -110,7 +139,10 @@ def configuracion_facturacion_actualizar(
     cfg.texto_legal_fiscal = texto_legal_fiscal
     cfg.texto_legal_interno = texto_legal_interno
     db.commit()
-    flash(request, "Configuración de facturación guardada correctamente.", "success")
+    if error_correlativo:
+        flash(request, error_correlativo, "error")
+    else:
+        flash(request, "Configuración de facturación guardada correctamente.", "success")
     return RedirectResponse("/configuracion/facturacion", status_code=303)
 
 

@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}Sistema de Taller{% endblock %} - {{ config_taller().nombre_taller }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/style.css">
 {% block head %}{% endblock %}
 </head>
@@ -21,28 +24,75 @@
       </div>
     </div>
     <nav>
-      <a class="nav-link {{ 'active' if request.url.path == '/' else '' }}" href="/"><span class="ic">&#128202;</span> Dashboard</a>
-      <a class="nav-link {{ 'active' if request.url.path == '/ordenes/nueva' else '' }}" href="/ordenes/nueva"><span class="ic">&#10133;</span> Nueva Orden</a>
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/ordenes') and request.url.path != '/ordenes/nueva' else '' }}" href="/ordenes"><span class="ic">&#128221;</span> Órdenes</a>
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/clientes') else '' }}" href="/clientes"><span class="ic">&#128100;</span> Clientes</a>
+      <div class="nav-group-label">Principal</div>
+      <a class="nav-link {{ 'active' if request.url.path == '/' else '' }}" href="/">
+        <svg class="ic-svg" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-link {{ 'active' if request.url.path == '/ordenes/nueva' else '' }}" href="/ordenes/nueva">
+        <svg class="ic-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+        Nueva Orden
+      </a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/ordenes') and request.url.path != '/ordenes/nueva' else '' }}" href="/ordenes">
+        <svg class="ic-svg" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v3h6V3M8 10h8M8 14h8M8 18h5"/></svg>
+        Órdenes
+      </a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/clientes') else '' }}" href="/clientes">
+        <svg class="ic-svg" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.2c1.7.4 3 2 3 3.8s-1.3 3.4-3 3.8M20.5 20c0-2.8-1.8-5.1-4.3-5.8"/></svg>
+        Clientes
+      </a>
+
+      <div class="nav-group-label">Taller</div>
       {% if usuario.rol == 'admin' %}
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/tecnicos') else '' }}" href="/tecnicos"><span class="ic">&#128119;</span> Técnicos</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/tecnicos') else '' }}" href="/tecnicos">
+        <svg class="ic-svg" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4l-2.5 2.5-2-2z"/></svg>
+        Técnicos
+      </a>
       {% endif %}
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/inventario') else '' }}" href="/inventario"><span class="ic">&#128230;</span> Inventario</a>
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/pos') else '' }}" href="/pos"><span class="ic">&#128179;</span> Punto de Venta</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/inventario') else '' }}" href="/inventario">
+        <svg class="ic-svg" viewBox="0 0 24 24"><path d="M3 8l9-5 9 5-9 5-9-5z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg>
+        Inventario
+      </a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/pos') else '' }}" href="/pos">
+        <svg class="ic-svg" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 10.5h19M6.5 14.5h4"/></svg>
+        Punto de Venta
+      </a>
       {% if usuario.rol == 'admin' %}
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/contabilidad') else '' }}" href="/contabilidad"><span class="ic">&#128176;</span> Contabilidad</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/contabilidad') else '' }}" href="/contabilidad">
+        <svg class="ic-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 15a2.5 2.5 0 0 0 2.5 1.5c1.7 0 3-.9 3-2.2 0-3-6-1.6-6-4.6 0-1.3 1.3-2.2 3-2.2a2.5 2.5 0 0 1 2.5 1.5"/></svg>
+        Contabilidad
+      </a>
       {% endif %}
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/reportes') else '' }}" href="/reportes"><span class="ic">&#128200;</span> Reportes</a>
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/facturas') else '' }}" href="/facturas"><span class="ic">&#128179;</span> Facturas</a>
+
+      <div class="nav-group-label">Gestión</div>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/reportes') else '' }}" href="/reportes">
+        <svg class="ic-svg" viewBox="0 0 24 24"><path d="M4 20V10M11 20V4M18 20v-7"/><path d="M2 20h20"/></svg>
+        Reportes
+      </a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/facturas') else '' }}" href="/facturas">
+        <svg class="ic-svg" viewBox="0 0 24 24"><path d="M6 2.5h9l3 3V21a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+        Facturas
+      </a>
       {% if usuario.rol == 'admin' %}
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/usuarios') else '' }}" href="/usuarios"><span class="ic">&#128101;</span> Usuarios</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/usuarios') else '' }}" href="/usuarios">
+        <svg class="ic-svg" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 8v3M15.5 9.5h3"/></svg>
+        Usuarios
+      </a>
       {% endif %}
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/catalogo') else '' }}" href="/catalogo"><span class="ic">&#128241;</span> Marcas y modelos</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/catalogo') else '' }}" href="/catalogo">
+        <svg class="ic-svg" viewBox="0 0 24 24"><path d="M11.5 3H4a1 1 0 0 0-1 1v7.5a1 1 0 0 0 .3.7l8.5 8.5a1 1 0 0 0 1.4 0l7.5-7.5a1 1 0 0 0 0-1.4L12.2 3.3a1 1 0 0 0-.7-.3z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>
+        Marcas y modelos
+      </a>
       {% if usuario.rol == 'admin' %}
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/configuracion') else '' }}" href="/configuracion"><span class="ic">&#9881;</span> Configuración</a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/configuracion') else '' }}" href="/configuracion">
+        <svg class="ic-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V20a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10c.2.5.7.9 1.5 1H20a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4.9z"/></svg>
+        Configuración
+      </a>
       {% endif %}
-      <a class="nav-link" href="/logout"><span class="ic">&#128274;</span> Cerrar sesión</a>
+      <a class="nav-link" href="/logout">
+        <svg class="ic-svg" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+        Cerrar sesión
+      </a>
     </nav>
   </aside>
 
@@ -55,11 +105,11 @@
       </div>
       {% set _notif = notificaciones_taller() %}
       <a class="topbar-bell" href="/ordenes?estado={{ 'LISTO PARA ENTREGAR'|urlencode }}" title="Equipos listos para entregar">
-        &#128276;
+        <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
         {% if _notif.listos_entregar > 0 %}<span class="bell-count">{{ _notif.listos_entregar }}</span>{% endif %}
       </a>
       <div class="user-chip">
-        <span>&#128100;</span>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/></svg>
         <span><b>{{ usuario.nombre_completo }}</b> · {{ {'admin': 'Administrador', 'tecnico': 'Técnico', 'vendedor': 'Caja'}.get(usuario.rol, usuario.rol) }}</span>
       </div>
     </div>

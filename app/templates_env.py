@@ -1,10 +1,25 @@
 """Instancia compartida de Jinja2Templates con filtros y funciones globales."""
 import json
+import os
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from app.utils.flash import obtener_flashes
 
 templates = Jinja2Templates(directory="app/templates")
+
+_STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+
+def version_estatico(ruta_relativa):
+    """Devuelve la fecha de modificación de un archivo estático (CSS/JS)
+    como número. Se usa como '?v=' en las etiquetas <link>/<script> para
+    que el navegador descargue la versión nueva en cuanto el archivo
+    cambia, en vez de quedarse con una copia vieja guardada en caché."""
+    ruta_completa = os.path.join(_STATIC_DIR, ruta_relativa)
+    try:
+        return int(os.path.getmtime(ruta_completa))
+    except OSError:
+        return 0
 
 
 def fmt_moneda(valor, simbolo="L"):
@@ -66,3 +81,4 @@ templates.env.filters["fecha"] = fmt_fecha
 templates.env.globals["get_flashes"] = obtener_flashes
 templates.env.globals["config_taller"] = obtener_config_actual
 templates.env.globals["notificaciones_taller"] = obtener_notificaciones
+templates.env.globals["version_estatico"] = version_estatico

@@ -1,23 +1,66 @@
 {% extends "base.html" %}
 {% block title %}Orden {{ orden.numero_orden }}{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="card-title">
-    Orden {{ orden.numero_orden }}
-    <span class="actions">
-      <a href="/ordenes/{{ orden.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF (carta)</a>
-      <a href="/ordenes/{{ orden.id }}/pdf/descargar" class="btn btn-outline btn-sm">Descargar PDF (carta)</a>
-      <a href="/ordenes/{{ orden.id }}/pdf/tirilla" target="_blank" class="btn btn-outline btn-sm">Ver tirilla 80mm</a>
-      <a href="/ordenes/{{ orden.id }}/pdf/tirilla/descargar" class="btn btn-outline btn-sm">Descargar tirilla 80mm</a>
-      <a href="/ordenes/{{ orden.id }}/whatsapp" target="_blank" class="btn btn-success btn-sm">Enviar por WhatsApp</a>
-      <a href="/ordenes/{{ orden.id }}/editar" class="btn btn-primary btn-sm">Editar</a>
+
+<div class="action-bar-sticky">
+  <a href="/ordenes/{{ orden.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">
+    <svg viewBox="0 0 24 24"><path d="M6 2.5h9l3 3V21a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5z"/><path d="M9 12h6M9 16h4"/></svg> PDF carta
+  </a>
+  <a href="/ordenes/{{ orden.id }}/pdf/tirilla" target="_blank" class="btn btn-outline btn-sm">
+    <svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M9 6h6M9 10h6M9 14h4"/></svg> Tirilla 80mm
+  </a>
+  <a href="/ordenes/{{ orden.id }}/whatsapp" target="_blank" class="btn btn-success btn-sm">
+    <svg viewBox="0 0 24 24"><path d="M4 20l1.4-4.2A8 8 0 1 1 9 18.5z"/></svg> WhatsApp
+  </a>
+  <a href="/ordenes/{{ orden.id }}/editar" class="btn btn-primary btn-sm">
+    <svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg> Editar
+  </a>
+  <span class="spacer"></span>
+  <div class="action-bar-more">
+    <button type="button" class="btn btn-outline btn-sm" title="Más opciones">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg>
+    </button>
+    <div class="action-bar-more-menu">
+      <a href="/ordenes/{{ orden.id }}/pdf/descargar">Descargar PDF (carta)</a>
+      <a href="/ordenes/{{ orden.id }}/pdf/tirilla/descargar">Descargar tirilla 80mm</a>
       {% if usuario.rol == 'admin' %}
-      <form method="post" action="/ordenes/{{ orden.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar definitivamente la orden {{ orden.numero_orden }}? Esta acción no se puede deshacer y borrará su historial, abonos y repuestos asociados.');">
-        <button type="submit" class="btn btn-danger btn-sm">Eliminar orden</button>
+      <form method="post" action="/ordenes/{{ orden.id }}/eliminar" onsubmit="return confirm('¿Eliminar definitivamente la orden {{ orden.numero_orden }}? Esta acción no se puede deshacer y borrará su historial, abonos y repuestos asociados.');">
+        <button type="submit" style="color: var(--danger);">Eliminar orden</button>
       </form>
       {% endif %}
-    </span>
+    </div>
   </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Orden {{ orden.numero_orden }}</div>
+  {% if orden.estado != 'CANCELADO' %}
+  {% set flujo = estados[:-1] %}
+  {% set idx_actual = flujo.index(orden.estado) if orden.estado in flujo else -1 %}
+  <div class="estado-stepper">
+    {% for e in flujo %}
+    <div class="estado-step {{ 'done' if loop.index0 < idx_actual else ('current' if loop.index0 == idx_actual else '') }}">
+      <div class="step-line-before"></div>
+      <div class="step-line-after"></div>
+      {% if loop.index0 == idx_actual %}
+        <span class="step-dot">{{ loop.index }}</span>
+      {% else %}
+        <form method="post" action="/ordenes/{{ orden.id }}/estado" onsubmit="return confirm('¿Cambiar el estado de la orden a &quot;{{ e }}&quot;?');">
+          <input type="hidden" name="nuevo_estado" value="{{ e }}">
+          <input type="hidden" name="redirect_to" value="/ordenes/{{ orden.id }}">
+          <button type="submit" class="step-dot" title="Cambiar a {{ e }}">
+            {% if loop.index0 < idx_actual %}<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>{% else %}{{ loop.index }}{% endif %}
+          </button>
+        </form>
+      {% endif %}
+      <span class="step-label">{{ e }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="help" style="margin-top:8px;">Toca un paso para actualizar el estado con un solo clic. Así el equipo no queda marcado como vencido por error.</p>
+  {% else %}
+  <p class="help">Esta orden está <b style="color: var(--danger);">CANCELADA</b>. Si necesitas reactivarla, usa "Cambiar estado" más abajo.</p>
+  {% endif %}
   <div class="grid cols-4">
     <div><label>Cliente</label><p><a href="/clientes/{{ orden.cliente_id }}">{{ orden.cliente.nombre if orden.cliente else '-' }}</a></p></div>
     <div><label>Equipo</label><p>{{ orden.tipo_equipo }} {{ orden.marca }} {{ orden.modelo }}</p></div>
@@ -159,7 +202,8 @@
 
 <div class="grid cols-2">
   <div class="card">
-    <div class="card-title">Cambiar estado</div>
+    <div class="card-title">Cambiar a otro estado (o cancelar)</div>
+    <p class="help" style="margin-top:-6px;">Usa esto para cancelar la orden o para elegir un estado con observación. Para el avance normal, usa los pasos de arriba.</p>
     <form method="post" action="/ordenes/{{ orden.id }}/estado">
       <div class="field">
         <label>Nuevo estado</label>

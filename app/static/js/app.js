@@ -60,3 +60,19 @@ document.addEventListener("DOMContentLoaded", function () {
 function claseBadgeEstado(estado) {
   return "badge badge-" + estado.toLowerCase().replace(/ /g, "-");
 }
+
+// Menú "más opciones" de la barra de acciones fija (detalle de orden y
+// cualquier otra página que use .action-bar-more).
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll(".action-bar-more > button").forEach(function (btn) {
+    var menu = btn.parentElement.querySelector(".action-bar-more-menu");
+    if (!menu) return;
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      menu.classList.toggle("show");
+    });
+  });
+  document.addEventListener("click", function () {
+    document.querySelectorAll(".action-bar-more-menu.show").forEach(function (m) { m.classList.remove("show"); });
+  });
+});

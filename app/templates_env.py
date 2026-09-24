@@ -60,13 +60,31 @@ def obtener_config_actual():
 
 def obtener_notificaciones():
     """Cuenta rápida para la campana de la barra superior: equipos listos
-    para entregar que el cliente aún no ha recogido."""
+    para entregar que el cliente aún no ha recogido, más el aviso de rango
+    de facturación fiscal por agotarse (si aplica)."""
     from app.database import SessionLocal
-    from app.models import OrdenServicio
+    from app.models import OrdenServicio, ConfiguracionFacturacion
+    from app.utils.numbering import extraer_correlativo_de_rango
     db = SessionLocal()
     try:
         listos = db.query(OrdenServicio).filter(OrdenServicio.estado == "LISTO PARA ENTREGAR").count()
-        return {"listos_entregar": listos}
+
+        factura_alerta = None
+        cfg_fact = db.get(ConfiguracionFacturacion, 1)
+        if cfg_fact and cfg_fact.rango_autorizado_fin:
+            limite = extraer_correlativo_de_rango(cfg_fact.rango_autorizado_fin)
+            if limite is not None:
+                siguiente = (cfg_fact.correlativo_fiscal_actual or 0) + 1
+                restantes = max(limite - siguiente + 1, 0)
+                umbral = cfg_fact.alerta_umbral_fiscal if cfg_fact.alerta_umbral_fiscal is not None else 50
+                if restantes <= umbral:
+                    factura_alerta = {
+                        "restantes": restantes, "umbral": umbral,
+                        "rango_fin": cfg_fact.rango_autorizado_fin,
+                        "agotado": restantes <= 0,
+                    }
+
+        return {"listos_entregar": listos, "factura_alerta": factura_alerta}
     finally:
         db.close()
 

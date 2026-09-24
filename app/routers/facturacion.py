@@ -36,6 +36,18 @@ def _config_general(db: Session) -> Configuracion:
     return db.get(Configuracion, 1)
 
 
+def facturas_fiscales_restantes(cfg: ConfiguracionFacturacion) -> int | None:
+    """Cuántas facturas fiscales quedan disponibles dentro del rango
+    autorizado por la SAR. None si aún no hay rango configurado."""
+    if not cfg or not cfg.rango_autorizado_fin:
+        return None
+    limite = extraer_correlativo_de_rango(cfg.rango_autorizado_fin)
+    if limite is None:
+        return None
+    siguiente = (cfg.correlativo_fiscal_actual or 0) + 1
+    return max(limite - siguiente + 1, 0)
+
+
 # ---------------------------------------------------------------------------
 # Configuración de facturación
 # ---------------------------------------------------------------------------
@@ -44,6 +56,7 @@ def configuracion_facturacion_index(request: Request, db: Session = Depends(get_
     cfg = get_or_create_cfg_facturacion(db)
     return templates.TemplateResponse("configuracion/facturacion.html", {
         "request": request, "cfg": cfg, "usuario": usuario,
+        "restantes_fiscal": facturas_fiscales_restantes(cfg),
     })
 
 
@@ -62,6 +75,7 @@ def configuracion_facturacion_actualizar(
     rango_autorizado_inicio: str = Form(""),
     rango_autorizado_fin: str = Form(""),
     fecha_limite_emision: str = Form(""),
+    alerta_umbral_fiscal: str = Form("50"),
     isv_tasa: str = Form("15"),
     servicios_exentos_default: bool = Form(False),
     prefijo_interno: str = Form("REC"),
@@ -83,6 +97,10 @@ def configuracion_facturacion_actualizar(
     cfg.rango_autorizado_inicio = rango_autorizado_inicio.strip()
     cfg.rango_autorizado_fin = rango_autorizado_fin.strip()
     cfg.fecha_limite_emision = datetime.strptime(fecha_limite_emision, "%Y-%m-%d").date() if fecha_limite_emision else None
+    try:
+        cfg.alerta_umbral_fiscal = max(int(alerta_umbral_fiscal), 1)
+    except (ValueError, TypeError):
+        cfg.alerta_umbral_fiscal = 50
     try:
         cfg.isv_tasa = to_decimal(isv_tasa or 15)
     except (InvalidOperation, ValueError):

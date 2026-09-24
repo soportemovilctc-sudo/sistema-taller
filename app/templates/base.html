@@ -114,6 +114,15 @@
       </div>
     </div>
     <div class="content">
+      {% if usuario.rol == 'admin' and _notif.factura_alerta %}
+        <div class="flash flash-error">
+          {% if _notif.factura_alerta.agotado %}
+            ⚠ Se agotó el rango de facturación fiscal autorizado por la SAR (hasta {{ _notif.factura_alerta.rango_fin }}). No se pueden emitir más facturas fiscales hasta que <a href="/configuracion/facturacion">registres un nuevo CAI y rango</a>.
+          {% else %}
+            ⚠ Quedan solo <b>{{ _notif.factura_alerta.restantes }}</b> facturas fiscales disponibles en tu rango autorizado (hasta {{ _notif.factura_alerta.rango_fin }}). <a href="/configuracion/facturacion">Actualiza tu rango</a> antes de que se agote.
+          {% endif %}
+        </div>
+      {% endif %}
       {% for f in get_flashes(request) %}
         <div class="flash flash-{{ f.categoria }}">{{ f.mensaje }}</div>
       {% endfor %}

@@ -403,6 +403,9 @@ class ConfiguracionFacturacion(Base):
     rango_autorizado_fin = Column(String(30), default="")
     fecha_limite_emision = Column(Date, nullable=True)
     correlativo_fiscal_actual = Column(Integer, default=0)
+    # Cuando queden estas facturas o menos dentro del rango autorizado, el
+    # sistema muestra un aviso en todas las pantallas (no solo al agotarse).
+    alerta_umbral_fiscal = Column(Integer, default=50)
 
     # --- Impuesto (ISV Honduras) ---
     isv_tasa = Column(Numeric(5, 2), default=15)

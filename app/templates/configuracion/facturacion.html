@@ -36,9 +36,19 @@
       <div class="field"><label>ISV (%)</label><input type="number" step="0.01" min="0" name="isv_tasa" value="{{ cfg.isv_tasa }}"></div>
     </div>
     <div class="field">
+      <label>Avisarme cuando queden (facturas)</label>
+      <input type="number" min="1" name="alerta_umbral_fiscal" value="{{ cfg.alerta_umbral_fiscal or 50 }}" style="max-width:140px;">
+      <p class="help" style="margin-top:4px;">En cuanto el rango autorizado baje de este número, verás un aviso en todo el sistema para que solicites un nuevo CAI a tiempo.</p>
+    </div>
+    <div class="field">
       <label class="checkbox-chip"><input type="checkbox" name="servicios_exentos_default" {{ 'checked' if cfg.servicios_exentos_default else '' }}> Marcar servicios como exentos de ISV por defecto</label>
     </div>
-    <p class="help">Próximo número fiscal a emitir: <b>{{ cfg.establecimiento }}-{{ cfg.punto_emision }}-{{ cfg.tipo_documento_codigo }}-{{ '%08d'|format((cfg.correlativo_fiscal_actual or 0) + 1) }}</b></p>
+    <p class="help">Próximo número fiscal a emitir: <b>{{ cfg.establecimiento }}-{{ cfg.punto_emision }}-{{ cfg.tipo_documento_codigo }}-{{ '%08d'|format((cfg.correlativo_fiscal_actual or 0) + 1) }}</b>
+      {% if restantes_fiscal is not none %}
+      · Facturas restantes en el rango:
+      <b style="{{ 'color:#f2545b;' if restantes_fiscal <= (cfg.alerta_umbral_fiscal or 50) else '' }}">{{ restantes_fiscal }}</b>
+      {% endif %}
+    </p>
     <div class="field"><label>Texto legal de la factura fiscal</label><textarea name="texto_legal_fiscal">{{ cfg.texto_legal_fiscal }}</textarea></div>
   </div>
 </div>

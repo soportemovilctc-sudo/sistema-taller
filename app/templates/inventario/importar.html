@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Carga masiva de inventario{% endblock %}
+{% block content %}
+<div class="card" style="max-width:680px;">
+  <div class="card-title">Carga masiva de inventario (Excel)</div>
+  <p class="help" style="font-size:13px; margin-top:-4px;">
+    Sube una hoja de Excel para crear o actualizar varios productos a la vez, en lugar de agregarlos uno por uno.
+  </p>
+
+  <div style="background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin: 14px 0;">
+    <b style="font-size:13px;">Paso 1 · Descarga la plantilla</b>
+    <p class="help" style="margin-top:6px;">
+      Tiene las columnas correctas y dos filas de ejemplo. Incluye una hoja de "Instrucciones" con el detalle de cada columna.
+    </p>
+    <a href="/inventario/plantilla" class="btn btn-primary btn-sm" style="margin-top:6px;">Descargar plantilla (.xlsx)</a>
+  </div>
+
+  <div style="background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 18px;">
+    <b style="font-size:13px;">Paso 2 · Súbela ya llena</b>
+    <ul style="margin: 8px 0 0 18px; padding: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+      <li><b>Código</b> y <b>Nombre</b> son obligatorios.</li>
+      <li>Si el <b>código ya existe</b> en el sistema: se actualizan sus datos, y la <b>existencia se suma</b> a la que ya tenía (no la reemplaza).</li>
+      <li>Si el código <b>no existe</b>: se crea un producto nuevo con la existencia indicada.</li>
+      <li>Deja una celda en blanco si no quieres modificar ese dato en un producto existente.</li>
+    </ul>
+  </div>
+
+  <form method="post" action="/inventario/importar" enctype="multipart/form-data">
+    <div class="field">
+      <label>Archivo de Excel (.xlsx)</label>
+      <input type="file" name="archivo" accept=".xlsx" required>
+    </div>
+    <button type="submit" class="btn btn-success">Importar</button>
+    <a href="/inventario" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

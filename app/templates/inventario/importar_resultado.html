@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Resultado de la carga masiva{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">
+    Resultado de la carga masiva
+    <span class="actions"><a href="/inventario" class="btn btn-outline btn-sm">Volver a inventario</a></span>
+  </div>
+
+  <div class="grid cols-4" style="margin-bottom: 16px;">
+    <div class="kpi accent-green">
+      <div class="kpi-label">Productos creados</div>
+      <div class="kpi-value">{{ creados }}</div>
+    </div>
+    <div class="kpi accent-blue">
+      <div class="kpi-label">Productos actualizados</div>
+      <div class="kpi-value">{{ actualizados }}</div>
+    </div>
+    <div class="kpi accent-red">
+      <div class="kpi-label">Filas con error</div>
+      <div class="kpi-value">{{ con_error }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Filas procesadas</div>
+      <div class="kpi-value">{{ total_filas }}</div>
+    </div>
+  </div>
+
+  {% if con_error > 0 %}
+  <div class="flash flash-error">
+    Algunas filas tuvieron errores y no se importaron. Corrígelas en tu Excel (revisa la columna "Detalle" abajo) y vuelve a subir solo esas filas.
+  </div>
+  {% endif %}
+
+  <div class="table-wrap">
+  <table class="responsive-table">
+    <thead><tr><th>Fila</th><th>Código</th><th>Nombre</th><th>Resultado</th><th>Detalle</th></tr></thead>
+    <tbody>
+      {% for r in resultados %}
+      <tr>
+        <td data-label="Fila">{{ r.fila }}</td>
+        <td data-label="Código">{{ r.codigo }}</td>
+        <td data-label="Nombre">{{ r.nombre }}</td>
+        <td data-label="Resultado">
+          {% if r.resultado == 'creado' %}<span class="badge badge-listo-para-entregar">Creado</span>
+          {% elif r.resultado == 'actualizado' %}<span class="badge badge-en-reparacion">Actualizado</span>
+          {% else %}<span class="badge badge-cancelado">Error</span>{% endif %}
+        </td>
+        <td data-label="Detalle">{{ r.detalle }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-state">No se encontraron filas con datos en el archivo.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

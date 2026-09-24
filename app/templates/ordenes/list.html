@@ -47,20 +47,20 @@
   </div>
   {% endif %}
   <div class="table-wrap">
-  <table class="responsive-table">
+  <table>
     <thead><tr><th>N. Orden</th><th>Ingreso</th><th>Días</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th>{% if usuario.rol == 'admin' %}<th></th>{% endif %}</tr></thead>
     <tbody>
       {% for o in ordenes %}
       <tr>
-        <td data-label="N. Orden"><a href="/ordenes/{{ o.id }}"><b>{{ o.numero_orden }}</b></a></td>
-        <td data-label="Ingreso">{{ o.fecha|fecha('%d/%m/%Y %I:%M %p') }}</td>
+        <td><a href="/ordenes/{{ o.id }}"><b>{{ o.numero_orden }}</b></a></td>
+        <td>{{ o.fecha|fecha('%d/%m/%Y %I:%M %p') }}</td>
         {% set _venc = o.dias_en_taller() >= config_taller().dias_vencido_alerta and o.estado not in ('ENTREGADO', 'CANCELADO') %}
-        <td data-label="Días"><span class="dias-chip {{ 'dias-chip-alerta' if _venc else '' }}">{{ 'Vencido ' if _venc else '' }}{{ o.dias_en_taller() }}d</span></td>
-        <td data-label="Cliente">{{ o.cliente.nombre if o.cliente else '-' }}</td>
-        <td data-label="Equipo">{{ o.tipo_equipo }} {{ o.marca }} {{ o.modelo }}</td>
-        <td data-label="Técnico">{{ o.tecnico.nombre if o.tecnico else '-' }}</td>
-        <td data-label="Prioridad"><span class="{{ 'badge badge-' + o.prioridad.lower() }}">{{ o.prioridad }}</span></td>
-        <td data-label="Estado">
+        <td><span class="dias-chip {{ 'dias-chip-alerta' if _venc else '' }}">{{ 'Vencido ' if _venc else '' }}{{ o.dias_en_taller() }}d</span></td>
+        <td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
+        <td>{{ o.tipo_equipo }} {{ o.marca }} {{ o.modelo }}</td>
+        <td>{{ o.tecnico.nombre if o.tecnico else '-' }}</td>
+        <td><span class="{{ 'badge badge-' + o.prioridad.lower() }}">{{ o.prioridad }}</span></td>
+        <td>
           <form method="post" action="/ordenes/{{ o.id }}/estado" class="quick-estado">
             <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
             <select name="nuevo_estado" class="badge badge-select {{ 'badge-' + o.estado.lower().replace(' ', '-') }}" onchange="this.form.submit()" title="Cambiar estado">
@@ -68,13 +68,11 @@
             </select>
           </form>
         </td>
-        <td data-label="Saldo">{{ o.saldo|moneda(config_taller().moneda) }}</td>
+        <td>{{ o.saldo|moneda(config_taller().moneda) }}</td>
         {% if usuario.rol == 'admin' %}
-        <td data-label="">
+        <td>
           <form method="post" action="/ordenes/{{ o.id }}/eliminar" onsubmit="return confirm('¿Eliminar definitivamente la orden {{ o.numero_orden }}? Esta acción no se puede deshacer.');">
-            <button type="submit" class="icon-btn icon-btn-danger" title="Eliminar orden">
-              <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0-.7 12.4a2 2 0 0 1-2 1.6H9.7a2 2 0 0 1-2-1.6L7 7"/></svg>
-            </button>
+            <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
           </form>
         </td>
         {% endif %}

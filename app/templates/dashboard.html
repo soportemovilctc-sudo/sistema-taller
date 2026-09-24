@@ -3,79 +3,19 @@
 {% block content %}
 
 <div class="grid cols-6">
-  <div class="kpi accent-blue">
-    <div class="kpi-top">
-      <div class="kpi-label">Recibidas hoy</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M3 12h4l2 4h6l2-4h4"/><path d="M5.5 6.5h13l2 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3.5 19v-7z"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ recibidas_hoy }}</div>
-  </div>
-  <div class="kpi accent-orange">
-    <div class="kpi-top">
-      <div class="kpi-label">En diagnóstico</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.8-4.8"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ en_diagnostico }}</div>
-  </div>
-  <div class="kpi accent-blue">
-    <div class="kpi-top">
-      <div class="kpi-label">En reparación</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4l-2.5 2.5-2-2z"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ en_reparacion }}</div>
-  </div>
-  <div class="kpi accent-green">
-    <div class="kpi-top">
-      <div class="kpi-label">Listas para entregar</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ listas }}</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-top">
-      <div class="kpi-label">Entregadas (total)</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5-9 5-9-5z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ entregadas }}</div>
-  </div>
-  <div class="kpi accent-red">
-    <div class="kpi-top">
-      <div class="kpi-label">Dispositivos vencidos</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17.2v.1"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ total_vencidas }}</div>
-  </div>
+  <div class="kpi accent-blue"><div class="kpi-label">Recibidas hoy</div><div class="kpi-value">{{ recibidas_hoy }}</div></div>
+  <div class="kpi accent-orange"><div class="kpi-label">En diagnóstico</div><div class="kpi-value">{{ en_diagnostico }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">En reparación</div><div class="kpi-value">{{ en_reparacion }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Listas para entregar</div><div class="kpi-value">{{ listas }}</div></div>
+  <div class="kpi"><div class="kpi-label">Entregadas (total)</div><div class="kpi-value">{{ entregadas }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Dispositivos vencidos</div><div class="kpi-value">{{ total_vencidas }}</div></div>
 </div>
 
 <div class="grid cols-4" style="margin-top:4px;">
-  <div class="kpi accent-green">
-    <div class="kpi-top">
-      <div class="kpi-label">Ingresos de hoy</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M4 16l5-6 4 3 7-9"/><path d="M15 4h5v5"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ ingresos_dia|moneda(config_taller().moneda) }}</div>
-  </div>
-  <div class="kpi accent-red">
-    <div class="kpi-top">
-      <div class="kpi-label">Gastos de hoy</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M4 8l5 6 4-3 7 9"/><path d="M15 20h5v-5"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ gastos_dia|moneda(config_taller().moneda) }}</div>
-  </div>
-  <div class="kpi accent-green">
-    <div class="kpi-top">
-      <div class="kpi-label">Ingresos del mes</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M4 16l5-6 4 3 7-9"/><path d="M15 4h5v5"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ ingresos_mes|moneda(config_taller().moneda) }}</div>
-  </div>
-  <div class="kpi accent-red">
-    <div class="kpi-top">
-      <div class="kpi-label">Gastos del mes</div>
-      <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M4 8l5 6 4-3 7 9"/><path d="M15 20h5v-5"/></svg></div>
-    </div>
-    <div class="kpi-value">{{ gastos_mes|moneda(config_taller().moneda) }}</div>
-  </div>
+  <div class="kpi accent-green"><div class="kpi-label">Ingresos de hoy</div><div class="kpi-value">{{ ingresos_dia|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Gastos de hoy</div><div class="kpi-value">{{ gastos_dia|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Ingresos del mes</div><div class="kpi-value">{{ ingresos_mes|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Gastos del mes</div><div class="kpi-value">{{ gastos_mes|moneda(config_taller().moneda) }}</div></div>
 </div>
 
 {% if ordenes_vencidas %}
@@ -87,39 +27,18 @@
   <p class="help" style="margin-top:-6px;">
     {{ ordenes_vencidas|length }} equipo{{ 's' if ordenes_vencidas|length != 1 else '' }}
     sin entregar hace {{ umbral_vencido }} día{{ 's' if umbral_vencido != 1 else '' }} o más.
-    Si el cliente ya se lo llevó, marca la orden como entregada; si sigue en el taller, usa "Sigue aquí" para que no vuelva a aparecer como olvidada.
   </p>
   <div class="table-wrap">
-  <table class="responsive-table">
-    <thead><tr><th>Cliente</th><th>Equipo</th><th>Orden</th><th>Estado</th><th>Retraso</th><th>Acción rápida</th></tr></thead>
+  <table>
+    <thead><tr><th>Cliente</th><th>Equipo</th><th>Orden</th><th>Estado</th><th>Retraso</th></tr></thead>
     <tbody>
       {% for o in ordenes_vencidas %}
       <tr>
-        <td data-label="Cliente">{{ o.cliente.nombre if o.cliente else '-' }}</td>
-        <td data-label="Equipo">{{ o.marca }} {{ o.modelo }}</td>
-        <td data-label="Orden"><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td>
-        <td data-label="Estado"><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
-        <td data-label="Retraso"><span class="dias-chip dias-chip-alerta">+{{ o.dias_en_taller() - umbral_vencido }}d</span></td>
-        <td data-label="">
-          <div class="modal-list-actions">
-            <form method="post" action="/ordenes/{{ o.id }}/estado">
-              <input type="hidden" name="nuevo_estado" value="ENTREGADO">
-              <input type="hidden" name="observacion" value="Marcado como entregado desde el aviso de atención urgente.">
-              <input type="hidden" name="redirect_to" value="/">
-              <button type="submit" class="icon-btn icon-btn-success" title="El cliente ya se llevó el equipo">
-                <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> Entregado
-              </button>
-            </form>
-            <form method="post" action="/ordenes/{{ o.id }}/estado">
-              <input type="hidden" name="nuevo_estado" value="{{ o.estado }}">
-              <input type="hidden" name="observacion" value="Confirmado: el equipo sigue en el taller (revisión de atención urgente).">
-              <input type="hidden" name="redirect_to" value="/">
-              <button type="submit" class="icon-btn icon-btn-outline" title="El equipo todavía está en el taller">
-                <svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Sigue aquí
-              </button>
-            </form>
-          </div>
-        </td>
+        <td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
+        <td>{{ o.marca }} {{ o.modelo }}</td>
+        <td><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td>
+        <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+        <td><span class="dias-chip dias-chip-alerta">+{{ o.dias_en_taller() - umbral_vencido }}d</span></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -127,102 +46,6 @@
   </div>
 </div>
 {% endif %}
-
-<div class="grid cols-2">
-  <div class="card">
-    <div class="card-title">Tendencia de órdenes (últimos 6 meses)</div>
-    <div class="line-chart-wrap">
-      <svg viewBox="0 0 {{ chart_mensual.width }} {{ chart_mensual.height }}" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="gradTendencia" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#4c8dff" stop-opacity="0.35"/>
-            <stop offset="100%" stop-color="#4c8dff" stop-opacity="0"/>
-          </linearGradient>
-        </defs>
-        {% if chart_mensual.area_path %}
-        <path d="{{ chart_mensual.area_path }}" fill="url(#gradTendencia)" stroke="none"/>
-        <path d="{{ chart_mensual.line_path }}" fill="none" stroke="#4c8dff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        {% for pt in chart_mensual.puntos %}
-        <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="3.5" fill="#0f1a2e" stroke="#5fb3ff" stroke-width="2"/>
-        <text x="{{ pt.x }}" y="{{ chart_mensual.baseline_y + 18 }}" text-anchor="middle" font-size="11" fill="#93a3bf">{{ pt.mes }}</text>
-        <text x="{{ pt.x }}" y="{{ pt.y - 9 }}" text-anchor="middle" font-size="10.5" fill="#e5edf7">{{ pt.total }}</text>
-        {% endfor %}
-        {% endif %}
-      </svg>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Tipos de equipo recibidos</div>
-    {% if mix_tipo_equipo %}
-    <div class="donut-row">
-      <div class="donut-wrap">
-        <svg viewBox="0 0 120 120">
-          {% for m in mix_tipo_equipo %}
-          <circle cx="60" cy="60" r="54" fill="none" stroke="{{ m.color }}" stroke-width="16"
-                  stroke-dasharray="{{ m.dasharray }}" stroke-dashoffset="{{ m.dashoffset }}"/>
-          {% endfor %}
-        </svg>
-        <div class="donut-center">
-          <span class="n">{{ mix_tipo_equipo|sum(attribute='cantidad') }}</span>
-          <span class="lbl">Equipos</span>
-        </div>
-      </div>
-      <div class="donut-legend">
-        {% for m in mix_tipo_equipo %}
-        <div class="donut-legend-item">
-          <span class="name"><span class="dot" style="background: {{ m.color }};"></span>{{ m.tipo }}</span>
-          <span class="val">{{ m.cantidad }} · {{ m.pct }}%</span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% else %}
-    <p class="help">Aún no hay órdenes registradas.</p>
-    {% endif %}
-  </div>
-</div>
-
-<div class="grid cols-2">
-  <div class="card">
-    <div class="card-title">Marcas más reparadas</div>
-    {% if top_marcas %}
-    <div class="hbar-list">
-      {% for m in top_marcas %}
-      <div class="hbar-row">
-        <span class="hbar-label">{{ m.marca }}</span>
-        <div class="hbar-track"><div class="hbar-fill" style="width: {{ m.pct }}%;"></div></div>
-        <span class="hbar-val">{{ m.cantidad }}</span>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="help">Aún no hay suficientes órdenes para mostrar marcas.</p>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <div class="card-title">Carga de trabajo por técnico</div>
-    {% if tecnicos_desempeno %}
-    <div class="table-wrap">
-    <table>
-      <thead><tr><th>Técnico</th><th>Activas</th><th>Entregadas</th></tr></thead>
-      <tbody>
-        {% for t in tecnicos_desempeno %}
-        <tr>
-          <td><div class="tech-row-name"><span class="avatar-circle">{{ t.iniciales }}</span>{{ t.nombre }}</div></td>
-          <td>{{ t.activas }}</td>
-          <td>{{ t.entregadas }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    </div>
-    {% else %}
-    <p class="help">Aún no hay órdenes asignadas a técnicos.</p>
-    {% endif %}
-  </div>
-</div>
 
 <div class="grid cols-2">
   <div class="card">
@@ -264,17 +87,17 @@
     <span class="actions"><a href="/ordenes" class="btn btn-outline btn-sm">Ver todas</a></span>
   </div>
   <div class="table-wrap">
-  <table class="responsive-table">
+  <table>
     <thead><tr><th>N. Orden</th><th>Cliente</th><th>Equipo</th><th>Estado</th><th>Prioridad</th><th>Saldo</th></tr></thead>
     <tbody>
       {% for o in ordenes_recientes %}
       <tr>
-        <td data-label="N. Orden"><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td>
-        <td data-label="Cliente">{{ o.cliente.nombre if o.cliente else '-' }}</td>
-        <td data-label="Equipo">{{ o.marca }} {{ o.modelo }}</td>
-        <td data-label="Estado"><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
-        <td data-label="Prioridad"><span class="{{ 'badge badge-' + o.prioridad.lower() }}">{{ o.prioridad }}</span></td>
-        <td data-label="Saldo">{{ o.saldo|moneda(config_taller().moneda) }}</td>
+        <td><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td>
+        <td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
+        <td>{{ o.marca }} {{ o.modelo }}</td>
+        <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+        <td><span class="{{ 'badge badge-' + o.prioridad.lower() }}">{{ o.prioridad }}</span></td>
+        <td>{{ o.saldo|moneda(config_taller().moneda) }}</td>
       </tr>
       {% else %}
       <tr><td colspan="6" class="empty-state">Aún no hay órdenes registradas.</td></tr>
@@ -288,7 +111,7 @@
 <div class="modal-overlay" id="modalVencidos" style="display:none;">
   <div class="modal-box card">
     <div class="card-title" style="color: var(--danger);">&#9888; Equipos con plazo vencido</div>
-    <p class="help">{{ ordenes_vencidas|length }} equipo{{ 's' if ordenes_vencidas|length != 1 else '' }} requieren atención urgente. Si alguno ya se entregó, márcalo aquí mismo.</p>
+    <p class="help">{{ ordenes_vencidas|length }} equipo{{ 's' if ordenes_vencidas|length != 1 else '' }} requieren atención urgente.</p>
     <div class="modal-list">
       {% for o in ordenes_vencidas %}
       <div class="modal-list-item">
@@ -296,17 +119,7 @@
           <b>{{ o.marca }} {{ o.modelo }}</b> · {{ o.cliente.nombre if o.cliente else '-' }}<br>
           <span class="help">{{ o.numero_orden }} · {{ o.estado }}</span>
         </div>
-        <div class="modal-list-actions">
-          <span class="dias-chip dias-chip-alerta">+{{ o.dias_en_taller() - umbral_vencido }}d</span>
-          <form method="post" action="/ordenes/{{ o.id }}/estado">
-            <input type="hidden" name="nuevo_estado" value="ENTREGADO">
-            <input type="hidden" name="observacion" value="Marcado como entregado desde el recordatorio de inicio de sesión.">
-            <input type="hidden" name="redirect_to" value="/">
-            <button type="submit" class="icon-btn icon-btn-success" title="El cliente ya se llevó el equipo">
-              <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
-            </button>
-          </form>
-        </div>
+        <span class="dias-chip dias-chip-alerta">+{{ o.dias_en_taller() - umbral_vencido }}d</span>
       </div>
       {% endfor %}
     </div>

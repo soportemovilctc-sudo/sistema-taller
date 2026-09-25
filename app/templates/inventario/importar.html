@@ -22,6 +22,7 @@
       <li>Si el <b>código ya existe</b> en el sistema: se actualizan sus datos, y la <b>existencia se suma</b> a la que ya tenía (no la reemplaza).</li>
       <li>Si el código <b>no existe</b>: se crea un producto nuevo con la existencia indicada.</li>
       <li>Deja una celda en blanco si no quieres modificar ese dato en un producto existente.</li>
+      <li><b>Caja</b>: dónde tienes guardado el repuesto (por ejemplo "Caja 3"). Opcional.</li>
     </ul>
   </div>
 
@@ -29,6 +30,9 @@
     <div class="field">
       <label>Archivo de Excel (.xlsx)</label>
       <input type="file" name="archivo" accept=".xlsx" required>
+    </div>
+    <div class="field">
+      <label class="checkbox-chip"><input type="checkbox" name="precios_sin_impuesto" value="true"> Los precios de Costo y Precio de venta en este archivo NO incluyen impuesto (agrégaselo automáticamente a cada uno)</label>
     </div>
     <button type="submit" class="btn btn-success">Importar</button>
     <a href="/inventario" class="btn btn-outline">Cancelar</a>

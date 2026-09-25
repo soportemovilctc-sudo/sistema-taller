@@ -9,7 +9,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Producto, MovimientoInventario
+from app.models import Producto, MovimientoInventario, ConfiguracionFacturacion
 from app.utils.calculations import to_decimal
 from app.utils.flash import flash
 from app.deps import login_required, roles_required
@@ -19,8 +19,24 @@ router = APIRouter()
 # Columnas de la plantilla de carga masiva, en este orden exacto.
 COLUMNAS_PLANTILLA = [
     "Código", "Nombre", "Categoría", "Marca", "Costo",
-    "Precio de venta", "Existencia", "Stock mínimo", "Proveedor",
+    "Precio de venta", "Existencia", "Stock mínimo", "Proveedor", "Caja",
 ]
+
+
+def _isv_tasa(db: Session):
+    """Tasa de ISV configurada en Configuración > Facturación (15% si aún
+    no se ha configurado nada)."""
+    cfg = db.get(ConfiguracionFacturacion, 1)
+    if cfg and cfg.isv_tasa is not None:
+        return to_decimal(cfg.isv_tasa)
+    return to_decimal(15)
+
+
+def _con_impuesto(valor, tasa):
+    """Devuelve el valor con el impuesto ya sumado, para cuando el usuario
+    escribe el precio base (sin impuesto) y quiere que el sistema lo
+    convierta automáticamente."""
+    return (to_decimal(valor) * (1 + to_decimal(tasa) / to_decimal(100))).quantize(to_decimal("0.01"))
 
 
 @router.get("/inventario")
@@ -47,17 +63,25 @@ def inventario_crear(
     request: Request,
     codigo: str = Form(...), nombre: str = Form(...), categoria: str = Form(""), marca: str = Form(""),
     costo: str = Form("0"), precio_venta: str = Form("0"), existencia: int = Form(0),
-    stock_minimo: int = Form(0), proveedor: str = Form(""),
+    stock_minimo: int = Form(0), proveedor: str = Form(""), caja: str = Form(""),
+    precios_sin_impuesto: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     existe = db.query(Producto).filter(Producto.codigo == codigo.strip()).first()
     if existe:
         flash(request, "Ya existe un producto con ese código.", "error")
         return RedirectResponse("/inventario/nuevo", status_code=303)
+    costo_final = to_decimal(costo)
+    precio_final = to_decimal(precio_venta)
+    if precios_sin_impuesto:
+        tasa = _isv_tasa(db)
+        costo_final = _con_impuesto(costo_final, tasa)
+        precio_final = _con_impuesto(precio_final, tasa)
     producto = Producto(
         codigo=codigo.strip(), nombre=nombre.strip(), categoria=categoria, marca=marca,
-        costo=to_decimal(costo), precio_venta=to_decimal(precio_venta),
-        existencia=max(0, existencia), stock_minimo=max(0, stock_minimo), proveedor=proveedor, estado="activo",
+        costo=costo_final, precio_venta=precio_final,
+        existencia=max(0, existencia), stock_minimo=max(0, stock_minimo), proveedor=proveedor,
+        caja=caja.strip(), estado="activo",
     )
     db.add(producto)
     db.commit()
@@ -79,18 +103,26 @@ def inventario_actualizar(
     producto_id: int, request: Request,
     nombre: str = Form(...), categoria: str = Form(""), marca: str = Form(""),
     costo: str = Form("0"), precio_venta: str = Form("0"), stock_minimo: int = Form(0),
-    proveedor: str = Form(""), estado: str = Form("activo"),
+    proveedor: str = Form(""), caja: str = Form(""), estado: str = Form("activo"),
+    precios_sin_impuesto: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     producto = db.get(Producto, producto_id)
     if producto:
+        costo_final = to_decimal(costo)
+        precio_final = to_decimal(precio_venta)
+        if precios_sin_impuesto:
+            tasa = _isv_tasa(db)
+            costo_final = _con_impuesto(costo_final, tasa)
+            precio_final = _con_impuesto(precio_final, tasa)
         producto.nombre = nombre.strip()
         producto.categoria = categoria
         producto.marca = marca
-        producto.costo = to_decimal(costo)
-        producto.precio_venta = to_decimal(precio_venta)
+        producto.costo = costo_final
+        producto.precio_venta = precio_final
         producto.stock_minimo = max(0, stock_minimo)
         producto.proveedor = proveedor
+        producto.caja = caja.strip()
         producto.estado = estado
         db.commit()
         flash(request, "Producto actualizado.", "success")
@@ -169,15 +201,15 @@ def inventario_descargar_plantilla(usuario=Depends(login_required)):
 
     ejemplo_font = Font(italic=True, color="888888")
     filas_ejemplo = [
-        ["DEMO-001", "Ejemplo: Pantalla Samsung A32", "Repuestos", "Samsung", 250.00, 850.00, 5, 2, "Proveedor Ejemplo"],
-        ["DEMO-002", "Ejemplo: Batería iPhone 11", "Repuestos", "Apple", 180.00, 450.00, 3, 1, "Proveedor Ejemplo"],
+        ["DEMO-001", "Ejemplo: Pantalla Samsung A32", "Repuestos", "Samsung", 250.00, 850.00, 5, 2, "Proveedor Ejemplo", "Caja 1"],
+        ["DEMO-002", "Ejemplo: Batería iPhone 11", "Repuestos", "Apple", 180.00, 450.00, 3, 1, "Proveedor Ejemplo", "Caja 2"],
     ]
     for fila_idx, fila in enumerate(filas_ejemplo, start=2):
         for col_idx, valor in enumerate(fila, start=1):
             celda = hoja.cell(row=fila_idx, column=col_idx, value=valor)
             celda.font = ejemplo_font
 
-    anchos = [14, 34, 16, 16, 12, 16, 12, 13, 20]
+    anchos = [14, 34, 16, 16, 12, 16, 12, 13, 20, 12]
     for col_idx, ancho in enumerate(anchos, start=1):
         hoja.column_dimensions[hoja.cell(row=1, column=col_idx).column_letter].width = ancho
     hoja.freeze_panes = "A2"
@@ -195,7 +227,9 @@ def inventario_descargar_plantilla(usuario=Depends(login_required)):
         ("6.", "Costo y Precio de venta: números, por ejemplo 250.00. Si los dejas en blanco en un producto que ya existe, no se modifica el que ya tenía guardado."),
         ("7.", "Existencia: si el producto es NUEVO, se usa como la existencia inicial. Si el producto YA EXISTE, la cantidad que pongas se SUMA a la existencia actual (como una entrada de inventario), no la reemplaza. Déjala en blanco si no quieres modificar la existencia."),
         ("8.", "Stock mínimo: cantidad a partir de la cual el sistema avisa \"Bajo\". Opcional."),
-        ("9.", "Guarda el archivo en formato Excel (.xlsx) y súbelo en Inventario → Carga masiva (Excel)."),
+        ("9.", "Caja: el número o nombre de la caja/casillero donde tienes guardado el repuesto (por ejemplo \"Caja 3\" o \"Estante A-2\"). Opcional, solo para ubicarlo más rápido."),
+        ("10.", "Costo y Precio de venta SIN impuesto: si prefieres escribir los precios sin impuesto (números redondos) y que el sistema les agregue el ISV automáticamente, marca la casilla \"Estos precios no incluyen impuesto\" al subir el archivo, en el Paso 2."),
+        ("11.", "Guarda el archivo en formato Excel (.xlsx) y súbelo en Inventario → Carga masiva (Excel)."),
     ]
     for fila_idx, (a, b) in enumerate(filas_instrucciones, start=1):
         celda_a = instrucciones.cell(row=fila_idx, column=1, value=a)
@@ -244,6 +278,7 @@ def _leer_entero(valor):
 @router.post("/inventario/importar")
 async def inventario_importar_procesar(
     request: Request, archivo: UploadFile = File(...),
+    precios_sin_impuesto: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     nombre_archivo = archivo.filename or ""
@@ -251,6 +286,7 @@ async def inventario_importar_procesar(
         flash(request, "El archivo debe ser un Excel (.xlsx). Descarga la plantilla e inténtalo de nuevo.", "error")
         return RedirectResponse("/inventario/importar", status_code=303)
 
+    tasa_isv = _isv_tasa(db) if precios_sin_impuesto else None
     contenido = await archivo.read()
     try:
         wb = load_workbook(io.BytesIO(contenido), data_only=True)
@@ -277,6 +313,12 @@ async def inventario_importar_procesar(
         hay_existencia, existencia = _leer_entero(fila[6] if len(fila) > 6 else None)
         hay_stock_min, stock_minimo = _leer_entero(fila[7] if len(fila) > 7 else None)
         proveedor = _leer_texto(fila[8] if len(fila) > 8 else None)
+        caja = _leer_texto(fila[9] if len(fila) > 9 else None)
+
+        if hay_costo and tasa_isv is not None:
+            costo = _con_impuesto(costo, tasa_isv)
+        if hay_precio and tasa_isv is not None:
+            precio_venta = _con_impuesto(precio_venta, tasa_isv)
 
         if codigo.upper() in ("DEMO-001", "DEMO-002"):
             continue  # fila de ejemplo que el usuario olvidó borrar
@@ -315,6 +357,8 @@ async def inventario_importar_procesar(
                 producto.marca = marca
             if proveedor:
                 producto.proveedor = proveedor
+            if caja:
+                producto.caja = caja
             if hay_costo:
                 producto.costo = costo
             if hay_precio:
@@ -339,7 +383,7 @@ async def inventario_importar_procesar(
                 costo=costo if hay_costo else to_decimal(0), precio_venta=precio_venta if hay_precio else to_decimal(0),
                 existencia=max(0, existencia) if hay_existencia else 0,
                 stock_minimo=max(0, stock_minimo) if hay_stock_min else 0,
-                proveedor=proveedor, estado="activo",
+                proveedor=proveedor, caja=caja, estado="activo",
             )
             db.add(producto)
             db.flush()  # para que códigos repetidos en el mismo archivo se vean como "ya existe" en la fila siguiente

@@ -290,22 +290,29 @@ def facturas_anular(
 @router.post("/facturas/{factura_id}/eliminar")
 def facturas_eliminar(
     factura_id: int, request: Request,
+    confirmar_numero: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
 ):
-    """Elimina definitivamente un comprobante interno. Las facturas FISCALES
-    nunca se pueden eliminar (solo anular): su numeración está sujeta al
-    control correlativo de la SAR y borrarla rompería ese control."""
+    """Elimina definitivamente una factura (interna o fiscal). Solo un
+    administrador puede hacerlo. Para una factura FISCAL se exige además
+    escribir su número exacto como confirmación, porque al eliminarla el
+    correlativo consecutivo que exige la SAR queda con un salto (a
+    diferencia de anular, que conserva el número marcado como anulado)."""
     factura = db.get(Factura, factura_id)
     if not factura:
         flash(request, "Factura no encontrada.", "error")
         return RedirectResponse("/facturas", status_code=303)
-    if factura.tipo == "fiscal":
-        flash(request, "Las facturas fiscales no se pueden eliminar, solo anular: su numeración está sujeta a control de la SAR.", "error")
+    if factura.tipo == "fiscal" and confirmar_numero.strip() != factura.numero_documento:
+        flash(request, "Para eliminar una factura fiscal debes escribir su número exacto como confirmación.", "error")
         return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
     numero = factura.numero_documento
+    tipo = factura.tipo
     db.delete(factura)
     db.commit()
-    flash(request, f"Comprobante {numero} eliminado definitivamente.", "success")
+    if tipo == "fiscal":
+        flash(request, f"Factura fiscal {numero} eliminada definitivamente. Ese número queda con un salto en tu correlativo ante la SAR.", "success")
+    else:
+        flash(request, f"Comprobante {numero} eliminado definitivamente.", "success")
     return RedirectResponse("/facturas", status_code=303)
 
 

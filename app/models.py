@@ -274,6 +274,7 @@ class Producto(Base):
     existencia = Column(Integer, default=0)
     stock_minimo = Column(Integer, default=0)
     proveedor = Column(String(150))
+    caja = Column(String(40), default="")  # número/nombre de la caja o casillero donde está guardado
     estado = Column(String(20), default="activo")  # activo | inactivo
     creado_en = Column(DateTime, default=datetime.utcnow)
 

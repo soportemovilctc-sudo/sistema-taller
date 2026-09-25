@@ -138,9 +138,9 @@ def reportes_exportar_csv(
 
     if tipo == "inventario":
         productos = db.query(Producto).order_by(Producto.nombre).all()
-        filas = [[p.codigo, p.nombre, p.categoria, p.marca, float(p.costo), float(p.precio_venta),
+        filas = [[p.codigo, p.nombre, p.categoria, p.marca, p.caja, float(p.costo), float(p.precio_venta),
                   p.existencia, p.stock_minimo] for p in productos]
-        return _csv_response(filas, ["Codigo", "Nombre", "Categoria", "Marca", "Costo", "Precio", "Existencia", "Stock minimo"], "reporte_inventario.csv")
+        return _csv_response(filas, ["Codigo", "Nombre", "Categoria", "Marca", "Caja", "Costo", "Precio", "Existencia", "Stock minimo"], "reporte_inventario.csv")
 
     if tipo == "saldos":
         ordenes = db.query(OrdenServicio).options(joinedload(OrdenServicio.cliente)).filter(

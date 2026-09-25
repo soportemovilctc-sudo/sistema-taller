@@ -1,7 +1,14 @@
 // Lógica del carrito del Punto de Venta.
 var carrito = [];
+var TASA_ISV = 15;
 
 document.addEventListener("DOMContentLoaded", function () {
+  var posLayout = document.querySelector(".pos-layout");
+  if (posLayout) {
+    var tasaAttr = parseFloat(posLayout.getAttribute("data-tasa-isv"));
+    if (!isNaN(tasaAttr)) TASA_ISV = tasaAttr;
+  }
+
   document.querySelectorAll(".product-card").forEach(function (card) {
     card.addEventListener("click", function () {
       agregarAlCarrito({
@@ -88,11 +95,14 @@ function renderCarrito() {
   var descuento = parseFloat((document.getElementById("posDescuento") || {}).value) || 0;
   if (descuento < 0) descuento = 0;
   if (descuento > subtotal) descuento = subtotal;
-  var total = subtotal - descuento;
+  var totalNeto = subtotal - descuento;
+  var isv = totalNeto * TASA_ISV / 100;
+  var total = totalNeto + isv;
   var recibido = parseFloat((document.getElementById("posMontoRecibido") || {}).value) || 0;
   var cambio = recibido - total;
 
   setTexto("posSubtotal", subtotal.toFixed(2));
+  setTexto("posIsv", isv.toFixed(2));
   setTexto("posTotal", total.toFixed(2));
   setTexto("posCambio", (cambio > 0 ? cambio : 0).toFixed(2));
 

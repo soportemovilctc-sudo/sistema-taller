@@ -7,16 +7,16 @@
     <span class="actions">
       <a href="/reportes/exportar/inventario" class="btn btn-outline btn-sm">Exportar CSV</a>
       <a href="/inventario/importar" class="btn btn-outline btn-sm">Carga masiva (Excel)</a>
-      <a href="/inventario/precios" class="btn btn-outline btn-sm">Ver precios con impuesto</a>
       <a href="/inventario/nuevo" class="btn btn-primary btn-sm">+ Nuevo producto</a>
     </span>
   </div>
+  <p class="help" style="font-size:13px; margin-top:-4px;">Las columnas "c/imp." muestran el Costo y el Precio de venta con el {{ tasa_isv }}% de impuesto ya sumado, solo para consulta.</p>
   <form method="get" style="margin-bottom:14px;">
     <input type="text" name="q" value="{{ q }}" placeholder="Buscar por código, nombre, categoría o marca...">
   </form>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Caja</th><th>Costo</th><th>Precio</th><th>Existencia</th><th>Mín.</th><th>Estado</th><th></th></tr></thead>
+    <thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Caja</th><th>Costo</th><th>Costo c/imp.</th><th>Precio</th><th>Precio c/imp.</th><th>Existencia</th><th>Mín.</th><th>Estado</th><th></th></tr></thead>
     <tbody>
       {% for p in productos %}
       <tr>
@@ -26,7 +26,9 @@
         <td>{{ p.marca or '-' }}</td>
         <td>{{ p.caja or '-' }}</td>
         <td>{{ p.costo|moneda(config_taller().moneda) }}</td>
+        <td>{{ precios_con_impuesto[p.id].costo|moneda(config_taller().moneda) }}</td>
         <td>{{ p.precio_venta|moneda(config_taller().moneda) }}</td>
+        <td>{{ precios_con_impuesto[p.id].precio_venta|moneda(config_taller().moneda) }}</td>
         <td>
           {{ p.existencia }}
           {% if p.id in stock_bajo_ids %}<span class="badge badge-stock-bajo">Bajo</span>{% endif %}
@@ -39,7 +41,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="11" class="empty-state">No hay productos registrados.</td></tr>
+      <tr><td colspan="13" class="empty-state">No hay productos registrados.</td></tr>
       {% endfor %}
     </tbody>
   </table>

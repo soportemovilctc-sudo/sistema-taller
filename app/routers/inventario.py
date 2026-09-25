@@ -49,35 +49,22 @@ def inventario_list(request: Request, q: str = "", db: Session = Depends(get_db)
                                   Producto.categoria.ilike(like), Producto.marca.ilike(like)))
     productos = query.order_by(Producto.nombre).all()
     stock_bajo_ids = {p.id for p in productos if p.existencia <= p.stock_minimo}
-    return templates.TemplateResponse("inventario/list.html", {
-        "request": request, "productos": productos, "q": q, "usuario": usuario, "stock_bajo_ids": stock_bajo_ids,
-    })
 
-
-@router.get("/inventario/precios")
-def inventario_precios(request: Request, q: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
-    """Vista de solo lectura que muestra, junto al Costo y Precio de venta
-    normales (sin impuesto, tal como se guardan), el mismo valor con el
-    impuesto ya sumado — para no tener que calcularlo a mano cada vez. No
-    modifica ni guarda nada."""
-    query = db.query(Producto)
-    if q:
-        like = f"%{q}%"
-        query = query.filter(or_(Producto.codigo.ilike(like), Producto.nombre.ilike(like),
-                                  Producto.categoria.ilike(like), Producto.marca.ilike(like)))
-    productos = query.order_by(Producto.nombre).all()
-    tasa = _isv_tasa(db)
-    factor = 1 + tasa / to_decimal(100)
-    filas = [
-        {
-            "producto": p,
-            "costo_con_impuesto": (to_decimal(p.costo) * factor).quantize(to_decimal("0.01")),
-            "precio_con_impuesto": (to_decimal(p.precio_venta) * factor).quantize(to_decimal("0.01")),
+    # Costo y Precio de venta con el impuesto ya sumado, para mostrarlos
+    # junto a los normales sin tener que calcularlos a mano.
+    tasa_isv = _isv_tasa(db)
+    factor = 1 + tasa_isv / to_decimal(100)
+    precios_con_impuesto = {
+        p.id: {
+            "costo": (to_decimal(p.costo) * factor).quantize(to_decimal("0.01")),
+            "precio_venta": (to_decimal(p.precio_venta) * factor).quantize(to_decimal("0.01")),
         }
         for p in productos
-    ]
-    return templates.TemplateResponse("inventario/precios.html", {
-        "request": request, "filas": filas, "q": q, "usuario": usuario, "tasa": tasa,
+    }
+
+    return templates.TemplateResponse("inventario/list.html", {
+        "request": request, "productos": productos, "q": q, "usuario": usuario, "stock_bajo_ids": stock_bajo_ids,
+        "precios_con_impuesto": precios_con_impuesto, "tasa_isv": tasa_isv,
     })
 
 

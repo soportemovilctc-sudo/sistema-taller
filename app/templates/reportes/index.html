@@ -8,6 +8,7 @@
   <a href="/reportes?tipo=ventas" class="{{ 'active' if tipo == 'ventas' else '' }}">Ventas</a>
   <a href="/reportes?tipo=inventario" class="{{ 'active' if tipo == 'inventario' else '' }}">Inventario</a>
   <a href="/reportes?tipo=saldos" class="{{ 'active' if tipo == 'saldos' else '' }}">Saldos pendientes</a>
+  <a href="/reportes?tipo=utilidades" class="{{ 'active' if tipo == 'utilidades' else '' }}">Utilidades</a>
 </div>
 
 <div class="card">
@@ -86,6 +87,24 @@
         {% for o in ordenes %}
         <tr><td><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td><td>{{ o.cliente.nombre if o.cliente else '-' }}</td><td>{{ o.total|moneda(config_taller().moneda) }}</td><td>{{ o.abonado|moneda(config_taller().moneda) }}</td><td class="money-negative">{{ o.saldo|moneda(config_taller().moneda) }}</td></tr>
         {% else %}<tr><td colspan="5" class="empty-state">No hay saldos pendientes.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  {% elif tipo == 'utilidades' %}
+    <p class="help" style="margin-top:-4px;">La utilidad se calcula con el costo ACTUAL de cada producto en Inventario (no queda guardado el costo histórico de cada venta), sobre las unidades vendidas en Punto de Venta y en repuestos usados en órdenes.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Código</th><th>Producto</th><th>Unidades vendidas</th><th>Costo unitario</th><th>Precio unitario</th><th>Ingresos</th><th>Costo total</th><th>Utilidad</th><th>Margen</th></tr></thead>
+      <tbody>
+        {% for u in utilidades %}
+        <tr>
+          <td>{{ u.codigo }}</td><td>{{ u.nombre }}</td><td>{{ u.unidades }}</td>
+          <td>{{ u.costo_unitario|moneda(config_taller().moneda) }}</td>
+          <td>{{ u.precio_unitario|moneda(config_taller().moneda) }}</td>
+          <td>{{ u.ingresos|moneda(config_taller().moneda) }}</td>
+          <td>{{ u.costo_total|moneda(config_taller().moneda) }}</td>
+          <td><b class="{{ 'money-negative' if u.utilidad < 0 else '' }}">{{ u.utilidad|moneda(config_taller().moneda) }}</b></td>
+          <td>{{ u.margen_pct }}%</td>
+        </tr>
+        {% else %}<tr><td colspan="9" class="empty-state">Aún no hay ventas de productos en este rango.</td></tr>{% endfor %}
       </tbody>
     </table></div>
   {% endif %}

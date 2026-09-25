@@ -260,6 +260,31 @@
 </div>
 
 <div class="card">
+  <div class="card-title">Top 3 productos más rentables
+    <span class="actions"><a href="/reportes?tipo=utilidades" class="btn btn-outline btn-sm">Ver reporte completo</a></span>
+  </div>
+  {% if top_utilidad_productos %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>Producto</th><th>Unidades vendidas</th><th>Utilidad generada</th></tr></thead>
+    <tbody>
+      {% for p in top_utilidad_productos %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ p.nombre }}</td>
+        <td>{{ p.unidades }}</td>
+        <td><b>{{ p.utilidad|moneda(config_taller().moneda) }}</b></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="help">Aún no hay ventas registradas para calcular utilidades.</p>
+  {% endif %}
+</div>
+
+<div class="card">
   <div class="card-title">Órdenes recientes
     <span class="actions"><a href="/ordenes" class="btn btn-outline btn-sm">Ver todas</a></span>
   </div>

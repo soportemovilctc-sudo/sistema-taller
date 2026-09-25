@@ -261,6 +261,18 @@ class Pago(Base):
     orden = relationship("OrdenServicio", back_populates="pagos")
 
 
+class Categoria(Base):
+    """Categorías de inventario controladas por el sistema: hay que crearlas
+    aquí antes de poder asignarlas a un producto (evita duplicados como
+    'PANTALLA' / 'PANTALLAS')."""
+    __tablename__ = "categorias"
+
+    id = Column(Integer, primary_key=True)
+    nombre = Column(String(80), unique=True, nullable=False)
+    activo = Column(Boolean, default=True)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
+
 class Producto(Base):
     __tablename__ = "productos"
 

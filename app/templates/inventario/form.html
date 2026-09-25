@@ -15,7 +15,20 @@
       <div class="field"><label>Nombre *</label><input type="text" name="nombre" required value="{{ producto.nombre if producto else '' }}"></div>
     </div>
     <div class="form-row">
-      <div class="field"><label>Categoría</label><input type="text" name="categoria" value="{{ producto.categoria if producto else '' }}"></div>
+      <div class="field">
+        <label>Categoría</label>
+        <select name="categoria">
+          <option value="">Sin categoría</option>
+          {% set actual = producto.categoria if producto else '' %}
+          {% for c in categorias %}
+          <option value="{{ c }}" {{ 'selected' if c == actual else '' }}>{{ c }}</option>
+          {% endfor %}
+          {% if actual and actual not in categorias %}
+          <option value="{{ actual }}" selected>{{ actual }} (inactiva)</option>
+          {% endif %}
+        </select>
+        <div class="help">¿No está en la lista? <a href="/inventario/categorias">Créala primero aquí</a>.</div>
+      </div>
       <div class="field"><label>Marca</label><input type="text" name="marca" value="{{ producto.marca if producto else '' }}"></div>
     </div>
     <div class="form-row">

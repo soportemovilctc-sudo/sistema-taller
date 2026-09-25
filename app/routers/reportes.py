@@ -2,22 +2,61 @@
 import csv
 import io
 from datetime import datetime, date
+from decimal import Decimal
 
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
 from app.templates_env import templates
 from app.database import get_db
 from app.models import (
-    OrdenServicio, MovimientoFinanciero, Venta, Producto, Tecnico,
+    OrdenServicio, MovimientoFinanciero, Venta, DetalleVenta, Producto, Tecnico,
     ESTADOS_ORDEN, FORMAS_PAGO,
 )
+from app.utils.calculations import to_decimal
 from app.deps import login_required
 
 router = APIRouter()
+
+
+def _utilidades_por_producto(db: Session, fecha_desde=None, fecha_hasta=None):
+    """Utilidad generada por cada producto vendido (POS y repuestos usados
+    en órdenes, que también quedan como Venta/DetalleVenta): ingresos menos
+    costo, usando el costo ACTUAL del producto en Inventario (no se guarda
+    un historial de costo por venta). Ordenado de mayor a menor utilidad."""
+    q = (
+        db.query(
+            Producto.id, Producto.codigo, Producto.nombre, Producto.costo, Producto.precio_venta,
+            func.coalesce(func.sum(DetalleVenta.cantidad), 0),
+            func.coalesce(func.sum(DetalleVenta.subtotal), 0),
+        )
+        .join(DetalleVenta, DetalleVenta.producto_id == Producto.id)
+        .join(Venta, Venta.id == DetalleVenta.venta_id)
+    )
+    if fecha_desde:
+        q = q.filter(Venta.fecha >= fecha_desde)
+    if fecha_hasta:
+        q = q.filter(Venta.fecha <= fecha_hasta)
+    q = q.group_by(Producto.id, Producto.codigo, Producto.nombre, Producto.costo, Producto.precio_venta)
+
+    resultado = []
+    for producto_id, codigo, nombre, costo, precio_venta, unidades, ingresos in q.all():
+        costo = to_decimal(costo)
+        ingresos = to_decimal(ingresos)
+        costo_total = (costo * unidades).quantize(Decimal("0.01"))
+        utilidad = (ingresos - costo_total).quantize(Decimal("0.01"))
+        margen_pct = float((utilidad / ingresos * 100).quantize(Decimal("0.1"))) if ingresos > 0 else 0.0
+        resultado.append({
+            "producto_id": producto_id, "codigo": codigo, "nombre": nombre,
+            "unidades": unidades, "costo_unitario": costo, "precio_unitario": to_decimal(precio_venta),
+            "ingresos": ingresos, "costo_total": costo_total, "utilidad": utilidad, "margen_pct": margen_pct,
+        })
+    resultado.sort(key=lambda r: r["utilidad"], reverse=True)
+    return resultado
 
 
 def _parse_fecha(valor, default=None):
@@ -91,6 +130,8 @@ def reportes_index(
         contexto["ordenes"] = db.query(OrdenServicio).options(joinedload(OrdenServicio.cliente)).filter(
             OrdenServicio.saldo > 0, OrdenServicio.estado != "CANCELADO"
         ).order_by(OrdenServicio.fecha.desc()).all()
+    elif tipo == "utilidades":
+        contexto["utilidades"] = _utilidades_por_producto(db, fecha_desde, fecha_hasta)
 
     return templates.TemplateResponse("reportes/index.html", contexto)
 
@@ -187,6 +228,13 @@ def _datos_reporte(tipo, fecha_desde, fecha_hasta, tecnico_id, estado, db):
         ).order_by(OrdenServicio.fecha.desc()).all()
         filas = [[o.numero_orden, o.cliente.nombre if o.cliente else "", float(o.total), float(o.abonado), float(o.saldo)] for o in ordenes]
         return filas, ["N. Orden", "Cliente", "Total", "Abonado", "Saldo"], "reporte_saldos", "Saldos"
+
+    if tipo == "utilidades":
+        utilidades = _utilidades_por_producto(db, fecha_desde, fecha_hasta)
+        filas = [[u["codigo"], u["nombre"], u["unidades"], float(u["costo_unitario"]), float(u["precio_unitario"]),
+                  float(u["ingresos"]), float(u["costo_total"]), float(u["utilidad"]), u["margen_pct"]] for u in utilidades]
+        return filas, ["Codigo", "Nombre", "Unidades vendidas", "Costo unitario", "Precio unitario",
+                        "Ingresos", "Costo total", "Utilidad", "Margen %"], "reporte_utilidades", "Utilidades"
 
     return [], ["Sin datos"], "reporte", "Reporte"
 

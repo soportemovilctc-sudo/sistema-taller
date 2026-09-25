@@ -11,6 +11,7 @@ from app.templates_env import templates
 from app.database import get_db
 from app.models import OrdenServicio, MovimientoFinanciero, Venta, Producto, Configuracion, Tecnico
 from app.deps import login_required
+from app.routers.reportes import _utilidades_por_producto
 
 # Paleta reutilizada en las gráficas del dashboard (dona, barras).
 _COLORES_GRAFICAS = ["#4c8dff", "#34d399", "#f5a623", "#a78bfa", "#38bdf8", "#f2545b", "#5c6884"]
@@ -168,6 +169,10 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
             })
     tecnicos_desempeno.sort(key=lambda x: (x["activas"], x["entregadas"]), reverse=True)
 
+    # Top 3 productos más rentables de todo el historial de ventas
+    # (POS + repuestos usados en órdenes).
+    top_utilidad_productos = _utilidades_por_producto(db)[:3]
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request, "usuario": usuario,
         "recibidas_hoy": recibidas_hoy, "en_diagnostico": en_diagnostico,
@@ -187,4 +192,5 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
         "mix_tipo_equipo": mix_tipo_equipo,
         "top_marcas": top_marcas,
         "tecnicos_desempeno": tecnicos_desempeno,
+        "top_utilidad_productos": top_utilidad_productos,
     })

@@ -7,10 +7,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.worksheet.datavalidation import DataValidation
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Producto, MovimientoInventario, ConfiguracionFacturacion
+from app.models import Producto, MovimientoInventario, ConfiguracionFacturacion, Categoria
 from app.utils.calculations import to_decimal
 from app.utils.flash import flash
 from app.deps import login_required, roles_required
@@ -42,11 +43,12 @@ def _quitar_impuesto(valor, tasa):
 
 
 def _categorias_disponibles(db: Session):
+    """Nombres de las categorías activas del catálogo controlado (para el
+    filtro de Inventario y los <select> de los formularios)."""
     filas = (
-        db.query(Producto.categoria)
-        .filter(Producto.categoria.isnot(None), Producto.categoria != "")
-        .distinct()
-        .order_by(Producto.categoria)
+        db.query(Categoria.nombre)
+        .filter(Categoria.activo == True)  # noqa: E712
+        .order_by(Categoria.nombre)
         .all()
     )
     return [f[0] for f in filas]
@@ -56,6 +58,78 @@ def _ultimo_producto(db: Session):
     """El producto ingresado más recientemente (para mostrar cuál fue el
     último código usado)."""
     return db.query(Producto).order_by(Producto.creado_en.desc(), Producto.id.desc()).first()
+
+
+# ---------------------------------------------------------------------------
+# Categorías: catálogo controlado. Hay que crearlas aquí antes de poder
+# asignarlas a un producto (evita duplicados como "PANTALLA"/"PANTALLAS").
+# ---------------------------------------------------------------------------
+@router.get("/inventario/categorias")
+def categorias_list(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
+    categorias = db.query(Categoria).order_by(Categoria.nombre).all()
+    # Cuenta cuántos productos usan cada categoría (para no dejar eliminar
+    # una que sigue en uso).
+    filas_conteo = (
+        db.query(Producto.categoria, Producto.id)
+        .filter(Producto.categoria.isnot(None), Producto.categoria != "")
+        .all()
+    )
+    en_uso = {}
+    for cat, _ in filas_conteo:
+        en_uso[cat] = en_uso.get(cat, 0) + 1
+    return templates.TemplateResponse("inventario/categorias.html", {
+        "request": request, "usuario": usuario, "categorias": categorias, "en_uso": en_uso,
+    })
+
+
+@router.post("/inventario/categorias")
+def categorias_crear(
+    request: Request, nombre: str = Form(...),
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    nombre = nombre.strip()
+    if not nombre:
+        flash(request, "Escribe un nombre para la categoría.", "error")
+        return RedirectResponse("/inventario/categorias", status_code=303)
+    existe = db.query(Categoria).filter(Categoria.nombre.ilike(nombre)).first()
+    if existe:
+        flash(request, f"La categoría '{existe.nombre}' ya existe.", "error")
+        return RedirectResponse("/inventario/categorias", status_code=303)
+    db.add(Categoria(nombre=nombre, activo=True))
+    db.commit()
+    flash(request, f"Categoría '{nombre}' creada. Ya puedes elegirla al crear o editar productos.", "success")
+    return RedirectResponse("/inventario/categorias", status_code=303)
+
+
+@router.post("/inventario/categorias/{categoria_id}/activar")
+def categorias_toggle(
+    categoria_id: int, request: Request,
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    cat = db.get(Categoria, categoria_id)
+    if cat:
+        cat.activo = not cat.activo
+        db.commit()
+        flash(request, f"Categoría '{cat.nombre}' {'activada' if cat.activo else 'desactivada'}.", "success")
+    return RedirectResponse("/inventario/categorias", status_code=303)
+
+
+@router.post("/inventario/categorias/{categoria_id}/eliminar")
+def categorias_eliminar(
+    categoria_id: int, request: Request,
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    cat = db.get(Categoria, categoria_id)
+    if not cat:
+        return RedirectResponse("/inventario/categorias", status_code=303)
+    en_uso = db.query(Producto).filter(Producto.categoria.ilike(cat.nombre)).count()
+    if en_uso > 0:
+        flash(request, f"No se puede eliminar '{cat.nombre}': la usan {en_uso} producto(s). Desactívala en vez de eliminarla.", "error")
+        return RedirectResponse("/inventario/categorias", status_code=303)
+    db.delete(cat)
+    db.commit()
+    flash(request, f"Categoría '{cat.nombre}' eliminada.", "success")
+    return RedirectResponse("/inventario/categorias", status_code=303)
 
 
 @router.get("/inventario")
@@ -165,7 +239,16 @@ def inventario_exportar_excel(q: str = "", categoria: str = "", db: Session = De
 def inventario_nuevo_form(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     return templates.TemplateResponse("inventario/form.html", {
         "request": request, "producto": None, "usuario": usuario, "ultimo_producto": _ultimo_producto(db),
+        "categorias": _categorias_disponibles(db),
     })
+
+
+def _categoria_valida(db: Session, categoria: str) -> bool:
+    """True si la categoría viene vacía o coincide con una ya creada en el
+    catálogo (sin importar mayúsculas/minúsculas)."""
+    if not categoria:
+        return True
+    return db.query(Categoria).filter(Categoria.nombre.ilike(categoria)).first() is not None
 
 
 @router.post("/inventario/nuevo")
@@ -180,6 +263,9 @@ def inventario_crear(
     existe = db.query(Producto).filter(Producto.codigo == codigo.strip()).first()
     if existe:
         flash(request, "Ya existe un producto con ese código.", "error")
+        return RedirectResponse("/inventario/nuevo", status_code=303)
+    if not _categoria_valida(db, categoria):
+        flash(request, "Esa categoría no existe. Créala primero en Inventario → Categorías.", "error")
         return RedirectResponse("/inventario/nuevo", status_code=303)
     costo_final = to_decimal(costo)
     precio_final = to_decimal(precio_venta)
@@ -205,7 +291,10 @@ def inventario_editar_form(producto_id: int, request: Request, db: Session = Dep
     if not producto:
         flash(request, "Producto no encontrado.", "error")
         return RedirectResponse("/inventario", status_code=303)
-    return templates.TemplateResponse("inventario/form.html", {"request": request, "producto": producto, "usuario": usuario})
+    return templates.TemplateResponse("inventario/form.html", {
+        "request": request, "producto": producto, "usuario": usuario,
+        "categorias": _categorias_disponibles(db),
+    })
 
 
 @router.post("/inventario/{producto_id}/editar")
@@ -219,6 +308,9 @@ def inventario_actualizar(
 ):
     producto = db.get(Producto, producto_id)
     if producto:
+        if categoria != producto.categoria and not _categoria_valida(db, categoria):
+            flash(request, "Esa categoría no existe. Créala primero en Inventario → Categorías.", "error")
+            return RedirectResponse(f"/inventario/{producto_id}/editar", status_code=303)
         costo_final = to_decimal(costo)
         precio_final = to_decimal(precio_venta)
         if precios_incluyen_impuesto:
@@ -353,10 +445,11 @@ def inventario_ajustes_procesar(
 
 
 @router.get("/inventario/plantilla")
-def inventario_descargar_plantilla(usuario=Depends(login_required)):
+def inventario_descargar_plantilla(db: Session = Depends(get_db), usuario=Depends(login_required)):
     """Genera y descarga la plantilla de Excel para la carga masiva de
     inventario, con encabezados, un par de filas de ejemplo y una hoja de
     instrucciones."""
+    categorias = _categorias_disponibles(db)
     wb = Workbook()
 
     hoja = wb.active
@@ -384,6 +477,24 @@ def inventario_descargar_plantilla(usuario=Depends(login_required)):
         hoja.column_dimensions[hoja.cell(row=1, column=col_idx).column_letter].width = ancho
     hoja.freeze_panes = "A2"
 
+    # Columna "Categoría" (C) como lista desplegable: solo se puede elegir
+    # una categoría ya creada en Inventario → Categorías.
+    if categorias:
+        hoja_cat = wb.create_sheet("ListaCategorias")
+        for i, nombre in enumerate(categorias, start=1):
+            hoja_cat.cell(row=i, column=1, value=nombre)
+        hoja_cat.sheet_state = "hidden"
+        dv = DataValidation(
+            type="list", formula1=f"=ListaCategorias!$A$1:$A${len(categorias)}",
+            allow_blank=True,
+        )
+        dv.error = "Esa categoría no existe. Créala primero en Inventario → Categorías antes de usarla aquí."
+        dv.errorTitle = "Categoría inválida"
+        dv.prompt = "Elige una categoría de la lista (o déjalo en blanco)."
+        dv.promptTitle = "Categoría"
+        hoja.add_data_validation(dv)
+        dv.add("C2:C2001")
+
     instrucciones = wb.create_sheet("Instrucciones")
     instrucciones.column_dimensions["A"].width = 26
     instrucciones.column_dimensions["B"].width = 90
@@ -393,7 +504,7 @@ def inventario_descargar_plantilla(usuario=Depends(login_required)):
         ("2.", "Llena una fila por cada producto. No cambies el orden ni los nombres de las columnas."),
         ("3.", "Código (obligatorio): identifica el producto. Si el código YA existe en el sistema, se actualiza ese producto; si no existe, se crea uno nuevo."),
         ("4.", "Nombre (obligatorio)."),
-        ("5.", "Categoría, Marca y Proveedor son opcionales."),
+        ("5.", "Categoría: elige una de la lista desplegable de la celda (solo se pueden usar categorías ya creadas en Inventario → Categorías). Marca y Proveedor son texto libre y opcionales."),
         ("6.", "Costo y Precio de venta: números, por ejemplo 250.00. Si los dejas en blanco en un producto que ya existe, no se modifica el que ya tenía guardado."),
         ("7.", "Existencia: si el producto es NUEVO, se usa como la existencia inicial. Si el producto YA EXISTE, la cantidad que pongas se SUMA a la existencia actual (como una entrada de inventario), no la reemplaza. Déjala en blanco si no quieres modificar la existencia."),
         ("8.", "Stock mínimo: cantidad a partir de la cual el sistema avisa \"Bajo\". Opcional."),
@@ -466,6 +577,7 @@ async def inventario_importar_procesar(
 
     hoja = wb["Inventario"] if "Inventario" in wb.sheetnames else wb.worksheets[0]
 
+    categorias_validas = {fila[0].lower() for fila in db.query(Categoria.nombre).all()}
     resultados = []
     creados = actualizados = con_error = 0
     MAX_FILAS = 2000
@@ -516,6 +628,13 @@ async def inventario_importar_procesar(
         if hay_stock_min and stock_minimo < 0:
             con_error += 1
             resultados.append({"fila": i, "codigo": codigo, "nombre": nombre, "resultado": "error", "detalle": "El stock mínimo no puede ser negativo."})
+            continue
+        if categoria and categoria.lower() not in categorias_validas:
+            con_error += 1
+            resultados.append({
+                "fila": i, "codigo": codigo, "nombre": nombre, "resultado": "error",
+                "detalle": f"La categoría '{categoria}' no existe. Créala primero en Inventario → Categorías.",
+            })
             continue
 
         producto = db.query(Producto).filter(Producto.codigo == codigo).first()

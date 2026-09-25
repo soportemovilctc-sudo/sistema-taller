@@ -1,5 +1,6 @@
 """Módulo de inventario: productos, entradas, salidas, ajustes y alertas de stock."""
 import io
+import json
 from urllib.parse import quote
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -556,12 +557,127 @@ def _leer_entero(valor):
         return True, None  # marca inválido
 
 
+def _parsear_y_validar_fila(fila, i, categorias_validas, tasa_isv):
+    """Lee y valida UNA fila de la plantilla de carga masiva, sin tocar la
+    base de datos todavía (esto es lo que permite mostrar la vista previa
+    antes de importar). Devuelve None si la fila debe ignorarse (vacía o la
+    fila de ejemplo DEMO), o un dict con 'estado' = 'error' (algo está mal
+    en esa fila) u 'ok' (fila válida; falta decidir si va a crear o
+    actualizar un producto, lo cual se hace después comparando contra la
+    base de datos y contra el resto del archivo)."""
+    if fila is None or all(c is None or str(c).strip() == "" for c in fila):
+        return None
+
+    codigo = _leer_texto(fila[0] if len(fila) > 0 else None)
+    nombre = _leer_texto(fila[1] if len(fila) > 1 else None)
+    categoria = _leer_texto(fila[2] if len(fila) > 2 else None)
+    marca = _leer_texto(fila[3] if len(fila) > 3 else None)
+    hay_costo, costo = _leer_numero(fila[4] if len(fila) > 4 else None)
+    hay_precio, precio_venta = _leer_numero(fila[5] if len(fila) > 5 else None)
+    hay_existencia, existencia = _leer_entero(fila[6] if len(fila) > 6 else None)
+    hay_stock_min, stock_minimo = _leer_entero(fila[7] if len(fila) > 7 else None)
+    proveedor = _leer_texto(fila[8] if len(fila) > 8 else None)
+    caja = _leer_texto(fila[9] if len(fila) > 9 else None)
+
+    if hay_costo and tasa_isv is not None:
+        costo = _quitar_impuesto(costo, tasa_isv)
+    if hay_precio and tasa_isv is not None:
+        precio_venta = _quitar_impuesto(precio_venta, tasa_isv)
+
+    if codigo.upper() in ("DEMO-001", "DEMO-002"):
+        return None  # fila de ejemplo que el usuario olvidó borrar
+
+    def _error(detalle):
+        return {"fila": i, "codigo": codigo or "-", "nombre": nombre or "-", "estado": "error", "detalle": detalle}
+
+    if not codigo:
+        return _error("Falta el código.")
+    if not nombre:
+        return _error("Falta el nombre.")
+    if hay_existencia and existencia is None:
+        return _error("La existencia debe ser un número.")
+    if hay_existencia and existencia < 0:
+        return _error("La existencia no puede ser negativa.")
+    if hay_stock_min and stock_minimo is None:
+        return _error("El stock mínimo debe ser un número.")
+    if hay_stock_min and stock_minimo < 0:
+        return _error("El stock mínimo no puede ser negativo.")
+    if categoria and categoria.lower() not in categorias_validas:
+        return _error(f"La categoría '{categoria}' no existe. Créala primero en Inventario → Categorías.")
+
+    return {
+        "fila": i, "codigo": codigo, "nombre": nombre, "estado": "ok",
+        "categoria": categoria, "marca": marca,
+        "costo": str(costo), "hay_costo": hay_costo,
+        "precio_venta": str(precio_venta), "hay_precio": hay_precio,
+        "existencia": existencia, "hay_existencia": hay_existencia,
+        "stock_minimo": stock_minimo, "hay_stock_min": hay_stock_min,
+        "proveedor": proveedor, "caja": caja,
+    }
+
+
+def _construir_vista_previa(hoja, db, tasa_isv):
+    """Recorre el Excel y arma, SIN escribir nada en la base de datos, la
+    lista de lo que pasaría con cada fila: 'creara' (producto nuevo),
+    'actualizara' (ya existe ese código) o 'error' (no se puede importar)."""
+    categorias_validas = {fila[0].lower() for fila in db.query(Categoria.nombre).all()}
+    MAX_FILAS = 2000
+    filas_info = []
+    for i, fila in enumerate(hoja.iter_rows(min_row=2, max_row=1 + MAX_FILAS, values_only=True), start=2):
+        info = _parsear_y_validar_fila(fila, i, categorias_validas, tasa_isv)
+        if info is not None:
+            filas_info.append(info)
+
+    # Códigos repetidos DENTRO del mismo archivo (sin importar mayúsculas):
+    # ninguna de esas filas se importa hasta que el usuario corrija su
+    # Excel, para que nunca se termine pisando un producto con los datos
+    # de otro por accidente.
+    filas_por_codigo = {}
+    for info in filas_info:
+        if info["estado"] == "ok":
+            filas_por_codigo.setdefault(info["codigo"].upper(), []).append(info["fila"])
+
+    for info in filas_info:
+        if info["estado"] != "ok":
+            continue
+        otras = [f for f in filas_por_codigo[info["codigo"].upper()] if f != info["fila"]]
+        if otras:
+            info["estado"] = "error"
+            info["detalle"] = (
+                "Este código se repite en tu archivo (también en la fila "
+                + ", ".join(str(f) for f in otras) + "). Corrígelo antes de importar: "
+                "cada código debe aparecer una sola vez."
+            )
+
+    # Para las filas que sí quedan válidas: ¿el código ya existe en el
+    # sistema? Si es así se avisa con qué producto exactamente, para que
+    # se note enseguida si fue un código mal escrito por error.
+    for info in filas_info:
+        if info["estado"] != "ok":
+            continue
+        producto = db.query(Producto).filter(Producto.codigo == info["codigo"]).first()
+        if producto:
+            info["estado"] = "actualizara"
+            partes = [f'Ya existe como "{producto.nombre}"']
+            if producto.categoria:
+                partes.append(f"({producto.categoria})")
+            info["detalle"] = " ".join(partes) + " — se actualizará, NO se creará un producto nuevo."
+        else:
+            info["estado"] = "creara"
+            info["detalle"] = "Producto nuevo."
+
+    return filas_info
+
+
 @router.post("/inventario/importar")
 async def inventario_importar_procesar(
     request: Request, archivo: UploadFile = File(...),
     precios_incluyen_impuesto: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
+    """Primer paso de la carga masiva: lee el Excel y muestra una VISTA
+    PREVIA de lo que se va a crear/actualizar (sin tocar la base de datos
+    todavía), para que el usuario la revise y confirme antes de importar."""
     nombre_archivo = archivo.filename or ""
     if not nombre_archivo.lower().endswith((".xlsx", ".xlsm")):
         flash(request, "El archivo debe ser un Excel (.xlsx). Descarga la plantilla e inténtalo de nuevo.", "error")
@@ -576,65 +692,72 @@ async def inventario_importar_procesar(
         return RedirectResponse("/inventario/importar", status_code=303)
 
     hoja = wb["Inventario"] if "Inventario" in wb.sheetnames else wb.worksheets[0]
+    filas_info = _construir_vista_previa(hoja, db, tasa_isv)
+
+    creara = sum(1 for f in filas_info if f["estado"] == "creara")
+    actualizara = sum(1 for f in filas_info if f["estado"] == "actualizara")
+    con_error = sum(1 for f in filas_info if f["estado"] == "error")
+    filas_importables = [f for f in filas_info if f["estado"] in ("creara", "actualizara")]
+
+    return templates.TemplateResponse("inventario/importar_preview.html", {
+        "request": request, "usuario": usuario, "filas_info": filas_info,
+        "creara": creara, "actualizara": actualizara, "con_error": con_error,
+        "total_filas": len(filas_info), "nombre_archivo": nombre_archivo,
+        "filas_json": json.dumps(filas_importables),
+    })
+
+
+@router.post("/inventario/importar/confirmar")
+async def inventario_importar_confirmar(
+    request: Request, filas_json: str = Form(...),
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    """Segundo paso: el usuario ya vio la vista previa y confirmó, así que
+    ahora sí se escribe en la base de datos. Usa exactamente las filas que
+    se mostraron en la vista previa (nada se vuelve a leer del Excel)."""
+    try:
+        filas = json.loads(filas_json)
+        assert isinstance(filas, list)
+    except (ValueError, TypeError, AssertionError):
+        flash(request, "La vista previa expiró o no se pudo leer. Vuelve a subir el archivo.", "error")
+        return RedirectResponse("/inventario/importar", status_code=303)
+
+    if not filas:
+        flash(request, "No había ninguna fila para importar.", "error")
+        return RedirectResponse("/inventario/importar", status_code=303)
 
     categorias_validas = {fila[0].lower() for fila in db.query(Categoria.nombre).all()}
     resultados = []
     creados = actualizados = con_error = 0
-    MAX_FILAS = 2000
 
-    for i, fila in enumerate(hoja.iter_rows(min_row=2, max_row=1 + MAX_FILAS, values_only=True), start=2):
-        if fila is None or all(c is None or str(c).strip() == "" for c in fila):
-            continue  # fila completamente vacía, se ignora sin reportarla
+    for info in filas:
+        i = info.get("fila")
+        codigo = (info.get("codigo") or "").strip()
+        nombre = (info.get("nombre") or "").strip()
+        categoria = (info.get("categoria") or "").strip()
+        marca = info.get("marca") or ""
+        proveedor = info.get("proveedor") or ""
+        caja = info.get("caja") or ""
+        hay_costo = bool(info.get("hay_costo"))
+        hay_precio = bool(info.get("hay_precio"))
+        hay_existencia = bool(info.get("hay_existencia"))
+        hay_stock_min = bool(info.get("hay_stock_min"))
+        costo = to_decimal(info.get("costo")) if hay_costo else to_decimal(0)
+        precio_venta = to_decimal(info.get("precio_venta")) if hay_precio else to_decimal(0)
+        existencia = info.get("existencia") if hay_existencia else 0
+        stock_minimo = info.get("stock_minimo") if hay_stock_min else 0
 
-        codigo = _leer_texto(fila[0] if len(fila) > 0 else None)
-        nombre = _leer_texto(fila[1] if len(fila) > 1 else None)
-        categoria = _leer_texto(fila[2] if len(fila) > 2 else None)
-        marca = _leer_texto(fila[3] if len(fila) > 3 else None)
-        hay_costo, costo = _leer_numero(fila[4] if len(fila) > 4 else None)
-        hay_precio, precio_venta = _leer_numero(fila[5] if len(fila) > 5 else None)
-        hay_existencia, existencia = _leer_entero(fila[6] if len(fila) > 6 else None)
-        hay_stock_min, stock_minimo = _leer_entero(fila[7] if len(fila) > 7 else None)
-        proveedor = _leer_texto(fila[8] if len(fila) > 8 else None)
-        caja = _leer_texto(fila[9] if len(fila) > 9 else None)
-
-        if hay_costo and tasa_isv is not None:
-            costo = _quitar_impuesto(costo, tasa_isv)
-        if hay_precio and tasa_isv is not None:
-            precio_venta = _quitar_impuesto(precio_venta, tasa_isv)
-
-        if codigo.upper() in ("DEMO-001", "DEMO-002"):
-            continue  # fila de ejemplo que el usuario olvidó borrar
-
-        if not codigo:
+        if not codigo or not nombre:
             con_error += 1
-            resultados.append({"fila": i, "codigo": "-", "nombre": nombre or "-", "resultado": "error", "detalle": "Falta el código."})
+            resultados.append({"fila": i, "codigo": codigo or "-", "nombre": nombre or "-", "resultado": "error",
+                                "detalle": "Fila inválida: vuelve a subir el archivo y genera la vista previa de nuevo."})
             continue
-        if not nombre:
-            con_error += 1
-            resultados.append({"fila": i, "codigo": codigo, "nombre": "-", "resultado": "error", "detalle": "Falta el nombre."})
-            continue
-        if hay_existencia and existencia is None:
-            con_error += 1
-            resultados.append({"fila": i, "codigo": codigo, "nombre": nombre, "resultado": "error", "detalle": "La existencia debe ser un número."})
-            continue
-        if hay_existencia and existencia < 0:
-            con_error += 1
-            resultados.append({"fila": i, "codigo": codigo, "nombre": nombre, "resultado": "error", "detalle": "La existencia no puede ser negativa."})
-            continue
-        if hay_stock_min and stock_minimo is None:
-            con_error += 1
-            resultados.append({"fila": i, "codigo": codigo, "nombre": nombre, "resultado": "error", "detalle": "El stock mínimo debe ser un número."})
-            continue
-        if hay_stock_min and stock_minimo < 0:
-            con_error += 1
-            resultados.append({"fila": i, "codigo": codigo, "nombre": nombre, "resultado": "error", "detalle": "El stock mínimo no puede ser negativo."})
-            continue
+        # La categoría se vuelve a validar por si acaso: pudo eliminarse o
+        # desactivarse entre que se generó la vista previa y se confirmó.
         if categoria and categoria.lower() not in categorias_validas:
             con_error += 1
-            resultados.append({
-                "fila": i, "codigo": codigo, "nombre": nombre, "resultado": "error",
-                "detalle": f"La categoría '{categoria}' no existe. Créala primero en Inventario → Categorías.",
-            })
+            resultados.append({"fila": i, "codigo": codigo, "nombre": nombre, "resultado": "error",
+                                "detalle": f"La categoría '{categoria}' ya no existe. Créala en Inventario → Categorías y vuelve a intentarlo."})
             continue
 
         producto = db.query(Producto).filter(Producto.codigo == codigo).first()
@@ -655,7 +778,7 @@ async def inventario_importar_procesar(
             if hay_stock_min:
                 producto.stock_minimo = max(0, stock_minimo)
             detalle = "Datos actualizados."
-            if hay_existencia and existencia > 0:
+            if hay_existencia and existencia and existencia > 0:
                 nueva_existencia = producto.existencia + existencia
                 db.add(MovimientoInventario(
                     producto_id=producto.id, tipo="entrada", cantidad=existencia,
@@ -669,13 +792,12 @@ async def inventario_importar_procesar(
         else:
             producto = Producto(
                 codigo=codigo, nombre=nombre, categoria=categoria, marca=marca,
-                costo=costo if hay_costo else to_decimal(0), precio_venta=precio_venta if hay_precio else to_decimal(0),
-                existencia=max(0, existencia) if hay_existencia else 0,
-                stock_minimo=max(0, stock_minimo) if hay_stock_min else 0,
+                costo=costo, precio_venta=precio_venta,
+                existencia=max(0, existencia or 0), stock_minimo=max(0, stock_minimo or 0),
                 proveedor=proveedor, caja=caja, estado="activo",
             )
             db.add(producto)
-            db.flush()  # para que códigos repetidos en el mismo archivo se vean como "ya existe" en la fila siguiente
+            db.flush()
             creados += 1
             resultados.append({"fila": i, "codigo": codigo, "nombre": nombre, "resultado": "creado", "detalle": "Producto nuevo creado."})
 

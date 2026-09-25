@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Vista previa de la carga masiva{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">
+    Vista previa de la carga masiva
+    <span class="actions"><a href="/inventario/importar" class="btn btn-outline btn-sm">Cancelar / subir otro archivo</a></span>
+  </div>
+  <p class="help" style="margin-top:-4px;">Archivo: <b>{{ nombre_archivo }}</b>. Todavía NO se ha importado nada — revisa esta lista y confirma abajo.</p>
+
+  <div class="grid cols-4" style="margin-bottom: 16px;">
+    <div class="kpi accent-green">
+      <div class="kpi-label">Se crearán</div>
+      <div class="kpi-value">{{ creara }}</div>
+    </div>
+    <div class="kpi accent-blue">
+      <div class="kpi-label">Se actualizarán</div>
+      <div class="kpi-value">{{ actualizara }}</div>
+    </div>
+    <div class="kpi accent-red">
+      <div class="kpi-label">Con error (no se importan)</div>
+      <div class="kpi-value">{{ con_error }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Filas leídas</div>
+      <div class="kpi-value">{{ total_filas }}</div>
+    </div>
+  </div>
+
+  {% if con_error > 0 %}
+  <div class="flash flash-error">
+    {{ con_error }} fila{{ 's' if con_error != 1 else '' }} tiene{{ 'n' if con_error != 1 else '' }} un error (revisa la columna "Detalle" abajo) y NO se va{{ 'n' if con_error != 1 else '' }} a importar. Puedes corregir tu Excel y volver a subirlo, o confirmar ahora solo con las filas válidas.
+  </div>
+  {% endif %}
+  {% if actualizara > 0 %}
+  <div class="flash flash-info">
+    {{ actualizara }} fila{{ 's' if actualizara != 1 else '' }} coincide{{ 'n' if actualizara != 1 else '' }} con un código que YA EXISTE en el sistema: va{{ 'n' if actualizara != 1 else '' }} a ACTUALIZAR ese producto, no a crear uno nuevo. Revisa la columna "Detalle" para confirmar que es el producto correcto (por si el código se escribió mal).
+  </div>
+  {% endif %}
+  {% if creara == 0 and actualizara == 0 %}
+  <div class="flash flash-error">No hay ninguna fila válida para importar. Corrige los errores en tu Excel y vuelve a subirlo.</div>
+  {% endif %}
+
+  <div class="table-wrap">
+  <table class="responsive-table">
+    <thead><tr><th>Fila</th><th>Código</th><th>Nombre</th><th>Resultado</th><th>Detalle</th></tr></thead>
+    <tbody>
+      {% for f in filas_info %}
+      <tr>
+        <td data-label="Fila">{{ f.fila }}</td>
+        <td data-label="Código">{{ f.codigo }}</td>
+        <td data-label="Nombre">{{ f.nombre }}</td>
+        <td data-label="Resultado">
+          {% if f.estado == 'creara' %}<span class="badge badge-listo-para-entregar">Creará</span>
+          {% elif f.estado == 'actualizara' %}<span class="badge badge-en-reparacion">Actualizará</span>
+          {% else %}<span class="badge badge-cancelado">Error</span>{% endif %}
+        </td>
+        <td data-label="Detalle">{{ f.detalle }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-state">No se encontraron filas con datos en el archivo.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <form method="post" action="/inventario/importar/confirmar" style="margin-top:16px;">
+    <input type="hidden" name="filas_json" value='{{ filas_json }}'>
+    {% if creara > 0 or actualizara > 0 %}
+    <button type="submit" class="btn btn-success">Confirmar e importar {{ creara + actualizara }} fila{{ 's' if (creara + actualizara) != 1 else '' }}</button>
+    {% endif %}
+    <a href="/inventario/importar" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

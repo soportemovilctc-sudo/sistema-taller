@@ -5,6 +5,8 @@
   <div class="card-title">Carga masiva de inventario (Excel)</div>
   <p class="help" style="font-size:13px; margin-top:-4px;">
     Sube una hoja de Excel para crear o actualizar varios productos a la vez, en lugar de agregarlos uno por uno.
+    Antes de guardar nada, vas a ver una <b>vista previa</b> para revisar y confirmar — si algún código sale repetido
+    o coincide con uno que ya existe, te lo va a avisar ahí para que no lo importes por error.
   </p>
 
   <div style="background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin: 14px 0;">
@@ -34,7 +36,7 @@
     <div class="field">
       <label class="checkbox-chip"><input type="checkbox" name="precios_incluyen_impuesto" value="true"> Los precios de Costo y Precio de venta en este archivo YA incluyen impuesto (quítaselo automáticamente a cada uno)</label>
     </div>
-    <button type="submit" class="btn btn-success">Importar</button>
+    <button type="submit" class="btn btn-success">Ver vista previa</button>
     <a href="/inventario" class="btn btn-outline">Cancelar</a>
   </form>
 </div>

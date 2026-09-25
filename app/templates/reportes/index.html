@@ -6,6 +6,7 @@
   <a href="/reportes?tipo=ingresos" class="{{ 'active' if tipo == 'ingresos' else '' }}">Ingresos</a>
   <a href="/reportes?tipo=gastos" class="{{ 'active' if tipo == 'gastos' else '' }}">Gastos</a>
   <a href="/reportes?tipo=ventas" class="{{ 'active' if tipo == 'ventas' else '' }}">Ventas</a>
+  <a href="/reportes?tipo=ventas_detallado" class="{{ 'active' if tipo == 'ventas_detallado' else '' }}">Ventas detallado</a>
   <a href="/reportes?tipo=inventario" class="{{ 'active' if tipo == 'inventario' else '' }}">Inventario</a>
   <a href="/reportes?tipo=saldos" class="{{ 'active' if tipo == 'saldos' else '' }}">Saldos pendientes</a>
   <a href="/reportes?tipo=utilidades" class="{{ 'active' if tipo == 'utilidades' else '' }}">Utilidades</a>
@@ -69,6 +70,30 @@
         {% for v in ventas %}
         <tr><td>{{ v.numero_venta }}</td><td>{{ v.fecha|fecha('%d/%m/%Y %H:%M') }}</td><td>{{ v.subtotal|moneda(config_taller().moneda) }}</td><td>{{ v.descuento|moneda(config_taller().moneda) }}</td><td>{{ v.total|moneda(config_taller().moneda) }}</td><td>{{ v.forma_pago }}</td></tr>
         {% else %}<tr><td colspan="6" class="empty-state">Sin resultados.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  {% elif tipo == 'ventas_detallado' %}
+    <p class="help" style="margin-top:-4px;">Detalle línea por línea de cada producto vendido (Punto de Venta y repuestos usados en órdenes). El costo es el ACTUAL de cada producto en Inventario.
+      {% if detalle_ventas_truncado %}En pantalla se muestran las últimas {{ detalle_ventas|length }} de {{ detalle_ventas_total_filas }} filas encontradas. Descarga el Excel o el CSV para ver el detalle completo.{% endif %}
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>#</th><th>Fecha</th><th>Código Cliente</th><th>Cliente</th><th>Técnico</th><th>Factura</th>
+        <th>Cantidad</th><th>Precio</th><th>Código Producto</th><th>Nombre Producto</th>
+        <th>Exento</th><th>Gravado</th><th>Isv</th><th>Monto</th><th>Costo Producto</th><th>Utilidad</th><th>Promedio %</th>
+      </tr></thead>
+      <tbody>
+        {% for f in detalle_ventas %}
+        <tr>
+          <td>{{ f[0] }}</td><td>{{ f[1] }}</td><td>{{ f[2] }}</td><td>{{ f[3] }}</td><td>{{ f[4] }}</td><td>{{ f[5] }}</td>
+          <td>{{ f[6] }}</td><td>{{ f[7]|moneda(config_taller().moneda) }}</td><td>{{ f[8] }}</td><td>{{ f[9] }}</td>
+          <td>{{ f[10]|moneda(config_taller().moneda) }}</td><td>{{ f[11]|moneda(config_taller().moneda) }}</td>
+          <td>{{ f[12]|moneda(config_taller().moneda) }}</td><td>{{ f[13]|moneda(config_taller().moneda) }}</td>
+          <td>{{ f[14]|moneda(config_taller().moneda) }}</td>
+          <td><b class="{{ 'money-negative' if f[15] < 0 else '' }}">{{ f[15]|moneda(config_taller().moneda) }}</b></td>
+          <td>{{ f[16] }}</td>
+        </tr>
+        {% else %}<tr><td colspan="17" class="empty-state">Sin resultados.</td></tr>{% endfor %}
       </tbody>
     </table></div>
   {% elif tipo == 'inventario' %}

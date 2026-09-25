@@ -227,7 +227,7 @@
           <select name="repuesto_producto_id" class="repuesto-select-producto">
             <option value="">Ninguno</option>
             {% for p in productos_disponibles %}
-            <option value="{{ p.id }}" data-precio="{{ p.precio_venta }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_venta|moneda(config_taller().moneda) }}</option>
+            <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
             {% endfor %}
           </select>
         </div>
@@ -245,7 +245,7 @@
       </div>
     </div>
     <button type="button" id="repuestoAgregarFila" class="btn btn-outline btn-sm">+ Agregar otro repuesto</button>
-    <p class="help">El precio unitario se llena solo con el precio de venta del producto, pero puedes cambiarlo si vas a cobrar un precio distinto para esta orden.</p>
+    <p class="help">El precio unitario se llena solo con el precio de venta del producto ya con el {{ tasa_isv }}% de impuesto incluido, pero puedes cambiarlo si vas a cobrar un precio distinto para esta orden.</p>
   </div>
   {% endif %}
 

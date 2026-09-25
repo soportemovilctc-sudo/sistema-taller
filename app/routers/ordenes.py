@@ -16,9 +16,10 @@ from app.models import (
     TIPOS_EQUIPO, ESTADOS_ORDEN, PRIORIDADES, FORMAS_PAGO,
     ACCESORIOS_DISPONIBLES, CONDICIONES_FISICAS, MarcaEquipo, ServicioRapido,
     Producto, OrdenRepuesto, Venta, DetalleVenta, MovimientoInventario, MovimientoFinanciero,
+    ConfiguracionFacturacion,
 )
 from app.utils.numbering import generar_numero_orden, generar_numero_venta
-from app.utils.calculations import calcular_recargo, calcular_total, calcular_saldo, validar_abono, to_decimal, recalcular_orden
+from app.utils.calculations import calcular_recargo, calcular_total, calcular_saldo, validar_abono, to_decimal, recalcular_orden, aplicar_impuesto
 from app.utils.pdf import generar_pdf_orden, construir_contexto_pdf
 from app.utils.pdf_ticket import generar_ticket_orden
 from app.utils.flash import flash
@@ -106,19 +107,34 @@ def ordenes_list(
     })
 
 
+def _isv_tasa(db: Session) -> Decimal:
+    cfg = db.get(ConfiguracionFacturacion, 1)
+    if cfg and cfg.isv_tasa is not None:
+        return to_decimal(cfg.isv_tasa)
+    return to_decimal(15)
+
+
+def _anotar_precios_con_impuesto(productos, tasa):
+    for p in productos:
+        p.precio_con_impuesto = aplicar_impuesto(p.precio_venta, tasa)
+    return productos
+
+
 @router.get("/ordenes/nueva")
 def ordenes_nueva_form(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     cfg = _config(db)
+    tasa = _isv_tasa(db)
     productos_disponibles = (
         db.query(Producto)
         .filter(Producto.estado == "activo", Producto.existencia > 0)
         .order_by(Producto.nombre)
         .all()
     )
+    _anotar_precios_con_impuesto(productos_disponibles, tasa)
     return templates.TemplateResponse("ordenes/form.html", {
         "request": request, "orden": None, "usuario": usuario,
         "recargo_default": cfg.recargo_default_pct if cfg else 0,
-        "productos_disponibles": productos_disponibles,
+        "productos_disponibles": productos_disponibles, "tasa_isv": tasa,
         **_opciones_formulario(db),
     })
 
@@ -238,15 +254,17 @@ def ordenes_detalle(orden_id: int, request: Request, db: Session = Depends(get_d
         flash(request, "Orden no encontrada.", "error")
         return RedirectResponse("/ordenes", status_code=303)
     opciones = _opciones_formulario(db)
+    tasa = _isv_tasa(db)
     productos_disponibles = (
         db.query(Producto)
         .filter(Producto.estado == "activo", Producto.existencia > 0)
         .order_by(Producto.nombre)
         .all()
     )
+    _anotar_precios_con_impuesto(productos_disponibles, tasa)
     return templates.TemplateResponse("ordenes/detail.html", {
         "request": request, "orden": orden, "usuario": usuario,
-        "productos_disponibles": productos_disponibles, **opciones,
+        "productos_disponibles": productos_disponibles, "tasa_isv": tasa, **opciones,
     })
 
 
@@ -390,8 +408,11 @@ def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Produ
     llamador debe validarla antes) ni hace commit ni recalcula la orden.
     Si se pasa `precio_override`, se usa ese precio unitario en vez del
     precio de venta del producto (para permitir ajustar el precio al
-    agregar el repuesto a la orden)."""
-    precio = precio_override if precio_override is not None else to_decimal(producto.precio_venta)
+    agregar el repuesto a la orden). Si no se pasa, el precio por defecto
+    es el precio de venta del producto CON el impuesto (ISV) incluido,
+    porque el total de la orden/factura se trata como un monto que ya
+    incluye impuesto (ver facturación)."""
+    precio = precio_override if precio_override is not None else aplicar_impuesto(producto.precio_venta, _isv_tasa(db))
     subtotal = (precio * cantidad).quantize(Decimal("0.01"))
 
     venta = Venta(

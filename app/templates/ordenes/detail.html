@@ -3,6 +3,9 @@
 {% block content %}
 
 <div class="action-bar-sticky">
+  <a href="/ordenes/{{ orden.id }}/factura/nueva" class="btn btn-success btn-sm">
+    <svg viewBox="0 0 24 24"><path d="M6 2.5h9l3 3V21a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5z"/><path d="M9 12h6M9 16h4"/></svg> Generar factura
+  </a>
   <a href="/ordenes/{{ orden.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">
     <svg viewBox="0 0 24 24"><path d="M6 2.5h9l3 3V21a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5z"/><path d="M9 12h6M9 16h4"/></svg> PDF carta
   </a>
@@ -145,14 +148,14 @@
           <select name="producto_id" id="selectRepuestoProducto" required>
             <option value="">Selecciona un repuesto...</option>
             {% for p in productos_disponibles %}
-            <option value="{{ p.id }}" data-precio="{{ p.precio_venta }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_venta|moneda(config_taller().moneda) }}</option>
+            <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="field"><label>Cantidad</label><input type="number" step="1" min="1" name="cantidad" value="1" required></div>
         <div class="field"><label>Precio unitario</label><input type="number" step="0.01" min="0" name="precio" id="inputRepuestoPrecio" placeholder="Precio de venta"></div>
       </div>
-      <p class="help">El precio se llena solo con el precio de venta del producto; cámbialo si vas a cobrar otro precio.</p>
+      <p class="help">El precio se llena solo con el precio de venta del producto ya con el {{ tasa_isv }}% de impuesto incluido; cámbialo si vas a cobrar otro precio.</p>
       <button type="submit" class="btn btn-success">Agregar repuesto</button>
     </form>
     <script>

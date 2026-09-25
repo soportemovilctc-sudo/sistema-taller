@@ -38,6 +38,15 @@ def calcular_total(cotizacion, recargo, repuestos_subtotal=0) -> Decimal:
     return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def aplicar_impuesto(valor, tasa=15) -> Decimal:
+    """Suma el impuesto a un valor que NO lo incluye (precio base -> precio
+    con impuesto incluido). Es la operación inversa a la que usa
+    facturación para sacar el importe gravado a partir de un total."""
+    valor = to_decimal(valor)
+    tasa = to_decimal(tasa)
+    return (valor * (1 + tasa / Decimal(100))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
 def calcular_saldo(total, abonado) -> Decimal:
     total = to_decimal(total)
     abonado = to_decimal(abonado)

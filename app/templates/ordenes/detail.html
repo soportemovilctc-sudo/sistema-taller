@@ -138,21 +138,34 @@
 <div class="card">
   <div class="card-title">Repuestos usados</div>
     <p class="help">Los repuestos agregados se descuentan del inventario, se registran como venta y se suman al total de la orden y de la factura.</p>
-    <form method="post" action="/ordenes/{{ orden.id }}/repuestos">
+    <form method="post" action="/ordenes/{{ orden.id }}/repuestos" id="formAgregarRepuesto">
       <div class="form-row">
         <div class="field">
           <label>Producto</label>
-          <select name="producto_id" required>
+          <select name="producto_id" id="selectRepuestoProducto" required>
             <option value="">Selecciona un repuesto...</option>
             {% for p in productos_disponibles %}
-            <option value="{{ p.id }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_venta|moneda(config_taller().moneda) }}</option>
+            <option value="{{ p.id }}" data-precio="{{ p.precio_venta }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_venta|moneda(config_taller().moneda) }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="field"><label>Cantidad</label><input type="number" step="1" min="1" name="cantidad" value="1" required></div>
+        <div class="field"><label>Precio unitario</label><input type="number" step="0.01" min="0" name="precio" id="inputRepuestoPrecio" placeholder="Precio de venta"></div>
       </div>
+      <p class="help">El precio se llena solo con el precio de venta del producto; cámbialo si vas a cobrar otro precio.</p>
       <button type="submit" class="btn btn-success">Agregar repuesto</button>
     </form>
+    <script>
+      (function () {
+        var select = document.getElementById('selectRepuestoProducto');
+        var campoPrecio = document.getElementById('inputRepuestoPrecio');
+        if (!select || !campoPrecio) return;
+        select.addEventListener('change', function () {
+          var opcion = select.options[select.selectedIndex];
+          campoPrecio.value = (opcion && opcion.getAttribute('data-precio')) || '';
+        });
+      })();
+    </script>
 
     <div class="card-title" style="font-size:13px; margin-top:16px;">Repuestos agregados a esta orden</div>
     <table>

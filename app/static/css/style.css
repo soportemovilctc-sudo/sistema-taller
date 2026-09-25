@@ -131,6 +131,20 @@ a:hover { text-decoration: underline; }
 .search-results a:hover { background: var(--panel); text-decoration: none; }
 .search-results .grp-title { padding: 8px 14px; font-size: 11px; text-transform: uppercase; color: var(--text-muted); }
 
+.cliente-buscar-wrap { position: relative; }
+.cliente-buscar-input { width: 100%; }
+.cliente-buscar-input.cliente-buscar-error { border-color: var(--danger); }
+.cliente-buscar-resultados {
+  position: absolute; top: 100%; left: 0; right: 0; margin-top: 2px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+  max-height: 260px; overflow-y: auto; box-shadow: var(--shadow); z-index: 60; display: none;
+}
+.cliente-buscar-resultados.show { display: block; }
+.cliente-buscar-item { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.cliente-buscar-item:last-child { border-bottom: none; }
+.cliente-buscar-item:hover { background: var(--panel); }
+.cliente-buscar-vacio { padding: 10px 12px; color: var(--text-muted); font-size: 13px; }
+
 .topbar .user-chip {
   display: flex; align-items: center; gap: 8px; white-space: nowrap;
   font-size: 13px; color: var(--text-muted);

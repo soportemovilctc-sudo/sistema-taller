@@ -1,6 +1,7 @@
 """Módulo de órdenes de servicio: creación, edición, estados, abonos y PDF."""
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
+from typing import Optional
 
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -150,6 +151,7 @@ def ordenes_crear(
     fecha_entrega: str = Form(""),
     repuesto_producto_id: list[str] = Form([]),
     repuesto_cantidad: list[str] = Form([]),
+    repuesto_precio: list[str] = Form([]),
     db: Session = Depends(get_db),
     usuario=Depends(login_required),
 ):
@@ -187,7 +189,7 @@ def ordenes_crear(
 
     repuestos_agregados = []
     repuestos_con_error = []
-    for producto_id_raw, cantidad_raw in zip(repuesto_producto_id, repuesto_cantidad):
+    for producto_id_raw, cantidad_raw, precio_raw in zip(repuesto_producto_id, repuesto_cantidad, repuesto_precio or [""] * len(repuesto_producto_id)):
         producto_id_raw = (producto_id_raw or "").strip()
         if not producto_id_raw:
             continue
@@ -204,7 +206,13 @@ def ordenes_crear(
         if cantidad_val > producto.existencia:
             repuestos_con_error.append(f"{producto.nombre} (disponible: {producto.existencia})")
             continue
-        _agregar_repuesto_a_orden(db, orden, producto, cantidad_val, usuario["nombre_completo"])
+        precio_override = None
+        precio_raw = (precio_raw or "").strip()
+        if precio_raw:
+            precio_val = to_decimal(precio_raw)
+            if precio_val > 0:
+                precio_override = precio_val.quantize(Decimal("0.01"))
+        _agregar_repuesto_a_orden(db, orden, producto, cantidad_val, usuario["nombre_completo"], precio_override)
         repuestos_agregados.append(producto.nombre)
 
     if repuestos_agregados:
@@ -374,13 +382,16 @@ def ordenes_registrar_abono(
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
-def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Producto, cantidad: int, usuario_nombre: str) -> OrdenRepuesto:
+def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Producto, cantidad: int, usuario_nombre: str, precio_override: Optional[Decimal] = None) -> OrdenRepuesto:
     """Descuenta `cantidad` unidades de `producto` y las agrega a `orden`:
     crea la Venta/DetalleVenta (igual que en POS, enlazada a la orden),
     el MovimientoInventario de salida, el MovimientoFinanciero de ingreso
     y el registro OrdenRepuesto. No valida existencia disponible (el
-    llamador debe validarla antes) ni hace commit ni recalcula la orden."""
-    precio = to_decimal(producto.precio_venta)
+    llamador debe validarla antes) ni hace commit ni recalcula la orden.
+    Si se pasa `precio_override`, se usa ese precio unitario en vez del
+    precio de venta del producto (para permitir ajustar el precio al
+    agregar el repuesto a la orden)."""
+    precio = precio_override if precio_override is not None else to_decimal(producto.precio_venta)
     subtotal = (precio * cantidad).quantize(Decimal("0.01"))
 
     venta = Venta(
@@ -420,7 +431,7 @@ def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Produ
 @router.post("/ordenes/{orden_id}/repuestos")
 def ordenes_agregar_repuesto(
     orden_id: int, request: Request,
-    producto_id: int = Form(...), cantidad: str = Form("1"),
+    producto_id: int = Form(...), cantidad: str = Form("1"), precio: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     """Descuenta un repuesto del inventario y lo agrega a la orden: baja la
@@ -447,7 +458,14 @@ def ordenes_agregar_repuesto(
         flash(request, f"No hay suficiente existencia de '{producto.nombre}' (disponible: {producto.existencia}).", "error")
         return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
-    _agregar_repuesto_a_orden(db, orden, producto, cantidad_int, usuario["nombre_completo"])
+    precio_override = None
+    precio_raw = (precio or "").strip()
+    if precio_raw:
+        precio_val = to_decimal(precio_raw)
+        if precio_val > 0:
+            precio_override = precio_val.quantize(Decimal("0.01"))
+
+    _agregar_repuesto_a_orden(db, orden, producto, cantidad_int, usuario["nombre_completo"], precio_override)
     db.flush()
     db.refresh(orden)
     recalcular_orden(orden)

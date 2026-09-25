@@ -18,12 +18,13 @@
   {% if q %}
     <div class="table-wrap">
     <table>
-      <thead><tr><th>Código</th><th>Nombre</th><th>Caja</th><th>Existencia actual</th><th>Ajuste</th></tr></thead>
+      <thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Caja</th><th>Existencia actual</th><th>Ajuste</th></tr></thead>
       <tbody>
         {% for p in productos %}
         <tr>
           <td>{{ p.codigo }}</td>
           <td>{{ p.nombre }}</td>
+          <td>{{ p.categoria or '-' }}</td>
           <td>{{ p.caja or '-' }}</td>
           <td><b>{{ p.existencia }}</b></td>
           <td>
@@ -41,7 +42,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="empty-state">No se encontró ningún producto con "{{ q }}".</td></tr>
+        <tr><td colspan="6" class="empty-state">No se encontró ningún producto con "{{ q }}".</td></tr>
         {% endfor %}
       </tbody>
     </table>

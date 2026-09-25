@@ -5,6 +5,7 @@
   <div class="card-title">
     Inventario
     <span class="actions">
+      <a href="/inventario/exportar/excel?q={{ q|urlencode }}&amp;categoria={{ categoria|urlencode }}" class="btn btn-success btn-sm">&#128190; Descargar Excel</a>
       <a href="/reportes/exportar/inventario" class="btn btn-outline btn-sm">Exportar CSV</a>
       <a href="/inventario/importar" class="btn btn-outline btn-sm">Carga masiva (Excel)</a>
       <a href="/inventario/ajustes" class="btn btn-outline btn-sm">Ajuste rápido de existencias</a>
@@ -12,8 +13,17 @@
       <a href="/inventario/nuevo" class="btn btn-primary btn-sm">+ Nuevo producto</a>
     </span>
   </div>
-  <form method="get" style="margin-bottom:14px;">
-    <input type="text" name="q" value="{{ q }}" placeholder="Buscar por código, nombre, categoría o marca...">
+  <form method="get" class="form-row" style="margin-bottom:14px;">
+    <div class="field" style="flex:2;"><input type="text" name="q" value="{{ q }}" placeholder="Buscar por código, nombre, categoría o marca..."></div>
+    <div class="field">
+      <select name="categoria">
+        <option value="">Todas las categorías</option>
+        {% for c in categorias_disponibles %}
+        <option value="{{ c }}" {{ 'selected' if c == categoria else '' }}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field" style="flex:0 0 auto;"><button type="submit" class="btn btn-info">&#128269; Filtrar</button></div>
   </form>
   <div class="table-wrap">
   <table>

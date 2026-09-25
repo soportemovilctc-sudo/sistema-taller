@@ -41,17 +41,32 @@ def _quitar_impuesto(valor, tasa):
     return (to_decimal(valor) / (1 + to_decimal(tasa) / to_decimal(100))).quantize(to_decimal("0.01"))
 
 
+def _categorias_disponibles(db: Session):
+    filas = (
+        db.query(Producto.categoria)
+        .filter(Producto.categoria.isnot(None), Producto.categoria != "")
+        .distinct()
+        .order_by(Producto.categoria)
+        .all()
+    )
+    return [f[0] for f in filas]
+
+
 @router.get("/inventario")
-def inventario_list(request: Request, q: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
+def inventario_list(request: Request, q: str = "", categoria: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
     query = db.query(Producto)
     if q:
         like = f"%{q}%"
         query = query.filter(or_(Producto.codigo.ilike(like), Producto.nombre.ilike(like),
                                   Producto.categoria.ilike(like), Producto.marca.ilike(like)))
+    if categoria:
+        query = query.filter(Producto.categoria == categoria)
     productos = query.order_by(Producto.nombre).all()
     stock_bajo_ids = {p.id for p in productos if p.existencia <= p.stock_minimo}
     return templates.TemplateResponse("inventario/list.html", {
-        "request": request, "productos": productos, "q": q, "usuario": usuario, "stock_bajo_ids": stock_bajo_ids,
+        "request": request, "productos": productos, "q": q, "categoria": categoria,
+        "categorias_disponibles": _categorias_disponibles(db),
+        "usuario": usuario, "stock_bajo_ids": stock_bajo_ids,
     })
 
 
@@ -80,6 +95,59 @@ def inventario_precios(request: Request, q: str = "", db: Session = Depends(get_
     return templates.TemplateResponse("inventario/precios.html", {
         "request": request, "filas": filas, "q": q, "usuario": usuario, "tasa": tasa,
     })
+
+
+@router.get("/inventario/exportar/excel")
+def inventario_exportar_excel(q: str = "", categoria: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
+    """Descarga en Excel (.xlsx) los productos que coinciden con el
+    buscador y la categoría seleccionados en la lista de Inventario (si no
+    hay filtros aplicados, descarga todo el inventario)."""
+    query = db.query(Producto)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(Producto.codigo.ilike(like), Producto.nombre.ilike(like),
+                                  Producto.categoria.ilike(like), Producto.marca.ilike(like)))
+    if categoria:
+        query = query.filter(Producto.categoria == categoria)
+    productos = query.order_by(Producto.nombre).all()
+
+    wb = Workbook()
+    hoja = wb.active
+    hoja.title = "Inventario"
+
+    encabezados = ["Código", "Nombre", "Categoría", "Marca", "Caja", "Costo", "Precio de venta", "Existencia", "Stock mínimo", "Estado"]
+    encabezado_fill = PatternFill(start_color="121D33", end_color="121D33", fill_type="solid")
+    encabezado_font = Font(bold=True, color="FFFFFF")
+    for col, titulo in enumerate(encabezados, start=1):
+        celda = hoja.cell(row=1, column=col, value=titulo)
+        celda.fill = encabezado_fill
+        celda.font = encabezado_font
+        celda.alignment = Alignment(vertical="center")
+
+    for fila_idx, p in enumerate(productos, start=2):
+        valores = [
+            p.codigo, p.nombre, p.categoria or "", p.marca or "", p.caja or "",
+            float(p.costo), float(p.precio_venta), p.existencia, p.stock_minimo,
+            "Activo" if p.estado == "activo" else "Inactivo",
+        ]
+        for col_idx, valor in enumerate(valores, start=1):
+            hoja.cell(row=fila_idx, column=col_idx, value=valor)
+
+    anchos = [14, 34, 16, 16, 12, 12, 16, 12, 13, 10]
+    for col_idx, ancho in enumerate(anchos, start=1):
+        hoja.column_dimensions[hoja.cell(row=1, column=col_idx).column_letter].width = ancho
+    hoja.freeze_panes = "A2"
+    hoja.auto_filter.ref = f"A1:{hoja.cell(row=1, column=len(encabezados)).column_letter}{max(len(productos) + 1, 1)}"
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre_archivo = "inventario_filtrado.xlsx" if (q or categoria) else "inventario.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
 
 
 @router.get("/inventario/nuevo")

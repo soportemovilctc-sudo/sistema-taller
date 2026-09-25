@@ -239,6 +239,7 @@ textarea { resize: vertical; min-height: 64px; }
 .btn-success { background: var(--success); color: #fff; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-warning { background: var(--warning); color: #fff; }
+.btn-info { background: var(--info); color: #fff; }
 .btn-outline { background: transparent; border-color: var(--border); color: var(--text); }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }

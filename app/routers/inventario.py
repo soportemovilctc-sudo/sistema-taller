@@ -1,5 +1,6 @@
 """Módulo de inventario: productos, entradas, salidas, ajustes y alertas de stock."""
 import io
+from urllib.parse import quote
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
@@ -195,6 +196,66 @@ def inventario_registrar_movimiento(
     db.commit()
     flash(request, "Movimiento de inventario registrado.", "success")
     return RedirectResponse(f"/inventario/{producto_id}/movimiento", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Ajuste rápido de existencias: buscar un producto y ajustarlo ahí mismo,
+# sin tener que entrar primero a Inventario y abrir ese producto.
+# ---------------------------------------------------------------------------
+@router.get("/inventario/ajustes")
+def inventario_ajustes_form(request: Request, q: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
+    productos = []
+    if q:
+        like = f"%{q}%"
+        productos = db.query(Producto).filter(
+            or_(Producto.codigo.ilike(like), Producto.nombre.ilike(like))
+        ).order_by(Producto.nombre).all()
+    return templates.TemplateResponse("inventario/ajustes.html", {
+        "request": request, "q": q, "productos": productos, "usuario": usuario,
+    })
+
+
+@router.post("/inventario/ajustes/{producto_id}")
+def inventario_ajustes_procesar(
+    producto_id: int, request: Request,
+    tipo: str = Form(...), cantidad: int = Form(...), motivo: str = Form(""), q: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    destino = f"/inventario/ajustes?q={quote(q)}"
+    producto = db.get(Producto, producto_id)
+    if not producto:
+        flash(request, "Producto no encontrado.", "error")
+        return RedirectResponse(destino, status_code=303)
+
+    if cantidad <= 0:
+        flash(request, "La cantidad debe ser mayor a cero.", "error")
+        return RedirectResponse(destino, status_code=303)
+
+    if tipo == "entrada":
+        nueva_existencia = producto.existencia + cantidad
+    elif tipo == "salida":
+        if cantidad > producto.existencia:
+            flash(request, f"No hay suficiente existencia de {producto.nombre} para esa salida.", "error")
+            return RedirectResponse(destino, status_code=303)
+        nueva_existencia = producto.existencia - cantidad
+    elif tipo == "ajuste":
+        nueva_existencia = cantidad  # el ajuste define la existencia final directamente
+        if nueva_existencia < 0:
+            flash(request, "La existencia no puede quedar negativa.", "error")
+            return RedirectResponse(destino, status_code=303)
+    else:
+        flash(request, "Tipo de movimiento inválido.", "error")
+        return RedirectResponse(destino, status_code=303)
+
+    movimiento = MovimientoInventario(
+        producto_id=producto.id, tipo=tipo, cantidad=cantidad, existencia_resultante=nueva_existencia,
+        usuario_nombre=usuario["nombre_completo"], motivo=motivo,
+    )
+    producto.existencia = nueva_existencia
+    db.add(movimiento)
+    db.commit()
+    flash(request, f"Existencia de {producto.nombre} actualizada a {nueva_existencia}.", "success")
+    return RedirectResponse(destino, status_code=303)
 
 
 @router.get("/inventario/plantilla")

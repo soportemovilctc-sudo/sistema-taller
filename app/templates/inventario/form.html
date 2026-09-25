@@ -20,7 +20,7 @@
       <div class="field"><label>Precio de venta</label><input type="number" step="0.01" min="0" name="precio_venta" value="{{ producto.precio_venta if producto else '0' }}"></div>
     </div>
     <div class="field">
-      <label class="checkbox-chip"><input type="checkbox" name="precios_sin_impuesto" value="true"> El Costo y el Precio de venta que escribí arriba NO incluyen impuesto (agrégaselo automáticamente al guardar)</label>
+      <label class="checkbox-chip"><input type="checkbox" name="precios_incluyen_impuesto" value="true"> El Costo y el Precio de venta que escribí arriba YA incluyen impuesto (quítaselo automáticamente al guardar)</label>
     </div>
     <div class="form-row">
       {% if not producto %}

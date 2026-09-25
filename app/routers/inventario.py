@@ -32,11 +32,12 @@ def _isv_tasa(db: Session):
     return to_decimal(15)
 
 
-def _con_impuesto(valor, tasa):
-    """Devuelve el valor con el impuesto ya sumado, para cuando el usuario
-    escribe el precio base (sin impuesto) y quiere que el sistema lo
-    convierta automáticamente."""
-    return (to_decimal(valor) * (1 + to_decimal(tasa) / to_decimal(100))).quantize(to_decimal("0.01"))
+def _quitar_impuesto(valor, tasa):
+    """Devuelve el valor SIN el impuesto, para cuando el usuario escribe un
+    número redondo que YA incluye el impuesto y quiere que el sistema le
+    reste esa parte automáticamente (misma fórmula que usa facturación para
+    sacar el importe gravado de un total con impuesto incluido)."""
+    return (to_decimal(valor) / (1 + to_decimal(tasa) / to_decimal(100))).quantize(to_decimal("0.01"))
 
 
 @router.get("/inventario")
@@ -64,7 +65,7 @@ def inventario_crear(
     codigo: str = Form(...), nombre: str = Form(...), categoria: str = Form(""), marca: str = Form(""),
     costo: str = Form("0"), precio_venta: str = Form("0"), existencia: int = Form(0),
     stock_minimo: int = Form(0), proveedor: str = Form(""), caja: str = Form(""),
-    precios_sin_impuesto: bool = Form(False),
+    precios_incluyen_impuesto: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     existe = db.query(Producto).filter(Producto.codigo == codigo.strip()).first()
@@ -73,10 +74,10 @@ def inventario_crear(
         return RedirectResponse("/inventario/nuevo", status_code=303)
     costo_final = to_decimal(costo)
     precio_final = to_decimal(precio_venta)
-    if precios_sin_impuesto:
+    if precios_incluyen_impuesto:
         tasa = _isv_tasa(db)
-        costo_final = _con_impuesto(costo_final, tasa)
-        precio_final = _con_impuesto(precio_final, tasa)
+        costo_final = _quitar_impuesto(costo_final, tasa)
+        precio_final = _quitar_impuesto(precio_final, tasa)
     producto = Producto(
         codigo=codigo.strip(), nombre=nombre.strip(), categoria=categoria, marca=marca,
         costo=costo_final, precio_venta=precio_final,
@@ -104,17 +105,17 @@ def inventario_actualizar(
     nombre: str = Form(...), categoria: str = Form(""), marca: str = Form(""),
     costo: str = Form("0"), precio_venta: str = Form("0"), stock_minimo: int = Form(0),
     proveedor: str = Form(""), caja: str = Form(""), estado: str = Form("activo"),
-    precios_sin_impuesto: bool = Form(False),
+    precios_incluyen_impuesto: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     producto = db.get(Producto, producto_id)
     if producto:
         costo_final = to_decimal(costo)
         precio_final = to_decimal(precio_venta)
-        if precios_sin_impuesto:
+        if precios_incluyen_impuesto:
             tasa = _isv_tasa(db)
-            costo_final = _con_impuesto(costo_final, tasa)
-            precio_final = _con_impuesto(precio_final, tasa)
+            costo_final = _quitar_impuesto(costo_final, tasa)
+            precio_final = _quitar_impuesto(precio_final, tasa)
         producto.nombre = nombre.strip()
         producto.categoria = categoria
         producto.marca = marca
@@ -228,7 +229,7 @@ def inventario_descargar_plantilla(usuario=Depends(login_required)):
         ("7.", "Existencia: si el producto es NUEVO, se usa como la existencia inicial. Si el producto YA EXISTE, la cantidad que pongas se SUMA a la existencia actual (como una entrada de inventario), no la reemplaza. Déjala en blanco si no quieres modificar la existencia."),
         ("8.", "Stock mínimo: cantidad a partir de la cual el sistema avisa \"Bajo\". Opcional."),
         ("9.", "Caja: el número o nombre de la caja/casillero donde tienes guardado el repuesto (por ejemplo \"Caja 3\" o \"Estante A-2\"). Opcional, solo para ubicarlo más rápido."),
-        ("10.", "Costo y Precio de venta SIN impuesto: si prefieres escribir los precios sin impuesto (números redondos) y que el sistema les agregue el ISV automáticamente, marca la casilla \"Estos precios no incluyen impuesto\" al subir el archivo, en el Paso 2."),
+        ("10.", "Costo y Precio de venta con impuesto incluido: si prefieres escribir el número redondo que ya incluye el impuesto y que el sistema le reste el ISV automáticamente para guardarlo, marca la casilla \"Estos precios ya incluyen impuesto\" al subir el archivo, en el Paso 2."),
         ("11.", "Guarda el archivo en formato Excel (.xlsx) y súbelo en Inventario → Carga masiva (Excel)."),
     ]
     for fila_idx, (a, b) in enumerate(filas_instrucciones, start=1):
@@ -278,7 +279,7 @@ def _leer_entero(valor):
 @router.post("/inventario/importar")
 async def inventario_importar_procesar(
     request: Request, archivo: UploadFile = File(...),
-    precios_sin_impuesto: bool = Form(False),
+    precios_incluyen_impuesto: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     nombre_archivo = archivo.filename or ""
@@ -286,7 +287,7 @@ async def inventario_importar_procesar(
         flash(request, "El archivo debe ser un Excel (.xlsx). Descarga la plantilla e inténtalo de nuevo.", "error")
         return RedirectResponse("/inventario/importar", status_code=303)
 
-    tasa_isv = _isv_tasa(db) if precios_sin_impuesto else None
+    tasa_isv = _isv_tasa(db) if precios_incluyen_impuesto else None
     contenido = await archivo.read()
     try:
         wb = load_workbook(io.BytesIO(contenido), data_only=True)
@@ -316,9 +317,9 @@ async def inventario_importar_procesar(
         caja = _leer_texto(fila[9] if len(fila) > 9 else None)
 
         if hay_costo and tasa_isv is not None:
-            costo = _con_impuesto(costo, tasa_isv)
+            costo = _quitar_impuesto(costo, tasa_isv)
         if hay_precio and tasa_isv is not None:
-            precio_venta = _con_impuesto(precio_venta, tasa_isv)
+            precio_venta = _quitar_impuesto(precio_venta, tasa_isv)
 
         if codigo.upper() in ("DEMO-001", "DEMO-002"):
             continue  # fila de ejemplo que el usuario olvidó borrar

@@ -145,7 +145,7 @@
       <div class="form-row">
         <div class="field">
           <label>Producto</label>
-          <select name="producto_id" id="selectRepuestoProducto" required>
+          <select name="producto_id" id="selectRepuestoProducto" class="js-buscar-select" data-placeholder="Escribe el nombre o código del repuesto..." data-entidad="un repuesto" required>
             <option value="">Selecciona un repuesto...</option>
             {% for p in productos_disponibles %}
             <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>

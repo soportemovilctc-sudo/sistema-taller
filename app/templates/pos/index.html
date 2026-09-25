@@ -26,7 +26,7 @@
       <div class="field" style="margin-top:8px;"><label>Descuento</label><input type="number" min="0" step="0.01" id="posDescuento" value="0"></div>
       <div class="field">
         <label>Cliente (opcional)</label>
-        <select id="posCliente" class="js-cliente-buscar" data-placeholder="Escribe el nombre del cliente (opcional)...">
+        <select id="posCliente" class="js-buscar-select" data-placeholder="Escribe el nombre del cliente (opcional)...">
           <option value="">Cliente general</option>
           {% for c in clientes %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
         </select>

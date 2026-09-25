@@ -57,147 +57,157 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 });
 
-// Autocompletado de cliente: convierte cualquier <select class="js-cliente-buscar">
-// en un campo de texto con sugerencias en vivo (buscar por nombre o teléfono
-// mientras se escribe), sin cambiar cómo se envía el formulario: el <select>
-// original sigue existiendo (oculto) y es el que se manda con el nombre/valor
-// de siempre (p. ej. cliente_id).
+// Buscador con autocompletado para selects largos (clientes, repuestos,
+// etc.): convierte cualquier <select class="js-buscar-select"> en un campo
+// de texto con sugerencias en vivo (filtra mientras se escribe), sin
+// cambiar cómo se envía el formulario: el <select> original sigue
+// existiendo (oculto) y es el que se manda con el name/value de siempre
+// (cliente_id, producto_id, etc.), con sus atributos data-* intactos
+// (p. ej. data-precio) para que el resto del código del formulario siga
+// funcionando igual que con un <select> normal.
 function normalizarTextoBusqueda(s) {
   return (s || "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-function inicializarBuscarCliente() {
-  document.querySelectorAll("select.js-cliente-buscar").forEach(function (select) {
-    if (select.dataset.buscarClienteListo) return;
-    select.dataset.buscarClienteListo = "1";
+// Inicializa el buscador en UN <select>. Se puede llamar de nuevo para un
+// select agregado dinámicamente (p. ej. al clonar una fila de repuestos);
+// si ya estaba inicializado, no hace nada.
+function inicializarBuscadorSelect(select) {
+  if (!select || select.dataset.buscarListo) return;
+  select.dataset.buscarListo = "1";
 
-    var wrap = document.createElement("div");
-    wrap.className = "cliente-buscar-wrap";
+  var wrap = document.createElement("div");
+  wrap.className = "buscar-select-wrap";
 
-    var input = document.createElement("input");
-    input.type = "text";
-    input.className = "cliente-buscar-input";
-    input.setAttribute("autocomplete", "off");
-    input.placeholder = select.getAttribute("data-placeholder") || "Escribe para buscar un cliente...";
+  var input = document.createElement("input");
+  input.type = "text";
+  input.className = "buscar-select-input";
+  input.setAttribute("autocomplete", "off");
+  input.placeholder = select.getAttribute("data-placeholder") || "Escribe para buscar...";
 
-    var lista = document.createElement("div");
-    lista.className = "cliente-buscar-resultados";
+  var lista = document.createElement("div");
+  lista.className = "buscar-select-resultados";
 
-    select.parentNode.insertBefore(wrap, select);
-    wrap.appendChild(input);
-    wrap.appendChild(lista);
-    wrap.appendChild(select);
-    select.style.display = "none";
+  select.parentNode.insertBefore(wrap, select);
+  wrap.appendChild(input);
+  wrap.appendChild(lista);
+  wrap.appendChild(select);
+  select.style.display = "none";
 
-    function opciones() {
-      return Array.prototype.slice.call(select.options).filter(function (o) { return o.value; });
-    }
+  function opciones() {
+    return Array.prototype.slice.call(select.options).filter(function (o) { return o.value; });
+  }
 
-    function textoDe(valor) {
-      var encontrada = null;
-      opciones().some(function (o) { if (o.value === valor) { encontrada = o; return true; } return false; });
-      return encontrada ? encontrada.textContent : "";
-    }
+  function textoDe(valor) {
+    var encontrada = null;
+    opciones().some(function (o) { if (o.value === valor) { encontrada = o; return true; } return false; });
+    return encontrada ? encontrada.textContent : "";
+  }
 
-    function sincronizarDesdeSelect() {
-      input.value = select.value ? textoDe(select.value) : "";
-      input.classList.remove("cliente-buscar-error");
-    }
+  function sincronizarDesdeSelect() {
+    input.value = select.value ? textoDe(select.value) : "";
+    input.classList.remove("buscar-select-error");
+  }
 
-    function ocultarLista() {
-      lista.classList.remove("show");
-      lista.innerHTML = "";
-    }
+  function ocultarLista() {
+    lista.classList.remove("show");
+    lista.innerHTML = "";
+  }
 
-    function mostrarResultados(items) {
-      if (!items.length) {
-        lista.innerHTML = '<div class="cliente-buscar-vacio">Sin coincidencias</div>';
-        lista.classList.add("show");
-        return;
-      }
-      lista.innerHTML = "";
-      items.slice(0, 30).forEach(function (op) {
-        var item = document.createElement("div");
-        item.className = "cliente-buscar-item";
-        item.textContent = op.textContent;
-        item.addEventListener("mousedown", function (e) {
-          e.preventDefault();
-          select.value = op.value;
-          input.value = op.textContent;
-          input.classList.remove("cliente-buscar-error");
-          ocultarLista();
-          select.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-        lista.appendChild(item);
-      });
+  function mostrarResultados(items) {
+    if (!items.length) {
+      lista.innerHTML = '<div class="buscar-select-vacio">Sin coincidencias</div>';
       lista.classList.add("show");
+      return;
     }
-
-    function filtrar(q) {
-      if (!q) return opciones();
-      return opciones().filter(function (o) {
-        return normalizarTextoBusqueda(o.textContent).indexOf(q) !== -1;
-      });
-    }
-
-    input.addEventListener("input", function () {
-      if (select.value && textoDe(select.value) !== input.value) {
-        select.value = "";
-      }
-      mostrarResultados(filtrar(normalizarTextoBusqueda(input.value.trim())));
-    });
-
-    input.addEventListener("focus", function () {
-      mostrarResultados(filtrar(normalizarTextoBusqueda(input.value.trim())));
-    });
-
-    input.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { ocultarLista(); input.blur(); }
-      if (e.key === "Enter") {
+    lista.innerHTML = "";
+    items.slice(0, 30).forEach(function (op) {
+      var item = document.createElement("div");
+      item.className = "buscar-select-item";
+      item.textContent = op.textContent;
+      item.addEventListener("mousedown", function (e) {
         e.preventDefault();
-        var primero = lista.querySelector(".cliente-buscar-item");
-        if (primero) primero.dispatchEvent(new Event("mousedown"));
-      }
-    });
-
-    input.addEventListener("blur", function () {
-      setTimeout(function () {
-        sincronizarDesdeSelect();
+        select.value = op.value;
+        input.value = op.textContent;
+        input.classList.remove("buscar-select-error");
         ocultarLista();
-      }, 150);
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      lista.appendChild(item);
     });
+    lista.classList.add("show");
+  }
 
-    select.addEventListener("change", sincronizarDesdeSelect);
-
-    document.addEventListener("click", function (e) {
-      if (!wrap.contains(e.target)) ocultarLista();
+  function filtrar(q) {
+    if (!q) return opciones();
+    return opciones().filter(function (o) {
+      return normalizarTextoBusqueda(o.textContent).indexOf(q) !== -1;
     });
+  }
 
-    sincronizarDesdeSelect();
+  input.addEventListener("input", function () {
+    if (select.value && textoDe(select.value) !== input.value) {
+      select.value = "";
+    }
+    mostrarResultados(filtrar(normalizarTextoBusqueda(input.value.trim())));
   });
 
-  document.querySelectorAll("select.js-cliente-buscar[required]").forEach(function (select) {
+  input.addEventListener("focus", function () {
+    mostrarResultados(filtrar(normalizarTextoBusqueda(input.value.trim())));
+  });
+
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { ocultarLista(); input.blur(); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      var primero = lista.querySelector(".buscar-select-item");
+      if (primero) primero.dispatchEvent(new Event("mousedown"));
+    }
+  });
+
+  input.addEventListener("blur", function () {
+    setTimeout(function () {
+      sincronizarDesdeSelect();
+      ocultarLista();
+    }, 150);
+  });
+
+  select.addEventListener("change", sincronizarDesdeSelect);
+
+  document.addEventListener("click", function (e) {
+    if (!wrap.contains(e.target)) ocultarLista();
+  });
+
+  sincronizarDesdeSelect();
+}
+window.inicializarBuscadorSelect = inicializarBuscadorSelect;
+
+function inicializarBuscadoresSelect() {
+  document.querySelectorAll("select.js-buscar-select").forEach(inicializarBuscadorSelect);
+
+  document.querySelectorAll("select.js-buscar-select[required]").forEach(function (select) {
     var form = select.closest("form");
-    if (!form || form.dataset.validacionClienteLista) return;
-    form.dataset.validacionClienteLista = "1";
+    if (!form || form.dataset.validacionBuscarLista) return;
+    form.dataset.validacionBuscarLista = "1";
     form.addEventListener("submit", function (e) {
-      var faltantes = Array.prototype.slice.call(form.querySelectorAll("select.js-cliente-buscar[required]"))
+      var faltantes = Array.prototype.slice.call(form.querySelectorAll("select.js-buscar-select[required]"))
         .filter(function (s) { return !s.value; });
       if (!faltantes.length) return;
       e.preventDefault();
-      var wrapFaltante = faltantes[0].closest(".cliente-buscar-wrap");
-      var inputFaltante = wrapFaltante ? wrapFaltante.querySelector(".cliente-buscar-input") : null;
+      var faltante = faltantes[0];
+      var wrapFaltante = faltante.closest(".buscar-select-wrap");
+      var inputFaltante = wrapFaltante ? wrapFaltante.querySelector(".buscar-select-input") : null;
       if (inputFaltante) {
-        inputFaltante.classList.add("cliente-buscar-error");
+        inputFaltante.classList.add("buscar-select-error");
         inputFaltante.focus();
       }
-      alert("Selecciona un cliente de la lista antes de continuar.");
+      alert("Selecciona " + (faltante.getAttribute("data-entidad") || "una opción") + " de la lista antes de continuar.");
     });
   });
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-  inicializarBuscarCliente();
+  inicializarBuscadoresSelect();
 });
 
 function claseBadgeEstado(estado) {

@@ -34,7 +34,7 @@
           <label>Cliente *</label>
           <div class="form-row" style="align-items:flex-end; margin-bottom:0;">
             <div class="field" style="flex:1; margin-bottom:0;">
-              <select name="cliente_id" id="selectClienteId" class="js-cliente-buscar" data-placeholder="Escribe el nombre o teléfono del cliente..." required>
+              <select name="cliente_id" id="selectClienteId" class="js-buscar-select" data-placeholder="Escribe el nombre o teléfono del cliente..." data-entidad="un cliente" required>
                 <option value="">Selecciona un cliente...</option>
                 {% for c in clientes %}
                 <option value="{{ c.id }}" {{ 'selected' if orden and orden.cliente_id == c.id else '' }}>{{ c.nombre }} · {{ c.telefono or '' }}</option>
@@ -224,7 +224,7 @@
       <div class="form-row repuesto-fila">
         <div class="field" style="flex:3;">
           <label>Repuesto</label>
-          <select name="repuesto_producto_id" class="repuesto-select-producto">
+          <select name="repuesto_producto_id" class="repuesto-select-producto js-buscar-select" data-placeholder="Escribe el nombre o código del repuesto...">
             <option value="">Ninguno</option>
             {% for p in productos_disponibles %}
             <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
@@ -312,7 +312,9 @@
       if (filas.length > 1) {
         fila.remove();
       } else {
-        fila.querySelector('select[name="repuesto_producto_id"]').value = '';
+        var selectProd = fila.querySelector('select[name="repuesto_producto_id"]');
+        selectProd.value = '';
+        selectProd.dispatchEvent(new Event('change', { bubbles: true }));
         fila.querySelector('input[name="repuesto_cantidad"]').value = 1;
         fila.querySelector('input[name="repuesto_precio"]').value = '';
       }
@@ -330,10 +332,24 @@
     btnAgregar.addEventListener('click', function () {
       var filas = cont.querySelectorAll('.repuesto-fila');
       var nueva = filas[0].cloneNode(true);
-      nueva.querySelector('select[name="repuesto_producto_id"]').value = '';
+
+      // El buscador de repuesto de la fila original ya fue inicializado
+      // por app.js (select oculto + campo de texto). Al clonar se copia
+      // esa estructura pero sin sus eventos, así que la deshacemos y la
+      // volvemos a inicializar para esta fila nueva.
+      var selectClon = nueva.querySelector('select[name="repuesto_producto_id"]');
+      var wrapClon = selectClon ? selectClon.closest('.buscar-select-wrap') : null;
+      if (selectClon && wrapClon) {
+        wrapClon.parentNode.insertBefore(selectClon, wrapClon);
+        wrapClon.remove();
+        selectClon.style.display = '';
+        delete selectClon.dataset.buscarListo;
+      }
+      if (selectClon) selectClon.value = '';
       nueva.querySelector('input[name="repuesto_cantidad"]').value = 1;
       nueva.querySelector('input[name="repuesto_precio"]').value = '';
       cont.appendChild(nueva);
+      if (selectClon && window.inicializarBuscadorSelect) window.inicializarBuscadorSelect(selectClon);
     });
   })();
 

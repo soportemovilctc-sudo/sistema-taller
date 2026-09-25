@@ -54,6 +54,33 @@ def inventario_list(request: Request, q: str = "", db: Session = Depends(get_db)
     })
 
 
+@router.get("/inventario/precios")
+def inventario_precios(request: Request, q: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
+    """Vista de solo lectura que muestra, junto al Costo y Precio de venta
+    normales (sin impuesto, tal como se guardan), el mismo valor con el
+    impuesto ya sumado — para no tener que calcularlo a mano cada vez. No
+    modifica ni guarda nada."""
+    query = db.query(Producto)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(Producto.codigo.ilike(like), Producto.nombre.ilike(like),
+                                  Producto.categoria.ilike(like), Producto.marca.ilike(like)))
+    productos = query.order_by(Producto.nombre).all()
+    tasa = _isv_tasa(db)
+    factor = 1 + tasa / to_decimal(100)
+    filas = [
+        {
+            "producto": p,
+            "costo_con_impuesto": (to_decimal(p.costo) * factor).quantize(to_decimal("0.01")),
+            "precio_con_impuesto": (to_decimal(p.precio_venta) * factor).quantize(to_decimal("0.01")),
+        }
+        for p in productos
+    ]
+    return templates.TemplateResponse("inventario/precios.html", {
+        "request": request, "filas": filas, "q": q, "usuario": usuario, "tasa": tasa,
+    })
+
+
 @router.get("/inventario/nuevo")
 def inventario_nuevo_form(request: Request, usuario=Depends(login_required)):
     return templates.TemplateResponse("inventario/form.html", {"request": request, "producto": None, "usuario": usuario})

@@ -101,7 +101,9 @@ def inventario_precios(request: Request, q: str = "", db: Session = Depends(get_
 def inventario_exportar_excel(q: str = "", categoria: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
     """Descarga en Excel (.xlsx) los productos que coinciden con el
     buscador y la categoría seleccionados en la lista de Inventario (si no
-    hay filtros aplicados, descarga todo el inventario)."""
+    hay filtros aplicados, descarga todo el inventario). Se ordenan del
+    más reciente al más antiguo (según la fecha en que se ingresó cada
+    producto), para que el último código usado quede siempre de primero."""
     query = db.query(Producto)
     if q:
         like = f"%{q}%"
@@ -109,7 +111,7 @@ def inventario_exportar_excel(q: str = "", categoria: str = "", db: Session = De
                                   Producto.categoria.ilike(like), Producto.marca.ilike(like)))
     if categoria:
         query = query.filter(Producto.categoria == categoria)
-    productos = query.order_by(Producto.nombre).all()
+    productos = query.order_by(Producto.creado_en.desc(), Producto.id.desc()).all()
 
     wb = Workbook()
     hoja = wb.active

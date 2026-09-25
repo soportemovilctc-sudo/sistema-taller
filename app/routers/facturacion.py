@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio
+from app.models import Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio, Tecnico
 from app.deps import login_required, roles_required
 from app.utils.flash import flash
 from app.utils.calculations import to_decimal
@@ -173,16 +173,18 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
         flash(request, "Orden no encontrada.", "error")
         return RedirectResponse("/ordenes", status_code=303)
     cfg = get_or_create_cfg_facturacion(db)
+    tecnicos = db.query(Tecnico).filter(Tecnico.activo == True).order_by(Tecnico.nombre).all()  # noqa: E712
     return templates.TemplateResponse("facturacion/nueva.html", {
         "request": request, "orden": orden, "cfg": cfg, "usuario": usuario,
         "error_fiscal": _validar_fiscal_disponible(cfg),
+        "tecnicos": tecnicos,
     })
 
 
 @router.post("/ordenes/{orden_id}/factura/nueva")
 def factura_crear(
     orden_id: int, request: Request,
-    tipo: str = Form("interno"), exento: bool = Form(False),
+    tipo: str = Form("interno"), exento: bool = Form(False), tecnico_reparacion_id: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
@@ -191,6 +193,11 @@ def factura_crear(
         return RedirectResponse("/ordenes", status_code=303)
     if tipo not in ("interno", "fiscal"):
         tipo = "interno"
+
+    # El técnico que RECIBIÓ el equipo (orden.tecnico_id) no siempre es
+    # quien hizo la reparación, así que se guarda aparte y se puede
+    # corregir aquí mismo al momento de facturar.
+    orden.tecnico_reparacion_id = int(tecnico_reparacion_id) if tecnico_reparacion_id else None
 
     cfg = get_or_create_cfg_facturacion(db)
     cfg_general = _config_general(db)

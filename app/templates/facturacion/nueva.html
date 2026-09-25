@@ -4,6 +4,7 @@
 <div class="card" style="max-width:640px;">
   <div class="card-title">Generar factura para la orden {{ orden.numero_orden }}</div>
   <p><b>Cliente:</b> {{ orden.cliente.nombre if orden.cliente else '-' }}<br>
+     <b>Técnico que recibió el equipo:</b> {{ orden.tecnico.nombre if orden.tecnico else 'Sin asignar' }}<br>
      <b>Total del servicio:</b> {{ orden.total|moneda(config_taller().moneda) }}</p>
 
   <form method="post" action="/ordenes/{{ orden.id }}/factura/nueva">
@@ -17,6 +18,19 @@
     {% if error_fiscal %}
     <p class="flash flash-error">{{ error_fiscal }} <a href="/configuracion/facturacion">Ir a Configuración de facturación</a></p>
     {% endif %}
+    <div class="field">
+      <label>Técnico que hizo la reparación</label>
+      <select name="tecnico_reparacion_id">
+        <option value="">Sin asignar</option>
+        {% for t in tecnicos %}
+        <option value="{{ t.id }}" {{ 'selected' if orden.tecnico_reparacion_id == t.id else '' }}>{{ t.nombre }}</option>
+        {% endfor %}
+        {% if orden.tecnico_reparacion and orden.tecnico_reparacion.id not in tecnicos|map(attribute='id')|list %}
+        <option value="{{ orden.tecnico_reparacion.id }}" selected>{{ orden.tecnico_reparacion.nombre }} (inactivo)</option>
+        {% endif %}
+      </select>
+      <div class="help">No siempre es el mismo que recibió el equipo — elige aquí quién realizó el trabajo.</div>
+    </div>
     <div class="field">
       <label class="checkbox-chip"><input type="checkbox" name="exento" {{ 'checked' if cfg.servicios_exentos_default else '' }}> Este servicio está exento de ISV</label>
     </div>

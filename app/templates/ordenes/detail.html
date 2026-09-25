@@ -68,7 +68,8 @@
     <div><label>Cliente</label><p><a href="/clientes/{{ orden.cliente_id }}">{{ orden.cliente.nombre if orden.cliente else '-' }}</a></p></div>
     <div><label>Equipo</label><p>{{ orden.tipo_equipo }} {{ orden.marca }} {{ orden.modelo }}</p></div>
     <div><label>IMEI / Serie</label><p>{{ orden.imei or orden.numero_serie or '-' }}</p></div>
-    <div><label>Técnico</label><p>{{ orden.tecnico.nombre if orden.tecnico else 'Sin asignar' }}</p></div>
+    <div><label>Técnico que recibió</label><p>{{ orden.tecnico.nombre if orden.tecnico else 'Sin asignar' }}</p></div>
+    <div><label>Técnico que reparó</label><p>{{ orden.tecnico_reparacion.nombre if orden.tecnico_reparacion else 'Sin asignar' }}</p></div>
     <div><label>Fecha</label><p>{{ orden.fecha|fecha }}</p></div>
     {% set _venc = orden.dias_en_taller() >= config_taller().dias_vencido_alerta and orden.estado not in ('ENTREGADO', 'CANCELADO') %}
     <div><label>Días en el taller</label><p><span class="dias-chip {{ 'dias-chip-alerta' if _venc else '' }}">{{ orden.dias_en_taller() }} día{{ 's' if orden.dias_en_taller() != 1 else '' }}</span>{{ ' · Vencido' if _venc else '' }}{{ ' (cerrada)' if orden.fecha_cierre else '' }}</p></div>

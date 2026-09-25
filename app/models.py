@@ -91,7 +91,7 @@ class Tecnico(Base):
     activo = Column(Boolean, default=True, nullable=False)
     creado_en = Column(DateTime, default=datetime.utcnow)
 
-    ordenes = relationship("OrdenServicio", back_populates="tecnico")
+    ordenes = relationship("OrdenServicio", back_populates="tecnico", foreign_keys="OrdenServicio.tecnico_id")
 
 
 class Cliente(Base):
@@ -140,7 +140,11 @@ class OrdenServicio(Base):
     fecha = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
-    tecnico_id = Column(Integer, ForeignKey("tecnicos.id"), nullable=True)
+    tecnico_id = Column(Integer, ForeignKey("tecnicos.id"), nullable=True)  # técnico que recibe/gestiona la orden
+    # Técnico que realmente hizo la reparación (no siempre es el mismo que
+    # recibió el equipo). Se puede dejar sin asignar y completar después,
+    # por ejemplo al generar la factura.
+    tecnico_reparacion_id = Column(Integer, ForeignKey("tecnicos.id"), nullable=True)
 
     tipo_equipo = Column(String(30), default="Celular")
     marca = Column(String(80))
@@ -182,7 +186,8 @@ class OrdenServicio(Base):
     actualizado_en = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     cliente = relationship("Cliente", back_populates="ordenes")
-    tecnico = relationship("Tecnico", back_populates="ordenes")
+    tecnico = relationship("Tecnico", back_populates="ordenes", foreign_keys=[tecnico_id])
+    tecnico_reparacion = relationship("Tecnico", foreign_keys=[tecnico_reparacion_id])
     historial = relationship("HistorialEstado", back_populates="orden", cascade="all,delete-orphan", order_by="HistorialEstado.fecha")
     pagos = relationship("Pago", back_populates="orden", cascade="all,delete-orphan", order_by="Pago.fecha")
     repuestos = relationship("OrdenRepuesto", back_populates="orden", cascade="all,delete-orphan", order_by="OrdenRepuesto.fecha")

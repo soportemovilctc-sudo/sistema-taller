@@ -90,6 +90,12 @@ def _ventas_detallado(db: Session, fecha_desde=None, fecha_hasta=None):
     precio, exento/gravado/ISV, monto, costo y utilidad de esa línea. Es el
     equivalente al "Reporte de Ventas Pedidos Detallado" que se usaba antes.
 
+    La columna Técnico muestra quién REPARÓ (orden.tecnico_reparacion), que
+    no siempre es el mismo que recibió el equipo; si esa venta no viene de
+    una orden con reparación asignada, se usa como respaldo el técnico que
+    recibió la orden y, si tampoco hay orden, el usuario que hizo la venta
+    en el Punto de Venta.
+
     Igual que en Utilidades por producto: el costo es el ACTUAL del
     producto en Inventario (no hay historial de costo por venta), y el
     ISV se calcula línea por línea sobre el subtotal de esa línea (no se
@@ -101,6 +107,7 @@ def _ventas_detallado(db: Session, fecha_desde=None, fecha_hasta=None):
         .join(Producto, Producto.id == DetalleVenta.producto_id)
         .options(
             joinedload(Venta.cliente),
+            joinedload(Venta.orden).joinedload(OrdenServicio.tecnico_reparacion),
             joinedload(Venta.orden).joinedload(OrdenServicio.tecnico),
         )
     )
@@ -122,7 +129,9 @@ def _ventas_detallado(db: Session, fecha_desde=None, fecha_hasta=None):
         margen = float((utilidad / gravado * 100).quantize(Decimal("0.1"))) if gravado > 0 else 0.0
 
         tecnico = None
-        if venta.orden and venta.orden.tecnico:
+        if venta.orden and venta.orden.tecnico_reparacion:
+            tecnico = venta.orden.tecnico_reparacion.nombre
+        elif venta.orden and venta.orden.tecnico:
             tecnico = venta.orden.tecnico.nombre
         elif venta.usuario_nombre:
             tecnico = venta.usuario_nombre

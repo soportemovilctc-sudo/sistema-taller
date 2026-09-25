@@ -61,7 +61,14 @@
       <button type="submit" class="btn btn-danger" onclick="return confirm('¿Eliminar definitivamente este comprobante interno? Esta acción no se puede deshacer.');">Eliminar definitivamente</button>
     </form>
     {% else %}
-    <p class="help">Las facturas fiscales no se pueden eliminar (solo anular), ya que su numeración está sujeta a control de la SAR.</p>
+    <p class="help" style="color:#f2545b;">⚠ Esta es una factura <b>fiscal</b>. Eliminarla (a diferencia de anularla) deja un salto en tu correlativo consecutivo ante la SAR — normalmente lo correcto es <b>anular</b>, no eliminar. Solo hazlo si estás seguro.</p>
+    <form method="post" action="/facturas/{{ factura.id }}/eliminar" onsubmit="return confirm('¿Eliminar DEFINITIVAMENTE esta factura fiscal? El número {{ factura.numero_documento }} quedará como un salto en tu correlativo ante la SAR. Esta acción no se puede deshacer.');">
+      <div class="field">
+        <label>Escribe el número de la factura para confirmar ({{ factura.numero_documento }})</label>
+        <input type="text" name="confirmar_numero" placeholder="{{ factura.numero_documento }}" required>
+      </div>
+      <button type="submit" class="btn btn-danger">Eliminar factura fiscal definitivamente</button>
+    </form>
     {% endif %}
     {% endif %}
   </div>

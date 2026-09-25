@@ -63,10 +63,11 @@ def inventario_list(request: Request, q: str = "", categoria: str = "", db: Sess
         query = query.filter(Producto.categoria == categoria)
     productos = query.order_by(Producto.nombre).all()
     stock_bajo_ids = {p.id for p in productos if p.existencia <= p.stock_minimo}
+    total_inversion = sum((to_decimal(p.costo) * p.existencia for p in productos), to_decimal(0))
     return templates.TemplateResponse("inventario/list.html", {
         "request": request, "productos": productos, "q": q, "categoria": categoria,
         "categorias_disponibles": _categorias_disponibles(db),
-        "usuario": usuario, "stock_bajo_ids": stock_bajo_ids,
+        "usuario": usuario, "stock_bajo_ids": stock_bajo_ids, "total_inversion": total_inversion,
     })
 
 

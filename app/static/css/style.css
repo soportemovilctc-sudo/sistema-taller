@@ -451,7 +451,7 @@ html, body {
 
 /* ---------- Íconos SVG en línea (barra lateral y otros) ---------- */
 .nav-link .ic-svg, .topbar-bell svg, .user-chip svg, .kpi-icon svg,
-.step-dot svg, .icon-btn svg, .action-bar-sticky svg {
+.step-dot svg, .icon-btn svg, .action-bar-sticky svg, .btn svg {
   width: 18px; height: 18px; flex-shrink: 0;
   stroke: currentColor; fill: none; stroke-width: 1.9;
   stroke-linecap: round; stroke-linejoin: round;

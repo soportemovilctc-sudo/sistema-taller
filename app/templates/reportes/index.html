@@ -13,7 +13,13 @@
 <div class="card">
   <div class="card-title">
     Filtros
-    <span class="actions"><a href="/reportes/exportar/{{ tipo }}?desde={{ desde }}&hasta={{ hasta }}&tecnico_id={{ tecnico_id }}&estado={{ estado }}" class="btn btn-outline btn-sm">Exportar CSV</a></span>
+    <span class="actions">
+      <a href="/reportes/exportar/{{ tipo }}/excel?desde={{ desde }}&hasta={{ hasta }}&tecnico_id={{ tecnico_id }}&estado={{ estado }}&forma_pago={{ forma_pago }}" class="btn btn-success btn-sm">
+        <svg viewBox="0 0 24 24"><path d="M12 3v13m0 0l-4.5-4.5M12 16l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Descargar Excel
+      </a>
+      <a href="/reportes/exportar/{{ tipo }}?desde={{ desde }}&hasta={{ hasta }}&tecnico_id={{ tecnico_id }}&estado={{ estado }}" class="btn btn-outline btn-sm">Exportar CSV</a>
+    </span>
   </div>
   <form method="get" class="form-row">
     <input type="hidden" name="tipo" value="{{ tipo }}">

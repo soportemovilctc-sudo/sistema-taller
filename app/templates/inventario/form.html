@@ -8,6 +8,9 @@
       <div class="field">
         <label>Código *</label>
         <input type="text" name="codigo" required value="{{ producto.codigo if producto else '' }}" {{ 'readonly' if producto else '' }}>
+        {% if not producto and ultimo_producto %}
+        <div class="help">Último código usado: <b>{{ ultimo_producto.codigo }}</b> ({{ ultimo_producto.nombre }})</div>
+        {% endif %}
       </div>
       <div class="field"><label>Nombre *</label><input type="text" name="nombre" required value="{{ producto.nombre if producto else '' }}"></div>
     </div>

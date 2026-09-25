@@ -16,6 +16,9 @@
       <a href="/inventario/nuevo" class="btn btn-primary btn-sm">+ Nuevo producto</a>
     </span>
   </div>
+  {% if ultimo_producto %}
+  <p class="help">Último código usado: <b>{{ ultimo_producto.codigo }}</b> ({{ ultimo_producto.nombre }})</p>
+  {% endif %}
   <form method="get" class="form-row" style="margin-bottom:14px;">
     <div class="field" style="flex:2;"><input type="text" name="q" value="{{ q }}" placeholder="Buscar por código, nombre, categoría o marca..."></div>
     <div class="field">

@@ -52,6 +52,12 @@ def _categorias_disponibles(db: Session):
     return [f[0] for f in filas]
 
 
+def _ultimo_producto(db: Session):
+    """El producto ingresado más recientemente (para mostrar cuál fue el
+    último código usado)."""
+    return db.query(Producto).order_by(Producto.creado_en.desc(), Producto.id.desc()).first()
+
+
 @router.get("/inventario")
 def inventario_list(request: Request, q: str = "", categoria: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
     query = db.query(Producto)
@@ -64,10 +70,12 @@ def inventario_list(request: Request, q: str = "", categoria: str = "", db: Sess
     productos = query.order_by(Producto.nombre).all()
     stock_bajo_ids = {p.id for p in productos if p.existencia <= p.stock_minimo}
     total_inversion = sum((to_decimal(p.costo) * p.existencia for p in productos), to_decimal(0))
+    ultimo_producto = _ultimo_producto(db)
     return templates.TemplateResponse("inventario/list.html", {
         "request": request, "productos": productos, "q": q, "categoria": categoria,
         "categorias_disponibles": _categorias_disponibles(db),
         "usuario": usuario, "stock_bajo_ids": stock_bajo_ids, "total_inversion": total_inversion,
+        "ultimo_producto": ultimo_producto,
     })
 
 
@@ -154,8 +162,10 @@ def inventario_exportar_excel(q: str = "", categoria: str = "", db: Session = De
 
 
 @router.get("/inventario/nuevo")
-def inventario_nuevo_form(request: Request, usuario=Depends(login_required)):
-    return templates.TemplateResponse("inventario/form.html", {"request": request, "producto": None, "usuario": usuario})
+def inventario_nuevo_form(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
+    return templates.TemplateResponse("inventario/form.html", {
+        "request": request, "producto": None, "usuario": usuario, "ultimo_producto": _ultimo_producto(db),
+    })
 
 
 @router.post("/inventario/nuevo")

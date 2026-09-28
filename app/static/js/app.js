@@ -233,16 +233,45 @@ document.addEventListener("DOMContentLoaded", function () {
 // Mascota panda del usuario de Caja (rol vendedor): se puede arrastrar a
 // cualquier parte de la pantalla con mouse o dedo, y recuerda en
 // localStorage dónde quedó para que siga ahí al cambiar de página (el
-// sistema recarga toda la página en cada navegación, no es un SPA).
+// sistema recarga toda la página en cada navegación, no es un SPA). Un
+// toque/clic que NO arrastra (no se movió más que UMBRAL_ARRASTRE) dispara
+// una reacción al azar entre varias (ver REACCIONES), usando el mecanismo
+// nativo de SVG (begin="indefinite" + beginElement()) para reiniciar una
+// animación puntual a demanda.
 function inicializarPandaMascota() {
   var panda = document.getElementById("pandaCajaMascota");
   if (!panda) return;
 
   var CLAVE_POSICION = "pandaCajaPos";
+  var UMBRAL_ARRASTRE = 6; // px de movimiento antes de considerarlo arrastre y no un toque
+
+  // Cada reacción es la lista de ids de los <animate>/<animateTransform>
+  // (begin="indefinite" en el SVG de base.html) que hay que disparar
+  // juntos para verla completa.
+  var REACCIONES = [
+    ["reaccionSaltoAnim"],
+    ["reaccionGiroAnim"],
+    ["reaccionGuinoAnim"],
+    ["reaccionCorazonMov", "reaccionCorazonOpacidad"]
+  ];
+
+  function dispararReaccionAleatoria() {
+    var elegida = REACCIONES[Math.floor(Math.random() * REACCIONES.length)];
+    elegida.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && typeof el.beginElement === "function") {
+        try { el.beginElement(); } catch (e) { /* navegador sin soporte SMIL: no pasa nada */ }
+      }
+    });
+  }
 
   function limitarYAplicar(x, y) {
-    var maxX = window.innerWidth - panda.offsetWidth - 4;
-    var maxY = window.innerHeight - panda.offsetHeight - 4;
+    // panda es un <svg> inline: a diferencia de un <img>, no tiene
+    // offsetWidth/offsetHeight (son API de HTMLElement, no de SVGElement),
+    // así que el tamaño se lee con getBoundingClientRect().
+    var tam = panda.getBoundingClientRect();
+    var maxX = window.innerWidth - tam.width - 4;
+    var maxY = window.innerHeight - tam.height - 4;
     x = Math.max(4, Math.min(x, maxX));
     y = Math.max(4, Math.min(y, maxY));
     panda.style.left = x + "px";
@@ -263,9 +292,14 @@ function inicializarPandaMascota() {
 
   var arrastrando = false;
   var offsetX = 0, offsetY = 0;
+  var inicioX = 0, inicioY = 0;
+  var seArrastro = false;
 
   function iniciarArrastre(clientX, clientY) {
     arrastrando = true;
+    seArrastro = false;
+    inicioX = clientX;
+    inicioY = clientY;
     var rect = panda.getBoundingClientRect();
     offsetX = clientX - rect.left;
     offsetY = clientY - rect.top;
@@ -274,6 +308,9 @@ function inicializarPandaMascota() {
 
   function moverA(clientX, clientY) {
     if (!arrastrando) return;
+    if (!seArrastro && Math.hypot(clientX - inicioX, clientY - inicioY) > UMBRAL_ARRASTRE) {
+      seArrastro = true;
+    }
     limitarYAplicar(clientX - offsetX, clientY - offsetY);
   }
 
@@ -281,11 +318,16 @@ function inicializarPandaMascota() {
     if (!arrastrando) return;
     arrastrando = false;
     panda.classList.remove("panda-arrastrando");
-    var rect = panda.getBoundingClientRect();
-    try {
-      localStorage.setItem(CLAVE_POSICION, JSON.stringify({ x: rect.left, y: rect.top }));
-    } catch (e) {
-      /* almacenamiento no disponible: simplemente no se recuerda la posición */
+    if (seArrastro) {
+      var rect = panda.getBoundingClientRect();
+      try {
+        localStorage.setItem(CLAVE_POSICION, JSON.stringify({ x: rect.left, y: rect.top }));
+      } catch (e) {
+        /* almacenamiento no disponible: simplemente no se recuerda la posición */
+      }
+    } else {
+      // Fue un toque/clic, no un arrastre: reacciona.
+      dispararReaccionAleatoria();
     }
   }
 

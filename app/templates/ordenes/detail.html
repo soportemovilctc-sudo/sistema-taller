@@ -186,8 +186,9 @@
     </script>
 
     <div class="card-title" style="font-size:13px; margin-top:16px;">Repuestos agregados a esta orden</div>
+    {% set _tiene_factura_vigente = orden.facturas|selectattr('anulada', 'equalto', false)|list|length > 0 %}
     <table>
-      <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th><th>Usuario</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th><th>Usuario</th><th></th></tr></thead>
       <tbody>
         {% for r in orden.repuestos %}
         <tr>
@@ -197,9 +198,19 @@
           <td>{{ r.precio_unitario|moneda(config_taller().moneda) }}</td>
           <td>{{ r.subtotal|moneda(config_taller().moneda) }}</td>
           <td>{{ r.usuario_nombre }}</td>
+          <td>
+            {% if _tiene_factura_vigente %}
+            <span class="text-muted" title="No se puede quitar: la orden ya tiene una factura vigente">—</span>
+            {% else %}
+            <form method="post" action="/ordenes/{{ orden.id }}/repuestos/{{ r.id }}/eliminar"
+                  onsubmit="return confirm('¿Quitar este repuesto de la orden? Se repondrá al inventario y se revertirá el cobro.');">
+              <button type="submit" class="btn btn-danger btn-sm" title="Quitar este repuesto de la orden">Quitar</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="empty-state">Sin repuestos agregados a esta orden.</td></tr>
+        <tr><td colspan="7" class="empty-state">Sin repuestos agregados a esta orden.</td></tr>
         {% endfor %}
       </tbody>
     </table>

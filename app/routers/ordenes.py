@@ -535,6 +535,67 @@ def ordenes_agregar_repuesto(
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
+@router.post("/ordenes/{orden_id}/repuestos/{orden_repuesto_id}/eliminar")
+def ordenes_quitar_repuesto(
+    orden_id: int, orden_repuesto_id: int, request: Request,
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    """Deshace el agregado de un repuesto a la orden (por ejemplo si se
+    agregó por error o con la cantidad equivocada): repone la existencia
+    en el inventario dejando su propio movimiento de entrada (para que
+    quede registrado el porqué, sin borrar el movimiento de salida
+    original), revierte el ingreso contable con un movimiento de gasto de
+    corrección, y elimina la venta/detalle asociados (esa venta se creó
+    únicamente para representar este repuesto dentro de la orden; no es
+    una venta independiente del POS). No se permite si la orden ya tiene
+    una factura vigente (fiscal o interna, no anulada): su total ya quedó
+    impreso y no se actualiza solo."""
+    orden = db.get(OrdenServicio, orden_id)
+    if not orden:
+        flash(request, "Orden no encontrada.", "error")
+        return RedirectResponse("/ordenes", status_code=303)
+
+    orden_repuesto = db.get(OrdenRepuesto, orden_repuesto_id)
+    if not orden_repuesto or orden_repuesto.orden_id != orden.id:
+        flash(request, "Ese repuesto no pertenece a esta orden.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    if any(not f.anulada for f in orden.facturas):
+        flash(request, "No se puede quitar un repuesto: esta orden ya tiene una factura vigente. Anúlala primero (un administrador puede hacerlo) antes de modificar los repuestos.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    producto = orden_repuesto.producto
+    cantidad = orden_repuesto.cantidad
+    subtotal = orden_repuesto.subtotal
+    nombre_producto = producto.nombre if producto else "(producto ya no existe)"
+
+    if producto:
+        producto.existencia += cantidad
+        db.add(MovimientoInventario(
+            producto_id=producto.id, tipo="entrada", cantidad=cantidad,
+            existencia_resultante=producto.existencia, usuario_nombre=usuario["nombre_completo"],
+            motivo=f"Se quitó de la Orden {orden.numero_orden} (repuesto agregado por error)",
+        ))
+
+    db.add(MovimientoFinanciero(
+        tipo="gasto", categoria="Corrección de repuesto (orden)", monto=subtotal,
+        descripcion=f"Se quitó {nombre_producto} x{cantidad} de la Orden {orden.numero_orden}",
+        usuario_nombre=usuario["nombre_completo"], referencia=orden.numero_orden,
+    ))
+
+    venta = orden_repuesto.venta
+    db.delete(orden_repuesto)
+    if venta:
+        db.delete(venta)  # cascada: sus DetalleVenta (cascade="all,delete-orphan")
+
+    db.flush()
+    db.refresh(orden)
+    recalcular_orden(orden)
+    db.commit()
+    flash(request, f"Se quitó '{nombre_producto}' de la orden y se repuso al inventario.", "success")
+    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
 @router.post("/ordenes/{orden_id}/eliminar")
 def ordenes_eliminar(
     orden_id: int, request: Request,

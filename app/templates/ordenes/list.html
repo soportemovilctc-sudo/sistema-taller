@@ -67,6 +67,9 @@
               {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == o.estado else '' }}>{{ e }}</option>{% endfor %}
             </select>
           </form>
+          {% if o.estado == 'LISTO PARA ENTREGAR' and not o.notificado_listo %}
+          <span class="badge badge-aviso-pendiente" title="El cliente aún no ha sido avisado de que el equipo está listo">Sin avisar</span>
+          {% endif %}
         </td>
         <td data-label="Saldo">{{ o.saldo|moneda(config_taller().moneda) }}</td>
         {% if usuario.rol == 'admin' %}

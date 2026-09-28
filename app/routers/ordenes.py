@@ -357,8 +357,9 @@ def ordenes_cambiar_estado(
 ):
     orden = db.get(OrdenServicio, orden_id)
     if orden and nuevo_estado in ESTADOS_ORDEN:
+        estado_anterior = orden.estado
         historial = HistorialEstado(
-            orden_id=orden.id, estado_anterior=orden.estado, estado_nuevo=nuevo_estado,
+            orden_id=orden.id, estado_anterior=estado_anterior, estado_nuevo=nuevo_estado,
             usuario_nombre=usuario["nombre_completo"], observacion=observacion,
         )
         orden.estado = nuevo_estado
@@ -367,6 +368,12 @@ def ordenes_cambiar_estado(
                 orden.fecha_cierre = datetime.utcnow()
         else:
             orden.fecha_cierre = None
+        # Si la orden vuelve a entrar a LISTO PARA ENTREGAR (por ejemplo se
+        # corrigió algo después de haber avisado al cliente), se reinicia el
+        # aviso para que quede pendiente avisar de nuevo.
+        if nuevo_estado == "LISTO PARA ENTREGAR" and estado_anterior != "LISTO PARA ENTREGAR":
+            orden.notificado_listo = False
+            orden.fecha_notificado_listo = None
         db.add(historial)
         db.commit()
         flash(request, f"Estado actualizado a {nuevo_estado}.", "success")
@@ -571,7 +578,9 @@ def ordenes_tirilla_descargar(orden_id: int, db: Session = Depends(get_db), usua
 @router.get("/ordenes/{orden_id}/whatsapp")
 def ordenes_whatsapp(orden_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     """Genera el PDF y muestra un enlace de WhatsApp con el resumen (el archivo
-    se debe adjuntar manualmente, WhatsApp Web no permite adjuntar por enlace)."""
+    se debe adjuntar manualmente, WhatsApp Web no permite adjuntar por enlace).
+    Si la orden está LISTO PARA ENTREGAR, usar este botón cuenta como avisar
+    al cliente: se marca como notificada para que no quede pendiente."""
     orden = db.get(OrdenServicio, orden_id)
     mensaje = (
         f"Hola {orden.cliente.nombre if orden.cliente else ''}, aquí está el resumen de tu orden "
@@ -579,6 +588,26 @@ def ordenes_whatsapp(orden_id: int, request: Request, db: Session = Depends(get_
     )
     telefono = (orden.cliente.whatsapp or orden.cliente.telefono or "") if orden.cliente else ""
     telefono_limpio = "".join(ch for ch in telefono if ch.isdigit())
+    if orden.estado == "LISTO PARA ENTREGAR" and not orden.notificado_listo:
+        orden.notificado_listo = True
+        orden.fecha_notificado_listo = datetime.utcnow()
+        db.commit()
     import urllib.parse
     link = f"https://wa.me/{telefono_limpio}?text={urllib.parse.quote(mensaje)}"
     return RedirectResponse(link, status_code=303)
+
+
+@router.post("/ordenes/{orden_id}/marcar-avisado")
+def ordenes_marcar_avisado(orden_id: int, request: Request, redirect_to: str = Form(""),
+                            db: Session = Depends(get_db), usuario=Depends(login_required)):
+    """Marca manualmente que ya se avisó al cliente de que el equipo está
+    listo (por ejemplo, si se le llamó por teléfono en vez de usar el botón
+    de WhatsApp)."""
+    orden = db.get(OrdenServicio, orden_id)
+    if orden:
+        orden.notificado_listo = True
+        orden.fecha_notificado_listo = datetime.utcnow()
+        db.commit()
+        flash(request, "Se marcó al cliente como avisado.", "success")
+    destino = redirect_to if redirect_to.startswith("/") else f"/ordenes/{orden_id}"
+    return RedirectResponse(destino, status_code=303)

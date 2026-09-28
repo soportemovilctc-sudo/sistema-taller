@@ -182,6 +182,13 @@ class OrdenServicio(Base):
     fecha_entrega = Column(Date, nullable=True)
     fecha_cierre = Column(DateTime, nullable=True)  # se marca al llegar a ENTREGADO/CANCELADO
 
+    # Aviso de "equipo listo": si ya se le avisó al cliente que puede pasar
+    # a recogerlo. Se reinicia a False cada vez que la orden vuelve a entrar
+    # a LISTO PARA ENTREGAR (por ejemplo si se corrigió algo después de
+    # haber avisado), para no dejar al cliente sin el aviso correcto.
+    notificado_listo = Column(Boolean, default=False, nullable=False)
+    fecha_notificado_listo = Column(DateTime, nullable=True)
+
     creado_en = Column(DateTime, default=datetime.utcnow)
     actualizado_en = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

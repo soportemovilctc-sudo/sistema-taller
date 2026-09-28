@@ -37,6 +37,20 @@
 
 <div class="card">
   <div class="card-title">Orden {{ orden.numero_orden }}</div>
+  {% if orden.estado == 'LISTO PARA ENTREGAR' and not orden.notificado_listo %}
+  <div class="flash flash-warning" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <span>⚠ Este equipo está <b>listo para entregar</b> y el cliente aún no ha sido avisado.</span>
+    <span style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="/ordenes/{{ orden.id }}/whatsapp" target="_blank" class="btn btn-success btn-sm">Avisar por WhatsApp</a>
+      <form method="post" action="/ordenes/{{ orden.id }}/marcar-avisado" style="display:inline;">
+        <input type="hidden" name="redirect_to" value="/ordenes/{{ orden.id }}">
+        <button type="submit" class="btn btn-outline btn-sm">Marcar como avisado</button>
+      </form>
+    </span>
+  </div>
+  {% elif orden.estado == 'LISTO PARA ENTREGAR' and orden.notificado_listo %}
+  <p class="help" style="margin:-4px 0 10px;">✓ Cliente avisado el <b>{{ orden.fecha_notificado_listo|fecha('%d/%m/%Y %H:%M') if orden.fecha_notificado_listo else '-' }}</b> de que el equipo está listo para entregar.</p>
+  {% endif %}
   {% if orden.estado != 'CANCELADO' %}
   {% set flujo = estados[:-1] %}
   {% set idx_actual = flujo.index(orden.estado) if orden.estado in flujo else -1 %}

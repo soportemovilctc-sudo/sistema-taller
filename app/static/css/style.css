@@ -298,6 +298,7 @@ select.badge-select option { background: var(--panel-2); color: var(--text); }
 .badge-urgente { background: var(--danger); color: #fff; }
 
 .badge-stock-bajo { background: var(--danger-bg); color: #fca5a5; border: 1px solid var(--danger); }
+.badge-aviso-pendiente { background: var(--warning-bg); color: #fbbf24; border: 1px solid var(--warning); margin-left: 6px; }
 
 /* ---------- Pestañas de estado (listado de órdenes) ---------- */
 .estado-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -330,6 +331,7 @@ select.badge-select option { background: var(--panel-2); color: var(--text); }
 .flash-success { background: var(--success-bg); color: #86efac; border: 1px solid var(--success); }
 .flash-error { background: var(--danger-bg); color: #fca5a5; border: 1px solid var(--danger); }
 .flash-info { background: rgba(37,99,235,.15); color: #93c5fd; border: 1px solid var(--primary); }
+.flash-warning { background: var(--warning-bg); color: #fbbf24; border: 1px solid var(--warning); }
 
 /* ---------- Login ---------- */
 .login-page {

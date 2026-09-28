@@ -22,9 +22,16 @@
   </div>
 </div>
 
+<p class="help" style="margin:-4px 0 10px;">
+  Última visita: <b>{{ resumen.ultima_visita|fecha if resumen.ultima_visita else 'Sin visitas todavía' }}</b>
+</p>
 <div class="grid cols-4">
-  <div class="kpi accent-blue"><div class="kpi-label">Órdenes</div><div class="kpi-value">{{ resumen.cantidad_ordenes }}</div></div>
-  <div class="kpi"><div class="kpi-label">Total facturado</div><div class="kpi-value">{{ resumen.total_facturado|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Visitas</div><div class="kpi-value">{{ resumen.cantidad_visitas }}</div>
+    <div class="kpi-trend">{{ resumen.cantidad_ordenes }} orden{{ 'es' if resumen.cantidad_ordenes != 1 else '' }} · {{ resumen.cantidad_compras_pos }} compra{{ 's' if resumen.cantidad_compras_pos != 1 else '' }} en POS</div>
+  </div>
+  <div class="kpi"><div class="kpi-label">Total gastado</div><div class="kpi-value">{{ resumen.total_gastado|moneda(config_taller().moneda) }}</div>
+    <div class="kpi-trend">Órdenes {{ resumen.total_facturado|moneda(config_taller().moneda) }} · POS {{ resumen.total_pos|moneda(config_taller().moneda) }}</div>
+  </div>
   <div class="kpi accent-green"><div class="kpi-label">Total pagado</div><div class="kpi-value">{{ resumen.total_pagado|moneda(config_taller().moneda) }}</div></div>
   <div class="kpi accent-red"><div class="kpi-label">Saldo pendiente</div><div class="kpi-value">{{ resumen.saldo_pendiente|moneda(config_taller().moneda) }}</div></div>
 </div>
@@ -46,6 +53,27 @@
       </tr>
       {% else %}
       <tr><td colspan="6" class="empty-state">Este cliente aún no tiene órdenes.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Compras en Punto de Venta</div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>N. Venta</th><th>Fecha</th><th>Total</th><th>Forma de pago</th></tr></thead>
+    <tbody>
+      {% for v in ventas %}
+      <tr>
+        <td>{{ v.numero_venta }}</td>
+        <td>{{ v.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ v.total|moneda(config_taller().moneda) }}</td>
+        <td>{{ v.forma_pago }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty-state">Este cliente aún no tiene compras en el Punto de Venta.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -158,17 +158,43 @@ def clientes_detalle(cliente_id: int, request: Request, db: Session = Depends(ge
         flash(request, "Cliente no encontrado.", "error")
         return RedirectResponse("/clientes", status_code=303)
     ordenes = db.query(OrdenServicio).filter(OrdenServicio.cliente_id == cliente_id).order_by(OrdenServicio.fecha.desc()).all()
+    # Solo ventas del Punto de Venta que NO vienen de una orden (venta.orden_id
+    # es NULL): los repuestos usados EN una orden también generan una Venta
+    # enlazada a esa orden (para que salgan en los reportes), pero su importe
+    # ya está incluido en el total de la orden — sumarla aquí también sería
+    # contar ese dinero dos veces.
+    ventas = (
+        db.query(Venta)
+        .filter(Venta.cliente_id == cliente_id, Venta.orden_id.is_(None))
+        .order_by(Venta.fecha.desc())
+        .all()
+    )
 
     total_facturado = sum((o.total or Decimal("0") for o in ordenes), Decimal("0"))
-    total_pagado = sum((o.abonado or Decimal("0") for o in ordenes), Decimal("0"))
+    total_pagado_ordenes = sum((o.abonado or Decimal("0") for o in ordenes), Decimal("0"))
     saldo_pendiente = sum((o.saldo or Decimal("0") for o in ordenes), Decimal("0"))
+    # Las ventas del POS siempre se cobran completas al momento (no admiten
+    # abono parcial), así que todo lo que suman ya está pagado.
+    total_pos = sum((v.total or Decimal("0") for v in ventas), Decimal("0"))
+    total_pagado = total_pagado_ordenes + total_pos
+
+    # "Visita" = una orden de servicio o una compra en el Punto de Venta.
+    # Se toma la fecha más reciente entre ambas para saber cuándo fue la
+    # última vez que este cliente vino al taller.
+    fechas = [o.fecha for o in ordenes] + [v.fecha for v in ventas]
+    ultima_visita = max(fechas) if fechas else None
 
     return templates.TemplateResponse("clientes/detail.html", {
-        "request": request, "cliente": cliente, "ordenes": ordenes, "usuario": usuario,
+        "request": request, "cliente": cliente, "ordenes": ordenes, "ventas": ventas, "usuario": usuario,
         "resumen": {
             "cantidad_ordenes": len(ordenes),
+            "cantidad_compras_pos": len(ventas),
+            "cantidad_visitas": len(ordenes) + len(ventas),
             "total_facturado": total_facturado,
+            "total_pos": total_pos,
+            "total_gastado": total_facturado + total_pos,
             "total_pagado": total_pagado,
             "saldo_pendiente": saldo_pendiente,
+            "ultima_visita": ultima_visita,
         },
     })

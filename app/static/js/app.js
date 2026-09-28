@@ -233,17 +233,28 @@ document.addEventListener("DOMContentLoaded", function () {
 // Mascota panda del usuario de Caja (rol vendedor): se puede arrastrar a
 // cualquier parte de la pantalla con mouse o dedo, y recuerda en
 // localStorage dónde quedó para que siga ahí al cambiar de página (el
-// sistema recarga toda la página en cada navegación, no es un SPA). Un
-// toque/clic que NO arrastra (no se movió más que UMBRAL_ARRASTRE) dispara
-// una reacción al azar entre varias (ver REACCIONES), usando el mecanismo
-// nativo de SVG (begin="indefinite" + beginElement()) para reiniciar una
-// animación puntual a demanda.
+// sistema recarga toda la página en cada navegación, no es un SPA).
+//
+// Interacción:
+//   - toque/clic CORTO (sin arrastrar)   -> reacción al azar (ver REACCIONES)
+//   - toque MANTENIDO (sin arrastrar)    -> abre el globo del asistente
+//   - arrastre                            -> mueve al panda (como antes)
+//
+// El asistente (ver ASISTENTE_TIPS / ASISTENTE_SOLUCIONES más abajo) da
+// consejos de uso según la página en la que está la cajera (usa
+// data-pagina, que base.html llena con request.url.path), soluciones a
+// problemas comunes, y un aviso de cuántas órdenes activas ya llevan
+// demasiados días sin entregarse (mismo criterio que ya usa el Dashboard y
+// el filtro "Vencidas" de Órdenes: config.dias_vencido_alerta), consultado
+// en /api/panda/resumen. Por ahora es contenido fijo que yo redacté, sin
+// conexión a ningún modelo de IA.
 function inicializarPandaMascota() {
   var panda = document.getElementById("pandaCajaMascota");
   if (!panda) return;
 
   var CLAVE_POSICION = "pandaCajaPos";
   var UMBRAL_ARRASTRE = 6; // px de movimiento antes de considerarlo arrastre y no un toque
+  var UMBRAL_PRESION_LARGA = 480; // ms sostenido sin arrastrar, para abrir el asistente
 
   // Cada reacción es la lista de ids de los <animate>/<animateTransform>
   // (begin="indefinite" en el SVG de base.html) que hay que disparar
@@ -265,6 +276,172 @@ function inicializarPandaMascota() {
     });
   }
 
+  // ---------- Asistente: consejos por página + soluciones + vencidas ----------
+
+  var ASISTENTE_TIPS = {
+    "/": [
+      "Desde el Dashboard puedes ver de un vistazo cuántas órdenes están listas para entregar y cuáles llevan más días de la cuenta."
+    ],
+    "/pos": [
+      "En el Punto de Venta puedes buscar un producto por nombre o código en la casilla de arriba antes de agregarlo.",
+      "Si el cliente paga combinando efectivo y tarjeta, puedes dividir el pago al finalizar la venta."
+    ],
+    "/ordenes/nueva": [
+      "Antes de guardar, revisa que el IMEI o número de serie esté bien escrito: sirve para identificar el equipo después.",
+      "Puedes anotar el PIN o patrón del equipo si el cliente lo autoriza; no aparece impreso en el recibo salvo que lo actives."
+    ],
+    "/ordenes": [
+      "Puedes filtrar las órdenes por estado desde los botones de arriba, o buscar por número de orden, cliente o IMEI.",
+      "El filtro \"Vencidas\" te muestra solo las órdenes activas que llevan más días de la cuenta sin entregarse."
+    ],
+    "/clientes": [
+      "Busca primero si el cliente ya existe antes de crear uno nuevo, así evitas duplicados."
+    ],
+    "/inventario": [
+      "Los productos con existencia igual o menor al mínimo configurado aparecen marcados como stock bajo."
+    ],
+    "/facturas": [
+      "Una factura fiscal solo se puede emitir si hay rango de CAI disponible; si no aparece la opción, avísale a un administrador."
+    ],
+    "/catalogo": [
+      "Aquí se administran las marcas y modelos que luego aparecen como opciones al crear una orden nueva."
+    ],
+    "/reportes": [
+      "Los reportes se pueden filtrar por fecha para ver solo un día, una semana o el rango que necesites."
+    ]
+  };
+
+  var ASISTENTE_SOLUCIONES = [
+    "¿Un cliente no aparece en la búsqueda? Puede estar desactivado; pídele a un administrador que lo revise en Clientes.",
+    "¿No se genera la factura fiscal? Es posible que se haya agotado el rango de CAI autorizado; un administrador puede actualizarlo en Configuración.",
+    "¿Un producto no aparece en el Punto de Venta? Revisa que esté activo y con existencia disponible en Inventario.",
+    "¿Te equivocaste de estado en una orden? Puedes corregirlo desde el detalle de la orden; el sistema guarda el historial de cada cambio.",
+    "¿No encuentras una orden? Prueba buscar por el IMEI o el número de serie, no solo por el nombre del cliente.",
+    "¿La sesión se cerró sola? Por seguridad se cierra tras un tiempo sin actividad; solo inicia sesión de nuevo."
+  ];
+
+  var resumenPanda = null; // se llena con /api/panda/resumen
+
+  function consultarResumenPanda() {
+    fetch("/api/panda/resumen")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) return;
+        resumenPanda = data;
+        actualizarBadgePanda();
+      })
+      .catch(function () { /* sin conexión momentánea: el panda sigue funcionando sin el aviso */ });
+  }
+
+  // ---------- Elementos del badge y del globo (se crean una sola vez) ----------
+
+  var badge = document.createElement("div");
+  badge.className = "panda-badge";
+  document.body.appendChild(badge);
+
+  var globo = document.createElement("div");
+  globo.className = "panda-asistente";
+  globo.innerHTML =
+    '<div class="panda-asistente-header">' +
+    '<span>🐼 Asistente</span>' +
+    '<span class="panda-asistente-cerrar" title="Cerrar">✕</span>' +
+    '</div>' +
+    '<div class="panda-asistente-msg"></div>' +
+    '<div class="panda-asistente-pie">Mantén presionado al panda para otro consejo.</div>';
+  document.body.appendChild(globo);
+  var globoMsg = globo.querySelector(".panda-asistente-msg");
+  globo.querySelector(".panda-asistente-cerrar").addEventListener("click", cerrarAsistente);
+
+  function posicionarJuntoAlPanda(el) {
+    var tam = panda.getBoundingClientRect();
+    // se mide oculto (no con display:none, que da 0x0) para saber su
+    // tamaño real antes de decidir de qué lado del panda ponerlo
+    el.style.visibility = "hidden";
+    el.style.display = "block";
+    var elAncho = el.offsetWidth || 260;
+    var elAlto = el.offsetHeight || 80;
+    el.style.display = "";
+    el.style.visibility = "";
+
+    var centroX = tam.left + tam.width / 2;
+    var arriba = (tam.top + tam.height / 2) > window.innerHeight / 2;
+    var izquierda = centroX > window.innerWidth / 2;
+
+    var x = izquierda ? tam.left - elAncho - 10 : tam.right + 10;
+    x = Math.max(8, Math.min(x, window.innerWidth - elAncho - 8));
+    var y = arriba ? tam.top - elAlto - 8 : tam.bottom + 8;
+    y = Math.max(8, Math.min(y, window.innerHeight - elAlto - 8));
+
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+  }
+
+  function actualizarBadgePanda() {
+    if (!resumenPanda || !resumenPanda.vencidas_total) {
+      badge.classList.remove("mostrar");
+      return;
+    }
+    badge.textContent = resumenPanda.vencidas_total > 9 ? "9+" : String(resumenPanda.vencidas_total);
+    var tam = panda.getBoundingClientRect();
+    badge.style.left = (tam.right - 14) + "px";
+    badge.style.top = (tam.top - 6) + "px";
+    badge.classList.add("mostrar");
+  }
+
+  var ultimoMensaje = null;
+
+  function elegirMensaje() {
+    var pool = [];
+    if (resumenPanda && resumenPanda.vencidas_total > 0) {
+      var detalle = resumenPanda.vencidas_detalle || [];
+      var listado = detalle.slice(0, 3).map(function (o) { return o.numero_orden + " (" + o.dias + " días)"; }).join(", ");
+      var n = resumenPanda.vencidas_total;
+      var msjVencidas = {
+        texto: "Tienes " + n + " " + (n === 1 ? "orden activa" : "órdenes activas") +
+          " que ya lleva" + (n === 1 ? "" : "n") + " " + resumenPanda.umbral_dias + " días o más sin entregarse" +
+          (listado ? ": " + listado : "") + ".",
+        alerta: true
+      };
+      // se agrega dos veces para que no quede opacada entre tantos tips
+      pool.push(msjVencidas, msjVencidas);
+    }
+    var pagina = panda.dataset.pagina || "/";
+    var tipsPagina = ASISTENTE_TIPS[pagina] || [];
+    tipsPagina.forEach(function (t) { pool.push({ texto: t, alerta: false }); });
+    ASISTENTE_SOLUCIONES.forEach(function (t) { pool.push({ texto: t, alerta: false }); });
+
+    if (!pool.length) {
+      pool.push({ texto: "¡Sigue así! Cualquier duda, pregúntale a un administrador.", alerta: false });
+    }
+
+    var elegido = pool[Math.floor(Math.random() * pool.length)];
+    if (pool.length > 1 && ultimoMensaje && elegido.texto === ultimoMensaje.texto) {
+      elegido = pool[Math.floor(Math.random() * pool.length)];
+    }
+    ultimoMensaje = elegido;
+    return elegido;
+  }
+
+  function abrirAsistente() {
+    var msj = elegirMensaje();
+    globoMsg.textContent = msj.texto;
+    globoMsg.classList.toggle("es-alerta", !!msj.alerta);
+    posicionarJuntoAlPanda(globo);
+    globo.classList.add("mostrar");
+  }
+
+  function cerrarAsistente() {
+    globo.classList.remove("mostrar");
+  }
+
+  document.addEventListener("click", function (e) {
+    if (globo.classList.contains("mostrar") && !globo.contains(e.target) && !panda.contains(e.target)) {
+      cerrarAsistente();
+    }
+  });
+
+  // ---------- Arrastrar + click corto (reacción) + presión larga (asistente) ----------
+
   function limitarYAplicar(x, y) {
     // panda es un <svg> inline: a diferencia de un <img>, no tiene
     // offsetWidth/offsetHeight (son API de HTMLElement, no de SVGElement),
@@ -278,6 +455,8 @@ function inicializarPandaMascota() {
     panda.style.top = y + "px";
     panda.style.right = "auto";
     panda.style.bottom = "auto";
+    actualizarBadgePanda();
+    if (globo.classList.contains("mostrar")) posicionarJuntoAlPanda(globo);
   }
 
   var posGuardada = null;
@@ -294,22 +473,34 @@ function inicializarPandaMascota() {
   var offsetX = 0, offsetY = 0;
   var inicioX = 0, inicioY = 0;
   var seArrastro = false;
+  var temporizadorPresion = null;
+  var presionLargaDisparada = false;
 
   function iniciarArrastre(clientX, clientY) {
     arrastrando = true;
     seArrastro = false;
+    presionLargaDisparada = false;
     inicioX = clientX;
     inicioY = clientY;
     var rect = panda.getBoundingClientRect();
     offsetX = clientX - rect.left;
     offsetY = clientY - rect.top;
     panda.classList.add("panda-arrastrando");
+
+    clearTimeout(temporizadorPresion);
+    temporizadorPresion = setTimeout(function () {
+      if (arrastrando && !seArrastro) {
+        presionLargaDisparada = true;
+        abrirAsistente();
+      }
+    }, UMBRAL_PRESION_LARGA);
   }
 
   function moverA(clientX, clientY) {
     if (!arrastrando) return;
     if (!seArrastro && Math.hypot(clientX - inicioX, clientY - inicioY) > UMBRAL_ARRASTRE) {
       seArrastro = true;
+      clearTimeout(temporizadorPresion);
     }
     limitarYAplicar(clientX - offsetX, clientY - offsetY);
   }
@@ -317,6 +508,7 @@ function inicializarPandaMascota() {
   function soltar() {
     if (!arrastrando) return;
     arrastrando = false;
+    clearTimeout(temporizadorPresion);
     panda.classList.remove("panda-arrastrando");
     if (seArrastro) {
       var rect = panda.getBoundingClientRect();
@@ -325,10 +517,11 @@ function inicializarPandaMascota() {
       } catch (e) {
         /* almacenamiento no disponible: simplemente no se recuerda la posición */
       }
-    } else {
-      // Fue un toque/clic, no un arrastre: reacciona.
+    } else if (!presionLargaDisparada) {
+      // Fue un toque/clic corto, no un arrastre ni una presión larga: reacciona.
       dispararReaccionAleatoria();
     }
+    presionLargaDisparada = false;
   }
 
   panda.addEventListener("mousedown", function (e) {
@@ -355,6 +548,8 @@ function inicializarPandaMascota() {
     var rect = panda.getBoundingClientRect();
     limitarYAplicar(rect.left, rect.top);
   });
+
+  consultarResumenPanda();
 }
 
 document.addEventListener("DOMContentLoaded", function () {

@@ -135,7 +135,7 @@
        app.js pueda disparar sus animaciones de reacción con
        beginElement() al tocarla (un <img> no permite eso: su SVG queda
        aislado, sin acceso desde el JS de la página). -->
-  <svg id="pandaCajaMascota" class="panda-mascota" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
+  <svg id="pandaCajaMascota" class="panda-mascota" data-pagina="{{ request.url.path }}" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
     <title>Arrástrame a donde quieras. Tócame para una sorpresa.</title>
     <defs>
       <linearGradient id="furDark" x1="0" y1="0" x2="1" y2="1">

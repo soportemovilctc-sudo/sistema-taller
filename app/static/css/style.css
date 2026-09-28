@@ -608,7 +608,7 @@ html, body {
 .panda-mascota {
   position: fixed;
   right: 18px; bottom: 18px;
-  width: 54px; height: 62px;
+  width: 64px; height: 74px;
   z-index: 900;
   cursor: grab;
   touch-action: none;
@@ -617,6 +617,74 @@ html, body {
   filter: drop-shadow(0 3px 8px rgba(0,0,0,.45));
   transition: transform .15s ease;
 }
-.panda-mascota:hover { transform: scale(1.1); }
+.panda-mascota:hover { transform: scale(1.08); }
 .panda-mascota.panda-arrastrando { cursor: grabbing; transition: none; }
-@media (max-width: 900px) { .panda-mascota { width: 46px; height: 53px; right: 12px; bottom: 12px; } }
+@media (max-width: 900px) { .panda-mascota { width: 54px; height: 62px; right: 12px; bottom: 12px; } }
+
+/* Indicador (puntito con número) de que hay órdenes vencidas: se posiciona
+   en JS pegado a la esquina superior derecha del panda, y se recalcula cada
+   vez que el panda se mueve (ver actualizarBadgePanda() en app.js). */
+.panda-badge {
+  position: fixed;
+  z-index: 901;
+  min-width: 18px; height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
+  display: none;
+}
+.panda-badge.mostrar { display: block; }
+
+/* Globo del asistente: aparece junto al panda al mantenerlo presionado.
+   Reutiliza los tokens de color del resto del sistema (--panel-2, --border,
+   --radius, --shadow) para que no se vea como un componente ajeno. */
+.panda-asistente {
+  position: fixed;
+  z-index: 902;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--text);
+  display: none;
+  animation: panda-asistente-in .15s ease;
+}
+.panda-asistente.mostrar { display: block; }
+@keyframes panda-asistente-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.panda-asistente-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px;
+  font-weight: 700;
+  color: var(--text);
+}
+.panda-asistente-cerrar {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+.panda-asistente-cerrar:hover { background: var(--bg-alt); color: var(--text); }
+.panda-asistente-msg { color: var(--text); line-height: 1.45; }
+.panda-asistente-msg.es-alerta { color: var(--danger); font-weight: 600; }
+.panda-asistente-msg a { color: var(--primary-light); }
+.panda-asistente-pie {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}

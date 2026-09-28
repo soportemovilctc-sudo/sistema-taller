@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-tema="{{ usuario.tema_modo if usuario and usuario.tema_modo else 'oscuro' }}" data-acento="{{ usuario.tema_acento if usuario and usuario.tema_acento else 'azul' }}"{% if usuario and usuario.tema_acento == 'personalizado' and usuario.tema_color_personalizado %} style="--custom-color: {{ usuario.tema_color_personalizado }};"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -90,6 +90,10 @@
         Configuración
       </a>
       {% endif %}
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/mi-perfil') else '' }}" href="/mi-perfil/apariencia">
+        <svg class="ic-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a6 6 0 0 0 0 18 2 2 0 0 0 0-4 1.5 1.5 0 0 1 0-3h1.5a3 3 0 0 0 3-3A6 6 0 0 0 12 3z"/><circle cx="8.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="15.5" cy="10.5" r="1"/></svg>
+        Apariencia
+      </a>
       <a class="nav-link" href="/logout">
         <svg class="ic-svg" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
         Cerrar sesión
@@ -130,13 +134,322 @@
       {% block content %}{% endblock %}
     </div>
   </div>
-  {% if usuario.rol == 'vendedor' %}
-  <!-- Mascota panda: va inline (no <img src="...">) a propósito, para que
+  {% if usuario %}
+  <!-- Mascota (panda/león/ratón, la que cada usuario haya elegido en
+       "Apariencia"): va inline (no <img src="...">) a propósito, para que
        app.js pueda disparar sus animaciones de reacción con
        beginElement() al tocarla (un <img> no permite eso: su SVG queda
        aislado, sin acceso desde el JS de la página). -->
-  <svg id="pandaCajaMascota" class="panda-mascota" data-pagina="{{ request.url.path }}" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
+  {% set _mascota = usuario.mascota or 'panda' %}
+  <svg id="pandaCajaMascota" class="panda-mascota" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
     <title>Arrástrame a donde quieras. Tócame para una sorpresa.</title>
+    {% if _mascota == 'leon' %}
+    <defs>
+      <linearGradient id="furDark" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#b45309"/>
+        <stop offset="1" stop-color="#78350f"/>
+      </linearGradient>
+      <linearGradient id="furWhite" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#fcd34d"/>
+        <stop offset="1" stop-color="#f59e0b"/>
+      </linearGradient>
+      <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffcfdc"/>
+        <stop offset="1" stop-color="#ff9db3"/>
+      </linearGradient>
+      <linearGradient id="tanGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffe6c9"/>
+        <stop offset="1" stop-color="#eeb989"/>
+      </linearGradient>
+      <radialGradient id="pupilGrad" cx="0.35" cy="0.3" r="0.75">
+        <stop offset="0" stop-color="#5b5b5b"/>
+        <stop offset="0.55" stop-color="#211f1f"/>
+        <stop offset="1" stop-color="#0a0a0a"/>
+      </radialGradient>
+    </defs>
+
+    <!-- Envuelve TODO el dibujo: aquí pivotean las reacciones de "salto" y
+         "giro" (se disparan desde afuera con beginElement(), ver app.js). -->
+    <g id="pandaVisualCompleto">
+      <animateTransform id="reaccionSaltoAnim" attributeName="transform" type="translate"
+        values="0,0; 0,-24; 0,0; 0,-11; 0,0" keyTimes="0;.25;.5;.75;1" dur="0.6s" begin="indefinite"/>
+      <animateTransform id="reaccionGiroAnim" attributeName="transform" type="rotate"
+        values="0 120 180; 360 120 180" dur="0.6s" begin="indefinite"/>
+
+      <g stroke="#1a1a1a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+
+        <!-- sombra de piso -->
+        <ellipse cx="120" cy="247" rx="72" ry="11" fill="#000" opacity=".14" stroke="none"/>
+
+        <!-- melena: mechones alrededor de la cabeza -->
+        <g fill="url(#furDark)">
+          <ellipse cx="120" cy="20" rx="27" ry="42" transform="rotate(0 120 20)"/>
+          <ellipse cx="174.1" cy="37.6" rx="27" ry="42" transform="rotate(36 174.1 37.6)"/>
+          <ellipse cx="207.5" cy="83.6" rx="27" ry="42" transform="rotate(72 207.5 83.6)"/>
+          <ellipse cx="207.5" cy="140.4" rx="27" ry="42" transform="rotate(108 207.5 140.4)"/>
+          <ellipse cx="174.1" cy="186.4" rx="27" ry="42" transform="rotate(144 174.1 186.4)"/>
+          <ellipse cx="120" cy="204" rx="27" ry="42" transform="rotate(180 120 204)"/>
+          <ellipse cx="65.9" cy="186.4" rx="27" ry="42" transform="rotate(216 65.9 186.4)"/>
+          <ellipse cx="32.5" cy="140.4" rx="27" ry="42" transform="rotate(252 32.5 140.4)"/>
+          <ellipse cx="32.5" cy="83.6" rx="27" ry="42" transform="rotate(288 32.5 83.6)"/>
+          <ellipse cx="65.9" cy="37.6" rx="27" ry="42" transform="rotate(324 65.9 37.6)"/>
+        </g>
+
+        <!-- piernas -->
+        <ellipse cx="66" cy="213" rx="33" ry="27" fill="url(#furDark)"/>
+        <ellipse cx="174" cy="213" rx="33" ry="27" fill="url(#furDark)"/>
+        <ellipse cx="60" cy="221" rx="19" ry="13.5" fill="url(#tanGrad)"/>
+        <ellipse cx="180" cy="221" rx="19" ry="13.5" fill="url(#tanGrad)"/>
+        <g stroke-width="2">
+          <circle cx="50" cy="215" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="60" cy="211" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="70" cy="215" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="190" cy="215" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="180" cy="211" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="170" cy="215" r="4.6" fill="url(#tanGrad)"/>
+        </g>
+
+        <!-- brazo derecho (abajo, apoyado) -->
+        <ellipse cx="198" cy="170" rx="22" ry="33" fill="url(#furDark)" transform="rotate(18 198 170)"/>
+        <ellipse cx="202" cy="193" rx="14" ry="10" fill="url(#tanGrad)" transform="rotate(12 202 193)"/>
+
+        <!-- cuerpo -->
+        <ellipse cx="120" cy="182" rx="74" ry="62" fill="url(#furWhite)"/>
+
+        <!-- brazo izquierdo levantado, saludando (animado en bucle: pivotea en el hombro) -->
+        <g transform="translate(82,156)">
+          <g>
+            <animateTransform attributeName="transform" type="rotate" values="-8;12;-8" dur="0.85s" repeatCount="indefinite"/>
+            <g transform="translate(-82,-156)">
+              <ellipse cx="46" cy="128" rx="21" ry="46" fill="url(#furDark)" transform="rotate(-52 46 128)"/>
+              <circle cx="18" cy="58" r="17" fill="url(#furDark)"/>
+              <ellipse cx="16" cy="60" rx="10" ry="8" fill="url(#tanGrad)" stroke-width="2"/>
+            </g>
+          </g>
+        </g>
+        <!-- lineas de movimiento del saludo (parpadean junto con el vaiven) -->
+        <g stroke="#1a1a1a" stroke-width="3" fill="none">
+          <path d="M-10 30 Q-16 40 -10 50" opacity="0">
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.15;.4;.6;1" dur="0.85s" repeatCount="indefinite"/>
+          </path>
+          <path d="M-1 20 Q-9 34 -1 48" opacity="0">
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.25;.5;.7;1" dur="0.85s" repeatCount="indefinite"/>
+          </path>
+        </g>
+
+        <!-- orejas -->
+        <circle cx="62" cy="50" r="31" fill="url(#furDark)"/>
+        <circle cx="178" cy="50" r="31" fill="url(#furDark)"/>
+        <circle cx="62" cy="52" r="15.5" fill="url(#pinkGrad)" stroke-width="2.2"/>
+        <circle cx="178" cy="52" r="15.5" fill="url(#pinkGrad)" stroke-width="2.2"/>
+
+        <!-- cabeza -->
+        <circle cx="120" cy="112" r="82" fill="url(#furWhite)"/>
+
+        <!-- cachetes -->
+        <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
+        <ellipse cx="166" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
+
+        <!-- pestañas -->
+        <path d="M58 74 Q50 65 42 64" stroke-width="3.4" fill="none"/>
+        <path d="M63 68 Q58 57 52 54" stroke-width="3.4" fill="none"/>
+        <path d="M182 74 Q190 65 198 64" stroke-width="3.4" fill="none"/>
+        <path d="M177 68 Q182 57 188 54" stroke-width="3.4" fill="none"/>
+
+        <!-- ojos: blanco -->
+        <ellipse cx="91" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+        <ellipse cx="149" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+      </g>
+
+      <!-- pupilas (sin stroke, brillo aparte) -->
+      <circle cx="95" cy="120" r="10" fill="url(#pupilGrad)"/>
+      <circle cx="145" cy="120" r="10" fill="url(#pupilGrad)"/>
+      <circle cx="90.5" cy="114" r="3.6" fill="#fff"/>
+      <circle cx="140.5" cy="114" r="3.6" fill="#fff"/>
+      <circle cx="99.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
+      <circle cx="149.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
+
+      <!-- parpado del ojo derecho, para la reaccion de "guiño" -->
+      <ellipse cx="149" cy="116" rx="18.5" ry="0" fill="url(#furWhite)" stroke="#1a1a1a" stroke-width="2.4">
+        <animate id="reaccionGuinoAnim" attributeName="ry" values="0;21;0" keyTimes="0;.5;1" dur="0.42s" begin="indefinite"/>
+      </ellipse>
+
+      <g stroke="#1a1a1a" stroke-linejoin="round" stroke-linecap="round">
+        <!-- nariz felina -->
+        <path d="M110 133 Q110 128 120 128 Q130 128 130 133 Q130 139 120 143 Q110 139 110 133 Z" fill="#211f1f" stroke-width="2"/>
+
+        <!-- boca -->
+        <path d="M120 143 C 114 151 105 152 97 146" stroke-width="3.2" fill="none"/>
+        <path d="M120 143 C 126 151 135 152 143 146" stroke-width="3.2" fill="none"/>
+      </g>
+      <path d="M110 147 Q120 161 130 147 Q120 154 110 147 Z" fill="#ff9db3" stroke="none"/>
+
+      <!-- reaccion de "corazon" -->
+      <g transform="translate(150,10)">
+        <g>
+          <animateTransform id="reaccionCorazonMov" attributeName="transform" type="translate" values="0,0; 0,-32" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.42)">
+            <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
+                  fill="#ff5c8a" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
+              <animate id="reaccionCorazonOpacidad" attributeName="opacity" values="0;1;1;0" keyTimes="0;.18;.7;1" dur="0.9s" begin="indefinite"/>
+            </path>
+          </g>
+        </g>
+      </g>
+    </g>
+    {% elif _mascota == 'raton' %}
+    <defs>
+      <linearGradient id="furDark" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#6b7280"/>
+        <stop offset="1" stop-color="#374151"/>
+      </linearGradient>
+      <linearGradient id="furWhite" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#f1f5f9"/>
+        <stop offset="1" stop-color="#cbd5e1"/>
+      </linearGradient>
+      <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffcfdc"/>
+        <stop offset="1" stop-color="#ff9db3"/>
+      </linearGradient>
+      <linearGradient id="tanGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffd9e6"/>
+        <stop offset="1" stop-color="#ffb3c6"/>
+      </linearGradient>
+      <radialGradient id="pupilGrad" cx="0.35" cy="0.3" r="0.75">
+        <stop offset="0" stop-color="#5b5b5b"/>
+        <stop offset="0.55" stop-color="#211f1f"/>
+        <stop offset="1" stop-color="#0a0a0a"/>
+      </radialGradient>
+    </defs>
+
+    <!-- Envuelve TODO el dibujo: aquí pivotean las reacciones de "salto" y
+         "giro" (se disparan desde afuera con beginElement(), ver app.js). -->
+    <g id="pandaVisualCompleto">
+      <animateTransform id="reaccionSaltoAnim" attributeName="transform" type="translate"
+        values="0,0; 0,-24; 0,0; 0,-11; 0,0" keyTimes="0;.25;.5;.75;1" dur="0.6s" begin="indefinite"/>
+      <animateTransform id="reaccionGiroAnim" attributeName="transform" type="rotate"
+        values="0 120 180; 360 120 180" dur="0.6s" begin="indefinite"/>
+
+      <g stroke="#1a1a1a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+
+        <!-- sombra de piso -->
+        <ellipse cx="120" cy="247" rx="72" ry="11" fill="#000" opacity=".14" stroke="none"/>
+
+        <!-- cola -->
+        <path d="M188 205 Q 233 208 244 166 Q 249 148 237 141" fill="none" stroke="url(#furDark)" stroke-width="9" stroke-linecap="round"/>
+
+        <!-- piernas -->
+        <ellipse cx="66" cy="213" rx="33" ry="27" fill="url(#furDark)"/>
+        <ellipse cx="174" cy="213" rx="33" ry="27" fill="url(#furDark)"/>
+        <ellipse cx="60" cy="221" rx="19" ry="13.5" fill="url(#tanGrad)"/>
+        <ellipse cx="180" cy="221" rx="19" ry="13.5" fill="url(#tanGrad)"/>
+        <g stroke-width="2">
+          <circle cx="50" cy="215" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="60" cy="211" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="70" cy="215" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="190" cy="215" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="180" cy="211" r="4.6" fill="url(#tanGrad)"/>
+          <circle cx="170" cy="215" r="4.6" fill="url(#tanGrad)"/>
+        </g>
+
+        <!-- brazo derecho (abajo, apoyado) -->
+        <ellipse cx="198" cy="170" rx="22" ry="33" fill="url(#furDark)" transform="rotate(18 198 170)"/>
+        <ellipse cx="202" cy="193" rx="14" ry="10" fill="url(#tanGrad)" transform="rotate(12 202 193)"/>
+
+        <!-- cuerpo -->
+        <ellipse cx="120" cy="182" rx="74" ry="62" fill="url(#furWhite)"/>
+
+        <!-- brazo izquierdo levantado, saludando (animado en bucle: pivotea en el hombro) -->
+        <g transform="translate(82,156)">
+          <g>
+            <animateTransform attributeName="transform" type="rotate" values="-8;12;-8" dur="0.85s" repeatCount="indefinite"/>
+            <g transform="translate(-82,-156)">
+              <ellipse cx="46" cy="128" rx="21" ry="46" fill="url(#furDark)" transform="rotate(-52 46 128)"/>
+              <circle cx="18" cy="58" r="17" fill="url(#furDark)"/>
+              <ellipse cx="16" cy="60" rx="10" ry="8" fill="url(#tanGrad)" stroke-width="2"/>
+            </g>
+          </g>
+        </g>
+        <!-- lineas de movimiento del saludo (parpadean junto con el vaiven) -->
+        <g stroke="#1a1a1a" stroke-width="3" fill="none">
+          <path d="M-10 30 Q-16 40 -10 50" opacity="0">
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.15;.4;.6;1" dur="0.85s" repeatCount="indefinite"/>
+          </path>
+          <path d="M-1 20 Q-9 34 -1 48" opacity="0">
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.25;.5;.7;1" dur="0.85s" repeatCount="indefinite"/>
+          </path>
+        </g>
+
+        <!-- orejas grandes y redondas -->
+        <circle cx="50" cy="40" r="38" fill="url(#furDark)"/>
+        <circle cx="190" cy="40" r="38" fill="url(#furDark)"/>
+        <circle cx="50" cy="43" r="21" fill="url(#pinkGrad)" stroke-width="2.2"/>
+        <circle cx="190" cy="43" r="21" fill="url(#pinkGrad)" stroke-width="2.2"/>
+
+        <!-- cabeza -->
+        <circle cx="120" cy="112" r="82" fill="url(#furWhite)"/>
+
+        <!-- cachetes -->
+        <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
+        <ellipse cx="166" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
+
+        <!-- pestañas -->
+        <path d="M58 74 Q50 65 42 64" stroke-width="3.4" fill="none"/>
+        <path d="M63 68 Q58 57 52 54" stroke-width="3.4" fill="none"/>
+        <path d="M182 74 Q190 65 198 64" stroke-width="3.4" fill="none"/>
+        <path d="M177 68 Q182 57 188 54" stroke-width="3.4" fill="none"/>
+
+        <!-- ojos: blanco -->
+        <ellipse cx="91" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+        <ellipse cx="149" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+      </g>
+
+      <!-- pupilas (sin stroke, brillo aparte) -->
+      <circle cx="95" cy="120" r="10" fill="url(#pupilGrad)"/>
+      <circle cx="145" cy="120" r="10" fill="url(#pupilGrad)"/>
+      <circle cx="90.5" cy="114" r="3.6" fill="#fff"/>
+      <circle cx="140.5" cy="114" r="3.6" fill="#fff"/>
+      <circle cx="99.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
+      <circle cx="149.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
+
+      <!-- parpado del ojo derecho, para la reaccion de "guiño" -->
+      <ellipse cx="149" cy="116" rx="18.5" ry="0" fill="url(#furWhite)" stroke="#1a1a1a" stroke-width="2.4">
+        <animate id="reaccionGuinoAnim" attributeName="ry" values="0;21;0" keyTimes="0;.5;1" dur="0.42s" begin="indefinite"/>
+      </ellipse>
+
+      <!-- bigotes -->
+      <g stroke="#1a1a1a" stroke-width="2" fill="none" stroke-linecap="round">
+        <path d="M100 138 L62 128"/>
+        <path d="M100 144 L60 144"/>
+        <path d="M100 150 L62 160"/>
+        <path d="M140 138 L178 128"/>
+        <path d="M140 144 L180 144"/>
+        <path d="M140 150 L178 160"/>
+      </g>
+
+      <g stroke="#1a1a1a" stroke-linejoin="round" stroke-linecap="round">
+        <!-- nariz pequeña y rosada -->
+        <ellipse cx="120" cy="136" rx="9" ry="6.5" fill="url(#pinkGrad)" stroke-width="2"/>
+
+        <!-- boca -->
+        <path d="M120 143 C 114 151 105 152 97 146" stroke-width="3.2" fill="none"/>
+        <path d="M120 143 C 126 151 135 152 143 146" stroke-width="3.2" fill="none"/>
+      </g>
+
+      <!-- reaccion de "corazon" -->
+      <g transform="translate(150,10)">
+        <g>
+          <animateTransform id="reaccionCorazonMov" attributeName="transform" type="translate" values="0,0; 0,-32" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.42)">
+            <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
+                  fill="#ff5c8a" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
+              <animate id="reaccionCorazonOpacidad" attributeName="opacity" values="0;1;1;0" keyTimes="0;.18;.7;1" dur="0.9s" begin="indefinite"/>
+            </path>
+          </g>
+        </g>
+      </g>
+    </g>
+    {% else %}
     <defs>
       <linearGradient id="furDark" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="#4b4b4e"/>
@@ -285,6 +598,7 @@
         </g>
       </g>
     </g>
+    {% endif %}
   </svg>
   {% endif %}
 </div>

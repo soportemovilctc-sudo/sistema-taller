@@ -231,10 +231,11 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 
-// Mascota panda del usuario de Caja (rol vendedor): se puede arrastrar a
-// cualquier parte de la pantalla con mouse o dedo, y recuerda en
-// localStorage dónde quedó para que siga ahí al cambiar de página (el
-// sistema recarga toda la página en cada navegación, no es un SPA).
+// Mascota del usuario (panda/león/ratón, elegida en Apariencia, disponible
+// para cualquier rol): se puede arrastrar a cualquier parte de la pantalla
+// con mouse o dedo, y recuerda en localStorage dónde quedó para que siga
+// ahí al cambiar de página (el sistema recarga toda la página en cada
+// navegación, no es un SPA).
 //
 // Interacción:
 //   - toque/clic CORTO (sin arrastrar)   -> reacción al azar (ver REACCIONES)
@@ -378,11 +379,14 @@ function inicializarPandaMascota() {
   // ---------- Globo del asistente (se crea una sola vez, se reutiliza para
   // el consejo de presión larga Y para los avisos espontáneos/reacciones) ----------
 
+  var EMOJI_MASCOTA = { panda: "🐼", leon: "🦁", raton: "🐭" };
+  var emojiMascota = EMOJI_MASCOTA[panda.dataset.mascota] || "🐼";
+
   var globo = document.createElement("div");
   globo.className = "panda-asistente";
   globo.innerHTML =
     '<div class="panda-asistente-header">' +
-    '<span>🐼 Asistente</span>' +
+    '<span>' + emojiMascota + ' Asistente</span>' +
     '<span class="panda-asistente-cerrar" title="Cerrar">✕</span>' +
     '</div>' +
     '<div class="panda-asistente-msg"></div>' +

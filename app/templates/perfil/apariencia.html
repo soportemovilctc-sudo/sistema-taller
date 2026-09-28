@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Apariencia{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+  <div class="card-title">Apariencia</div>
+  <p class="help" style="margin-top:-6px;">Esto es solo tuyo: cada usuario elige su propio tema y mascota, y queda guardado en tu cuenta (entra igual desde cualquier computadora).</p>
+
+  <form method="post" action="/mi-perfil/apariencia" id="formApariencia">
+    <div class="field">
+      <label>Modo</label>
+      <div class="checkbox-grid">
+        {% for modo in temas_modo %}
+        <label class="checkbox-chip">
+          <input type="radio" name="tema_modo" value="{{ modo }}" {{ 'checked' if u.tema_modo == modo else '' }}>
+          {{ 'Oscuro' if modo == 'oscuro' else 'Claro' }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Color de acento</label>
+      <div class="checkbox-grid" id="gridAcentos">
+        {% for a in temas_acento %}
+        <label class="checkbox-chip">
+          <input type="radio" name="tema_acento" value="{{ a.valor }}" {{ 'checked' if u.tema_acento == a.valor else '' }}>
+          {% if a.muestra %}<span style="display:inline-block; width:13px; height:13px; border-radius:50%; background:{{ a.muestra }}; border:1px solid var(--border);"></span>{% endif %}
+          {{ a.nombre }}
+        </label>
+        {% endfor %}
+      </div>
+      <div class="field" id="campoColorPersonalizado" style="margin-top:10px; {{ '' if u.tema_acento == 'personalizado' else 'display:none;' }}">
+        <label>Tu color</label>
+        <input type="color" name="tema_color_personalizado" value="{{ u.tema_color_personalizado or '#2563eb' }}" style="width:70px; height:36px; padding:2px; cursor:pointer;">
+        <div class="help">Los tonos más claro/oscuro para botones y detalles se calculan solos a partir de este color.</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Mascota</label>
+      <div class="checkbox-grid">
+        {% for m in mascotas_disponibles %}
+        <label class="checkbox-chip">
+          <input type="radio" name="mascota" value="{{ m.valor }}" {{ 'checked' if u.mascota == m.valor else '' }}>
+          {{ {'panda': '🐼', 'leon': '🦁', 'raton': '🐭'}.get(m.valor, '') }} {{ m.nombre }}
+        </label>
+        {% endfor %}
+      </div>
+      <div class="help">Tu mascota te da consejos, te avisa de órdenes vencidas y otras cosas útiles mientras trabajas (solo la ves tú).</div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Guardar apariencia</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    var grid = document.getElementById('gridAcentos');
+    var campoColor = document.getElementById('campoColorPersonalizado');
+    if (!grid || !campoColor) return;
+    grid.addEventListener('change', function (e) {
+      if (e.target.name !== 'tema_acento') return;
+      campoColor.style.display = e.target.value === 'personalizado' ? '' : 'none';
+    });
+  })();
+</script>
+{% endblock %}

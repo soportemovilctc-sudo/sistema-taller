@@ -1,16 +1,30 @@
-"""Autenticación: login, logout y gestión básica de usuarios (solo admin)."""
+"""Autenticación: login, logout, gestión básica de usuarios (solo admin) y
+apariencia personal (cualquier usuario logueado, ver /mi-perfil/apariencia)."""
+import re
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Usuario
+from app.models import Usuario, TEMAS_MODO, TEMAS_ACENTO, MASCOTAS_DISPONIBLES
 from app.security import hash_password, verify_password, usuario_actual
-from app.deps import roles_required
+from app.deps import roles_required, login_required
 from app.utils.flash import flash
 
 router = APIRouter()
+
+
+def _sesion_desde_usuario(u: Usuario) -> dict:
+    """Arma el dict que se guarda en la sesión (cookie) a partir de un
+    Usuario de la base de datos. Se usa al iniciar sesión y cada vez que el
+    propio usuario cambia algo de su cuenta (apariencia, datos), para que
+    el cambio se refleje de inmediato sin tener que volver a loguearse."""
+    return {
+        "id": u.id, "username": u.username, "nombre_completo": u.nombre_completo, "rol": u.rol,
+        "tema_modo": u.tema_modo, "tema_acento": u.tema_acento,
+        "tema_color_personalizado": u.tema_color_personalizado, "mascota": u.mascota,
+    }
 
 
 @router.get("/login")
@@ -25,12 +39,7 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     usuario = db.query(Usuario).filter(Usuario.username == username.strip().lower()).first()
     if not usuario or not usuario.activo or not verify_password(password, usuario.password_hash):
         return templates.TemplateResponse("login.html", {"request": request, "error": "Usuario o contraseña incorrectos."}, status_code=401)
-    request.session["usuario"] = {
-        "id": usuario.id,
-        "username": usuario.username,
-        "nombre_completo": usuario.nombre_completo,
-        "rol": usuario.rol,
-    }
+    request.session["usuario"] = _sesion_desde_usuario(usuario)
     return RedirectResponse("/", status_code=303)
 
 
@@ -129,12 +138,59 @@ def usuarios_actualizar(
     db.commit()
 
     if usuario["id"] == u.id:
-        request.session["usuario"] = {
-            "id": u.id, "username": u.username, "nombre_completo": u.nombre_completo, "rol": u.rol,
-        }
+        request.session["usuario"] = _sesion_desde_usuario(u)
 
     flash(request, f"Usuario '{u.username}' actualizado correctamente.", "success")
     return RedirectResponse("/usuarios", status_code=303)
+
+
+@router.get("/mi-perfil/apariencia")
+def apariencia_form(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
+    u = db.get(Usuario, usuario["id"])
+    return templates.TemplateResponse("perfil/apariencia.html", {
+        "request": request, "usuario": usuario, "u": u,
+        "temas_modo": TEMAS_MODO, "temas_acento": TEMAS_ACENTO, "mascotas_disponibles": MASCOTAS_DISPONIBLES,
+    })
+
+
+@router.post("/mi-perfil/apariencia")
+def apariencia_actualizar(
+    request: Request,
+    tema_modo: str = Form("oscuro"),
+    tema_acento: str = Form("azul"),
+    tema_color_personalizado: str = Form(""),
+    mascota: str = Form("panda"),
+    db: Session = Depends(get_db),
+    usuario=Depends(login_required),
+):
+    u = db.get(Usuario, usuario["id"])
+    if not u:
+        flash(request, "Usuario no encontrado.", "error")
+        return RedirectResponse("/", status_code=303)
+
+    valores_modo = [m for m in TEMAS_MODO]
+    valores_acento = [a["valor"] for a in TEMAS_ACENTO]
+    valores_mascota = [m["valor"] for m in MASCOTAS_DISPONIBLES]
+
+    u.tema_modo = tema_modo if tema_modo in valores_modo else "oscuro"
+    u.tema_acento = tema_acento if tema_acento in valores_acento else "azul"
+    u.mascota = mascota if mascota in valores_mascota else "panda"
+
+    color = tema_color_personalizado.strip()
+    if u.tema_acento == "personalizado" and color:
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            flash(request, "El color personalizado debe ser un color hexadecimal válido, ej. #2563eb.", "error")
+            return RedirectResponse("/mi-perfil/apariencia", status_code=303)
+        u.tema_color_personalizado = color
+    elif u.tema_acento == "personalizado":
+        # se eligió "personalizado" pero no mandó ningún color: mantiene el
+        # que ya tenía guardado, o cae a un azul por defecto si nunca eligió uno.
+        u.tema_color_personalizado = u.tema_color_personalizado or "#2563eb"
+
+    db.commit()
+    request.session["usuario"] = _sesion_desde_usuario(u)
+    flash(request, "Apariencia actualizada.", "success")
+    return RedirectResponse("/mi-perfil/apariencia", status_code=303)
 
 
 @router.post("/usuarios/{usuario_id}/eliminar")

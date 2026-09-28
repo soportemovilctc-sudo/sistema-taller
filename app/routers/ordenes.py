@@ -171,6 +171,21 @@ def ordenes_crear(
     db: Session = Depends(get_db),
     usuario=Depends(login_required),
 ):
+    # Campos obligatorios además del cliente: marca/modelo del equipo y la
+    # condición física al recibir (para dejar constancia del estado y poder
+    # identificar el equipo después). El navegador ya bloquea el envío si
+    # falta algo, esta es solo una segunda verificación por si acaso.
+    faltantes = []
+    if not marca.strip():
+        faltantes.append("la marca del equipo")
+    if not modelo.strip():
+        faltantes.append("el modelo del equipo")
+    if not condicion:
+        faltantes.append("la condición física al recibir")
+    if faltantes:
+        flash(request, "Antes de crear la orden, completa: " + ", ".join(faltantes) + ".", "error")
+        return RedirectResponse("/ordenes/nueva", status_code=303)
+
     try:
         cot = to_decimal(cotizacion or 0)
         pct = to_decimal(recargo_pct or 0)
@@ -313,6 +328,18 @@ def ordenes_actualizar(
     orden = db.get(OrdenServicio, orden_id)
     if not orden:
         return RedirectResponse("/ordenes", status_code=303)
+
+    faltantes = []
+    if not marca.strip():
+        faltantes.append("la marca del equipo")
+    if not modelo.strip():
+        faltantes.append("el modelo del equipo")
+    if not condicion:
+        faltantes.append("la condición física al recibir")
+    if faltantes:
+        flash(request, "Antes de guardar, completa: " + ", ".join(faltantes) + ".", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}/editar", status_code=303)
+
     try:
         orden.cotizacion = to_decimal(cotizacion or 0)
         orden.recargo_pct = to_decimal(recargo_pct or 0)

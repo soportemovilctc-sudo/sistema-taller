@@ -179,6 +179,13 @@ a:hover { text-decoration: underline; }
 }
 .card-title .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* Tarjetas plegables (<details class="card">), usadas para secciones
+   secundarias de formularios largos (ej: seguridad y repuestos en Nueva
+   orden) que casi no se llenan de entrada y así no ocupan espacio visual. */
+details.card > summary.card-title { margin-bottom: 0; user-select: none; }
+details.card[open] > summary.card-title { margin-bottom: 14px; }
+details.card summary.card-title:hover { color: var(--primary); }
+
 .grid { display: grid; gap: 16px; }
 .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
 .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }

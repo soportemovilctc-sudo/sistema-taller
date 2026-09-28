@@ -2,6 +2,7 @@
 {% block title %}{{ 'Editar orden ' + orden.numero_orden if orden else 'Nueva orden de servicio' }}{% endblock %}
 {% block content %}
 <form method="post" action="{{ '/ordenes/' + orden.id|string + '/editar' if orden else '/ordenes/nueva' }}">
+  <div id="ordenFormError" class="flash flash-error" style="display:none;"></div>
 
   <div class="card">
     <div class="card-title">
@@ -29,6 +30,7 @@
   <div class="grid cols-2">
     <div class="card">
       <div class="card-title">Datos del cliente y equipo</div>
+      <p class="help" style="margin-top:-6px;">Los campos marcados con * son obligatorios para poder guardar la orden.</p>
       <div class="form-row">
         <div class="field">
           <label>Cliente *</label>
@@ -66,7 +68,7 @@
           </select>
         </div>
         <div class="field">
-          <label>Marca</label>
+          <label>Marca *</label>
           <select id="selectMarca">
             <option value="">Selecciona una marca...</option>
             {% for m in marcas_catalogo %}<option value="{{ m.nombre }}">{{ m.nombre }}</option>{% endfor %}
@@ -77,7 +79,7 @@
           <div class="help">¿Falta una marca? Agrégala en <a href="/catalogo" target="_blank">Marcas y modelos</a>.</div>
         </div>
         <div class="field">
-          <label>Modelo</label>
+          <label>Modelo *</label>
           <select id="selectModelo">
             <option value="">Selecciona una marca primero...</option>
           </select>
@@ -110,7 +112,7 @@
       </div>
 
       <div class="field">
-        <label>Condición física / estado al recibir</label>
+        <label>Condición física / estado al recibir *</label>
         <div class="checkbox-grid" id="condicionGrid">
           {% set cond_actuales = orden.lista_condicion() if orden else [] %}
           {% for c in condiciones_disponibles %}
@@ -158,9 +160,9 @@
   </div>
 
   <div class="grid cols-2">
-    <div class="card">
-      <div class="card-title">Seguridad del equipo (dato sensible)</div>
-      <div class="grid cols-2">
+    <details class="card" {{ 'open' if orden and (orden.pin or orden.patron) else '' }}>
+      <summary class="card-title" style="cursor:pointer;">Seguridad del equipo (dato sensible) <span class="help" style="font-weight:400;">— toca para {{ 'ocultar' if orden and (orden.pin or orden.patron) else 'mostrar' }}</span></summary>
+      <div class="grid cols-2" style="margin-top:12px;">
         <div>
           <label>PIN</label>
           <div class="pin-display" id="pinDisplay">Sin PIN</div>
@@ -192,7 +194,7 @@
         <input type="checkbox" name="mostrar_seguridad_en_pdf" {{ 'checked' if orden and orden.mostrar_seguridad_en_pdf else '' }}>
         Mostrar el PIN/patrón en el documento impreso (orden y factura)
       </label>
-    </div>
+    </details>
 
     <div class="card">
       <div class="card-title">Información financiera</div>
@@ -217,8 +219,8 @@
   </div>
 
   {% if not orden %}
-  <div class="card">
-    <div class="card-title">Repuestos utilizados (opcional)</div>
+  <details class="card">
+    <summary class="card-title" style="cursor:pointer;">Repuestos utilizados (opcional) <span class="help" style="font-weight:400;">— toca para mostrar</span></summary>
     <p class="help">Si ya sabes qué repuestos vas a usar en esta reparación, agrégalos aquí: se descontarán del inventario, se registrarán como venta y se sumarán al total en cuanto crees la orden. También puedes agregarlos más adelante desde el detalle de la orden.</p>
     <div id="repuestosFilas">
       <div class="form-row repuesto-fila">
@@ -246,7 +248,7 @@
     </div>
     <button type="button" id="repuestoAgregarFila" class="btn btn-outline btn-sm">+ Agregar otro repuesto</button>
     <p class="help">El precio unitario se llena solo con el precio de venta del producto ya con el {{ tasa_isv }}% de impuesto incluido, pero puedes cambiarlo si vas a cobrar un precio distinto para esta orden.</p>
-  </div>
+  </details>
   {% endif %}
 
   <div class="card">

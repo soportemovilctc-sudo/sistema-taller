@@ -33,8 +33,8 @@ ACCESORIOS_DISPONIBLES = [
 ]
 
 CONDICIONES_FISICAS = [
-    "Apagado", "Pantalla dañada", "Housing dañado", "Batería dañada",
-    "Se reinicia", "Mojado",
+    "Sin daños visibles", "Apagado", "Pantalla dañada", "Housing dañado",
+    "Batería dañada", "Se reinicia", "Mojado",
 ]
 
 TIPOS_MOVIMIENTO_INVENTARIO = ["entrada", "salida", "ajuste"]

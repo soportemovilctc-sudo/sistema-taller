@@ -5,7 +5,42 @@ document.addEventListener("DOMContentLoaded", function () {
   inicializarCalculo();
   inicializarMarcaModelo();
   inicializarServicioRapido();
+  inicializarValidacionEnvio();
 });
+
+// Antes de enviar el formulario, verifica que los campos obligatorios de
+// marca, modelo y condición física estén completos. Si falta algo, se
+// bloquea el envío (sin perder nada de lo ya llenado) y se muestra un
+// aviso claro en vez de dejar que se cree una orden incompleta.
+function inicializarValidacionEnvio() {
+  var form = document.querySelector(".content form");
+  var errorBox = document.getElementById("ordenFormError");
+  if (!form) return;
+
+  form.addEventListener("submit", function (e) {
+    var hiddenMarca = document.getElementById("hiddenMarca");
+    var hiddenModelo = document.getElementById("hiddenModelo");
+    var condicionGrid = document.getElementById("condicionGrid");
+
+    var faltantes = [];
+    if (!hiddenMarca || !hiddenMarca.value.trim()) faltantes.push("la marca del equipo");
+    if (!hiddenModelo || !hiddenModelo.value.trim()) faltantes.push("el modelo del equipo");
+    if (condicionGrid && !condicionGrid.querySelector('input[type=checkbox]:checked')) {
+      faltantes.push('la condición física al recibir (marca al menos una opción, o "Sin daños visibles" si está en buen estado)');
+    }
+
+    if (faltantes.length > 0) {
+      e.preventDefault();
+      if (errorBox) {
+        errorBox.textContent = "Antes de guardar, completa lo siguiente: " + faltantes.join("; ") + ".";
+        errorBox.style.display = "block";
+        errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return false;
+    }
+    if (errorBox) errorBox.style.display = "none";
+  });
+}
 
 function inicializarPin() {
   var display = document.getElementById("pinDisplay");

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ 'Editar orden ' + orden.numero_orden if orden else 'Nueva orden de servicio' }}{% endblock %}
 {% block content %}
-<form method="post" action="{{ '/ordenes/' + orden.id|string + '/editar' if orden else '/ordenes/nueva' }}" data-modo="{{ 'editar' if orden else 'nueva' }}">
+<form method="post" action="{{ '/ordenes/' + orden.id|string + '/editar' if orden else '/ordenes/nueva' }}">
   <div id="ordenFormError" class="flash flash-error" style="display:none;"></div>
 
   <div class="card">
@@ -27,7 +27,6 @@
     <p class="help">Al aplicar, se sobrescriben Estado físico, Observaciones, Falla reportada, Reparación/Trabajo, Fecha de entrega, Cotización y Recargo con los datos de la plantilla.</p>
   </div>
 
-  {% if orden %}
   <div class="grid cols-2">
     <div class="card">
       <div class="card-title">Datos del cliente y equipo</div>
@@ -40,7 +39,7 @@
               <select name="cliente_id" id="selectClienteId" class="js-buscar-select" data-placeholder="Escribe el nombre o teléfono del cliente..." data-entidad="un cliente" required>
                 <option value="">Selecciona un cliente...</option>
                 {% for c in clientes %}
-                <option value="{{ c.id }}" {{ 'selected' if orden.cliente_id == c.id else '' }}>{{ c.nombre }} · {{ c.telefono or '' }}</option>
+                <option value="{{ c.id }}" {{ 'selected' if orden and orden.cliente_id == c.id else '' }}>{{ c.nombre }} · {{ c.telefono or '' }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -55,7 +54,7 @@
           <select name="tecnico_id">
             <option value="">Sin asignar</option>
             {% for t in tecnicos %}
-            <option value="{{ t.id }}" {{ 'selected' if orden.tecnico_id == t.id else '' }}>{{ t.nombre }}</option>
+            <option value="{{ t.id }}" {{ 'selected' if orden and orden.tecnico_id == t.id else '' }}>{{ t.nombre }}</option>
             {% endfor %}
           </select>
         </div>
@@ -65,7 +64,7 @@
         <div class="field">
           <label>Tipo de equipo</label>
           <select name="tipo_equipo">
-            {% for tp in tipos_equipo %}<option value="{{ tp }}" {{ 'selected' if orden.tipo_equipo == tp else '' }}>{{ tp }}</option>{% endfor %}
+            {% for tp in tipos_equipo %}<option value="{{ tp }}" {{ 'selected' if orden and orden.tipo_equipo == tp else '' }}>{{ tp }}</option>{% endfor %}
           </select>
         </div>
         <div class="field">
@@ -76,7 +75,7 @@
             <option value="__otro__">Otra marca (especificar)</option>
           </select>
           <input type="text" id="inputMarcaOtro" placeholder="Escribe la marca..." style="display:none; margin-top:6px;">
-          <input type="hidden" name="marca" id="hiddenMarca" value="{{ orden.marca }}">
+          <input type="hidden" name="marca" id="hiddenMarca" value="{{ orden.marca if orden else '' }}">
           <div class="help">¿Falta una marca? Agrégala en <a href="/catalogo" target="_blank">Marcas y modelos</a>.</div>
         </div>
         <div class="field">
@@ -85,18 +84,18 @@
             <option value="">Selecciona una marca primero...</option>
           </select>
           <input type="text" id="inputModeloOtro" placeholder="Escribe el modelo..." style="display:none; margin-top:6px;">
-          <input type="hidden" name="modelo" id="hiddenModelo" value="{{ orden.modelo }}">
+          <input type="hidden" name="modelo" id="hiddenModelo" value="{{ orden.modelo if orden else '' }}">
         </div>
       </div>
       <div class="form-row">
-        <div class="field"><label>IMEI</label><input type="text" name="imei" value="{{ orden.imei }}"></div>
-        <div class="field"><label>Número de serie</label><input type="text" name="numero_serie" value="{{ orden.numero_serie }}"></div>
+        <div class="field"><label>IMEI</label><input type="text" name="imei" value="{{ orden.imei if orden else '' }}"></div>
+        <div class="field"><label>Número de serie</label><input type="text" name="numero_serie" value="{{ orden.numero_serie if orden else '' }}"></div>
       </div>
 
       <div class="field">
         <label>Accesorios entregados</label>
         <div class="checkbox-grid" id="accesoriosGrid">
-          {% set acc_actuales = orden.lista_accesorios() %}
+          {% set acc_actuales = orden.lista_accesorios() if orden else [] %}
           {% for a in accesorios_disponibles %}
           <label class="checkbox-chip"><input type="checkbox" name="accesorios" value="{{ a }}" {{ 'checked' if a in acc_actuales else '' }}> {{ a }}</label>
           {% endfor %}
@@ -115,7 +114,7 @@
       <div class="field">
         <label>Condición física / estado al recibir *</label>
         <div class="checkbox-grid" id="condicionGrid">
-          {% set cond_actuales = orden.lista_condicion() %}
+          {% set cond_actuales = orden.lista_condicion() if orden else [] %}
           {% for c in condiciones_disponibles %}
           <label class="checkbox-chip"><input type="checkbox" name="condicion" value="{{ c }}" {{ 'checked' if c in cond_actuales else '' }}> {{ c }}</label>
           {% endfor %}
@@ -129,37 +128,45 @@
           <input type="text" id="condicionNuevaInput" placeholder="Agregar otro estado..." onkeydown="if(event.key==='Enter'){event.preventDefault(); agregarChip('condicionGrid','condicionNuevaInput','condicion');}">
           <button type="button" class="btn btn-outline btn-sm" onclick="agregarChip('condicionGrid','condicionNuevaInput','condicion')">+ Agregar</button>
         </div>
-        <textarea name="observaciones_condicion" placeholder="Detalles adicionales del estado físico...">{{ orden.observaciones_condicion }}</textarea>
+        <textarea name="observaciones_condicion" placeholder="Detalles adicionales del estado físico...">{{ orden.observaciones_condicion if orden else '' }}</textarea>
       </div>
     </div>
 
     <div class="card">
       <div class="card-title">Diagnóstico y trabajo</div>
-      <div class="field"><label>Falla reportada por el cliente</label><textarea name="falla_reportada">{{ orden.falla_reportada }}</textarea></div>
-      <div class="field"><label>Diagnóstico técnico</label><textarea name="diagnostico">{{ orden.diagnostico }}</textarea></div>
-      <div class="field"><label>Trabajo realizado</label><textarea name="trabajo_realizado">{{ orden.trabajo_realizado }}</textarea></div>
-      <div class="field"><label>Observaciones generales</label><textarea name="observaciones">{{ orden.observaciones }}</textarea></div>
+      <div class="field"><label>Falla reportada por el cliente</label><textarea name="falla_reportada">{{ orden.falla_reportada if orden else '' }}</textarea></div>
+      <div class="field"><label>Diagnóstico técnico</label><textarea name="diagnostico">{{ orden.diagnostico if orden else '' }}</textarea></div>
+      <div class="field"><label>Trabajo realizado</label><textarea name="trabajo_realizado">{{ orden.trabajo_realizado if orden else '' }}</textarea></div>
+      <div class="field"><label>Observaciones generales</label><textarea name="observaciones">{{ orden.observaciones if orden else '' }}</textarea></div>
 
       <div class="form-row">
         <div class="field">
           <label>Prioridad</label>
           <select name="prioridad">
-            {% for p in prioridades %}<option value="{{ p }}" {{ 'selected' if orden.prioridad == p else '' }}>{{ p }}</option>{% endfor %}
+            {% for p in prioridades %}<option value="{{ p }}" {{ 'selected' if orden and orden.prioridad == p else '' }}>{{ p }}</option>{% endfor %}
           </select>
         </div>
-        <div class="field"><label>Fecha estimada de entrega</label><input type="date" name="fecha_entrega" value="{{ orden.fecha_entrega if orden.fecha_entrega else '' }}"></div>
+        {% if not orden %}
+        <div class="field">
+          <label>Estado inicial</label>
+          <select name="estado">
+            {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == 'RECIBIDO' else '' }}>{{ e }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div class="field"><label>Fecha estimada de entrega</label><input type="date" name="fecha_entrega" value="{{ orden.fecha_entrega if orden and orden.fecha_entrega else '' }}"></div>
       </div>
     </div>
   </div>
 
   <div class="grid cols-2">
-    <details class="card" {{ 'open' if orden.pin or orden.patron else '' }}>
-      <summary class="card-title" style="cursor:pointer;">Seguridad del equipo (dato sensible) <span class="help" style="font-weight:400;">— toca para {{ 'ocultar' if orden.pin or orden.patron else 'mostrar' }}</span></summary>
+    <details class="card" {{ 'open' if orden and (orden.pin or orden.patron) else '' }}>
+      <summary class="card-title" style="cursor:pointer;">Seguridad del equipo (dato sensible) <span class="help" style="font-weight:400;">— toca para {{ 'ocultar' if orden and (orden.pin or orden.patron) else 'mostrar' }}</span></summary>
       <div class="grid cols-2" style="margin-top:12px;">
         <div>
           <label>PIN</label>
           <div class="pin-display" id="pinDisplay">Sin PIN</div>
-          <input type="hidden" id="pinValor" name="pin" value="{{ orden.pin if orden.pin else '' }}">
+          <input type="hidden" id="pinValor" name="pin" value="{{ orden.pin if orden and orden.pin else '' }}">
           <div class="pin-pad" id="pinPad">
             {% for n in range(1,10) %}<button type="button" data-num="{{ n }}">{{ n }}</button>{% endfor %}
             <button type="button" id="pinLimpiar">Limpiar</button>
@@ -173,7 +180,7 @@
         <div>
           <label>Patrón</label>
           <div id="patronDisplay" class="help" style="text-align:center;">Sin patrón</div>
-          <input type="hidden" id="patronValor" name="patron" value="{{ orden.patron if orden.patron else '' }}">
+          <input type="hidden" id="patronValor" name="patron" value="{{ orden.patron if orden and orden.patron else '' }}">
           <div class="patron-grid" id="patronGrid">
             {% for n in range(1,10) %}<div class="patron-dot" data-id="{{ n }}"></div>{% endfor %}
           </div>
@@ -184,7 +191,7 @@
       </div>
       <p class="help">Esta información nunca se muestra en los listados generales, solo dentro de la orden.</p>
       <label class="checkbox-chip" style="margin-top:10px; display:inline-flex;">
-        <input type="checkbox" name="mostrar_seguridad_en_pdf" {{ 'checked' if orden.mostrar_seguridad_en_pdf else '' }}>
+        <input type="checkbox" name="mostrar_seguridad_en_pdf" {{ 'checked' if orden and orden.mostrar_seguridad_en_pdf else '' }}>
         Mostrar el PIN/patrón en el documento impreso (orden y factura)
       </label>
     </details>
@@ -192,8 +199,8 @@
     <div class="card">
       <div class="card-title">Información financiera</div>
       <div class="form-row">
-        <div class="field"><label>Cotización</label><input type="number" step="0.01" min="0" id="inputCotizacion" name="cotizacion" value="{{ orden.cotizacion }}"></div>
-        <div class="field"><label>Recargo (%)</label><input type="number" step="0.01" min="0" id="inputRecargoPct" name="recargo_pct" value="{{ orden.recargo_pct }}"></div>
+        <div class="field"><label>Cotización</label><input type="number" step="0.01" min="0" id="inputCotizacion" name="cotizacion" value="{{ orden.cotizacion if orden else '0' }}"></div>
+        <div class="field"><label>Recargo (%)</label><input type="number" step="0.01" min="0" id="inputRecargoPct" name="recargo_pct" value="{{ orden.recargo_pct if orden else recargo_default }}"></div>
       </div>
       <div class="form-row">
         <div class="field"><label>Recargo calculado</label><input type="text" disabled value="0.00" id="outRecargo"></div>
@@ -202,240 +209,52 @@
       <div class="field">
         <label>Forma de pago preferida</label>
         <select name="forma_pago">
-          {% for fp in formas_pago %}<option value="{{ fp }}" {{ 'selected' if orden.forma_pago == fp else '' }}>{{ fp }}</option>{% endfor %}
+          {% for fp in formas_pago %}<option value="{{ fp }}" {{ 'selected' if orden and orden.forma_pago == fp else '' }}>{{ fp }}</option>{% endfor %}
         </select>
       </div>
+      {% if orden %}
       <p class="help">Total actual: <b>{{ orden.total|moneda(config_taller().moneda) }}</b> · Abonado: <b>{{ orden.abonado|moneda(config_taller().moneda) }}</b> · Saldo: <b>{{ orden.saldo|moneda(config_taller().moneda) }}</b><br>Los abonos se registran desde el detalle de la orden.</p>
+      {% endif %}
     </div>
   </div>
 
-  <div class="card">
-    <button type="submit" class="btn btn-primary">Guardar cambios</button>
-    <a href="{{ '/ordenes/' + orden.id|string }}" class="btn btn-outline">Cancelar</a>
-  </div>
-
-  {% else %}
-  <p class="help" style="margin:-6px 0 16px 2px;">Completa los datos en orden: en cuanto llenes lo obligatorio de cada paso, el siguiente aparecerá más abajo.</p>
-  <div class="paso-stepper" id="pasoStepper">
-    <div class="paso-stepper-item paso-stepper-activo" data-paso="1"><span class="paso-stepper-num">1</span><span class="paso-stepper-label">Cliente</span></div>
-    <div class="paso-stepper-item" data-paso="2"><span class="paso-stepper-num">2</span><span class="paso-stepper-label">Equipo</span></div>
-    <div class="paso-stepper-item" data-paso="3"><span class="paso-stepper-num">3</span><span class="paso-stepper-label">Estado al recibir</span></div>
-    <div class="paso-stepper-item" data-paso="4"><span class="paso-stepper-num">4</span><span class="paso-stepper-label">Detalles y guardar</span></div>
-  </div>
-
-  <div class="card" id="paso1">
-    <div class="card-title">1. Cliente</div>
-    <div class="field">
-      <label>Cliente *</label>
-      <div class="form-row" style="align-items:flex-end; margin-bottom:0;">
-        <div class="field" style="flex:1; margin-bottom:0;">
-          <select name="cliente_id" id="selectClienteId" class="js-buscar-select" data-placeholder="Escribe el nombre o teléfono del cliente..." data-entidad="un cliente" required>
-            <option value="">Selecciona un cliente...</option>
-            {% for c in clientes %}
-            <option value="{{ c.id }}">{{ c.nombre }} · {{ c.telefono or '' }}</option>
+  {% if not orden %}
+  <details class="card">
+    <summary class="card-title" style="cursor:pointer;">Repuestos utilizados (opcional) <span class="help" style="font-weight:400;">— toca para mostrar</span></summary>
+    <p class="help">Si ya sabes qué repuestos vas a usar en esta reparación, agrégalos aquí: se descontarán del inventario, se registrarán como venta y se sumarán al total en cuanto crees la orden. También puedes agregarlos más adelante desde el detalle de la orden.</p>
+    <div id="repuestosFilas">
+      <div class="form-row repuesto-fila">
+        <div class="field" style="flex:3;">
+          <label>Repuesto</label>
+          <select name="repuesto_producto_id" class="repuesto-select-producto js-buscar-select" data-placeholder="Escribe el nombre o código del repuesto...">
+            <option value="">Ninguno</option>
+            {% for p in productos_disponibles %}
+            <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="field" style="flex:0 0 auto; margin-bottom:0;">
-          <button type="button" id="btnNuevoClienteRapido" class="btn btn-outline btn-sm">+ Nuevo cliente</button>
+        <div class="field" style="flex:1;">
+          <label>Cantidad</label>
+          <input type="number" step="1" min="1" name="repuesto_cantidad" value="1">
+        </div>
+        <div class="field" style="flex:1;">
+          <label>Precio unitario</label>
+          <input type="number" step="0.01" min="0" name="repuesto_precio" class="repuesto-input-precio" placeholder="Precio de venta">
+        </div>
+        <div class="field" style="flex:0 0 auto; align-self:flex-end;">
+          <button type="button" class="btn btn-outline btn-sm repuesto-quitar">Quitar</button>
         </div>
       </div>
-      <div class="help">¿No existe el cliente? Créalo rápido con el botón de arriba (no perderás lo que ya llenaste aquí), o <a href="/clientes/nuevo" target="_blank">desde la sección de Clientes</a> para registrar más datos.</div>
     </div>
-  </div>
-
-  <div class="card paso-oculto" id="paso2">
-    <div class="card-title">2. Equipo</div>
-    <div class="form-row">
-      <div class="field">
-        <label>Técnico asignado</label>
-        <select name="tecnico_id">
-          <option value="">Sin asignar</option>
-          {% for t in tecnicos %}
-          <option value="{{ t.id }}">{{ t.nombre }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label>Tipo de equipo</label>
-        <select name="tipo_equipo">
-          {% for tp in tipos_equipo %}<option value="{{ tp }}">{{ tp }}</option>{% endfor %}
-        </select>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="field">
-        <label>Marca *</label>
-        <select id="selectMarca">
-          <option value="">Selecciona una marca...</option>
-          {% for m in marcas_catalogo %}<option value="{{ m.nombre }}">{{ m.nombre }}</option>{% endfor %}
-          <option value="__otro__">Otra marca (especificar)</option>
-        </select>
-        <input type="text" id="inputMarcaOtro" placeholder="Escribe la marca..." style="display:none; margin-top:6px;">
-        <input type="hidden" name="marca" id="hiddenMarca" value="">
-        <div class="help">¿Falta una marca? Agrégala en <a href="/catalogo" target="_blank">Marcas y modelos</a>.</div>
-      </div>
-      <div class="field">
-        <label>Modelo *</label>
-        <select id="selectModelo">
-          <option value="">Selecciona una marca primero...</option>
-        </select>
-        <input type="text" id="inputModeloOtro" placeholder="Escribe el modelo..." style="display:none; margin-top:6px;">
-        <input type="hidden" name="modelo" id="hiddenModelo" value="">
-      </div>
-    </div>
-  </div>
-
-  <div class="card paso-oculto" id="paso3">
-    <div class="card-title">3. Estado al recibir</div>
-    <div class="form-row">
-      <div class="field"><label>IMEI</label><input type="text" name="imei" value=""></div>
-      <div class="field"><label>Número de serie</label><input type="text" name="numero_serie" value=""></div>
-    </div>
-    <div class="field">
-      <label>Accesorios entregados</label>
-      <div class="checkbox-grid" id="accesoriosGrid">
-        {% for a in accesorios_disponibles %}
-        <label class="checkbox-chip"><input type="checkbox" name="accesorios" value="{{ a }}"> {{ a }}</label>
-        {% endfor %}
-      </div>
-      <div class="add-chip-row">
-        <input type="text" id="accesorioNuevoInput" placeholder="Agregar otro accesorio..." onkeydown="if(event.key==='Enter'){event.preventDefault(); agregarChip('accesoriosGrid','accesorioNuevoInput','accesorios');}">
-        <button type="button" class="btn btn-outline btn-sm" onclick="agregarChip('accesoriosGrid','accesorioNuevoInput','accesorios')">+ Agregar</button>
-      </div>
-    </div>
-    <div class="field">
-      <label>Condición física / estado al recibir *</label>
-      <div class="checkbox-grid" id="condicionGrid">
-        {% for c in condiciones_disponibles %}
-        <label class="checkbox-chip"><input type="checkbox" name="condicion" value="{{ c }}"> {{ c }}</label>
-        {% endfor %}
-      </div>
-      <div class="add-chip-row">
-        <input type="text" id="condicionNuevaInput" placeholder="Agregar otro estado..." onkeydown="if(event.key==='Enter'){event.preventDefault(); agregarChip('condicionGrid','condicionNuevaInput','condicion');}">
-        <button type="button" class="btn btn-outline btn-sm" onclick="agregarChip('condicionGrid','condicionNuevaInput','condicion')">+ Agregar</button>
-      </div>
-      <textarea name="observaciones_condicion" placeholder="Detalles adicionales del estado físico..."></textarea>
-    </div>
-  </div>
-
-  <div class="paso-oculto" id="paso4">
-    <div class="grid cols-2">
-      <div class="card">
-        <div class="card-title">Diagnóstico y trabajo</div>
-        <div class="field"><label>Falla reportada por el cliente</label><textarea name="falla_reportada"></textarea></div>
-        <div class="field"><label>Diagnóstico técnico</label><textarea name="diagnostico"></textarea></div>
-        <div class="field"><label>Trabajo realizado</label><textarea name="trabajo_realizado"></textarea></div>
-        <div class="field"><label>Observaciones generales</label><textarea name="observaciones"></textarea></div>
-        <div class="form-row">
-          <div class="field">
-            <label>Prioridad</label>
-            <select name="prioridad">
-              {% for p in prioridades %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="field">
-            <label>Estado inicial</label>
-            <select name="estado">
-              {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == 'RECIBIDO' else '' }}>{{ e }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="field"><label>Fecha estimada de entrega</label><input type="date" name="fecha_entrega" value=""></div>
-        </div>
-      </div>
-
-      <details class="card">
-        <summary class="card-title" style="cursor:pointer;">Seguridad del equipo (dato sensible) <span class="help" style="font-weight:400;">— toca para mostrar</span></summary>
-        <div class="grid cols-2" style="margin-top:12px;">
-          <div>
-            <label>PIN</label>
-            <div class="pin-display" id="pinDisplay">Sin PIN</div>
-            <input type="hidden" id="pinValor" name="pin" value="">
-            <div class="pin-pad" id="pinPad">
-              {% for n in range(1,10) %}<button type="button" data-num="{{ n }}">{{ n }}</button>{% endfor %}
-              <button type="button" id="pinLimpiar">Limpiar</button>
-              <button type="button" data-num="0">0</button>
-              <button type="button" id="pinBorrar">&#9003;</button>
-            </div>
-            <div style="text-align:center; margin-top:8px;">
-              <button type="button" id="pinToggleVer" class="btn btn-outline btn-sm">Mostrar</button>
-            </div>
-          </div>
-          <div>
-            <label>Patrón</label>
-            <div id="patronDisplay" class="help" style="text-align:center;">Sin patrón</div>
-            <input type="hidden" id="patronValor" name="patron" value="">
-            <div class="patron-grid" id="patronGrid">
-              {% for n in range(1,10) %}<div class="patron-dot" data-id="{{ n }}"></div>{% endfor %}
-            </div>
-            <div style="text-align:center; margin-top:8px;">
-              <button type="button" id="patronLimpiar" class="btn btn-outline btn-sm">Limpiar patrón</button>
-            </div>
-          </div>
-        </div>
-        <p class="help">Esta información nunca se muestra en los listados generales, solo dentro de la orden.</p>
-        <label class="checkbox-chip" style="margin-top:10px; display:inline-flex;">
-          <input type="checkbox" name="mostrar_seguridad_en_pdf">
-          Mostrar el PIN/patrón en el documento impreso (orden y factura)
-        </label>
-      </details>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Información financiera</div>
-      <div class="form-row">
-        <div class="field"><label>Cotización</label><input type="number" step="0.01" min="0" id="inputCotizacion" name="cotizacion" value="0"></div>
-        <div class="field"><label>Recargo (%)</label><input type="number" step="0.01" min="0" id="inputRecargoPct" name="recargo_pct" value="{{ recargo_default }}"></div>
-      </div>
-      <div class="form-row">
-        <div class="field"><label>Recargo calculado</label><input type="text" disabled value="0.00" id="outRecargo"></div>
-        <div class="field"><label>Total del servicio</label><input type="text" disabled value="0.00" id="outTotal"></div>
-      </div>
-      <div class="field">
-        <label>Forma de pago preferida</label>
-        <select name="forma_pago">
-          {% for fp in formas_pago %}<option value="{{ fp }}">{{ fp }}</option>{% endfor %}
-        </select>
-      </div>
-    </div>
-
-    <details class="card">
-      <summary class="card-title" style="cursor:pointer;">Repuestos utilizados (opcional) <span class="help" style="font-weight:400;">— toca para mostrar</span></summary>
-      <p class="help">Si ya sabes qué repuestos vas a usar en esta reparación, agrégalos aquí: se descontarán del inventario, se registrarán como venta y se sumarán al total en cuanto crees la orden. También puedes agregarlos más adelante desde el detalle de la orden.</p>
-      <div id="repuestosFilas">
-        <div class="form-row repuesto-fila">
-          <div class="field" style="flex:3;">
-            <label>Repuesto</label>
-            <select name="repuesto_producto_id" class="repuesto-select-producto js-buscar-select" data-placeholder="Escribe el nombre o código del repuesto...">
-              <option value="">Ninguno</option>
-              {% for p in productos_disponibles %}
-              <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="field" style="flex:1;">
-            <label>Cantidad</label>
-            <input type="number" step="1" min="1" name="repuesto_cantidad" value="1">
-          </div>
-          <div class="field" style="flex:1;">
-            <label>Precio unitario</label>
-            <input type="number" step="0.01" min="0" name="repuesto_precio" class="repuesto-input-precio" placeholder="Precio de venta">
-          </div>
-          <div class="field" style="flex:0 0 auto; align-self:flex-end;">
-            <button type="button" class="btn btn-outline btn-sm repuesto-quitar">Quitar</button>
-          </div>
-        </div>
-      </div>
-      <button type="button" id="repuestoAgregarFila" class="btn btn-outline btn-sm">+ Agregar otro repuesto</button>
-      <p class="help">El precio unitario se llena solo con el precio de venta del producto ya con el {{ tasa_isv }}% de impuesto incluido, pero puedes cambiarlo si vas a cobrar un precio distinto para esta orden.</p>
-    </details>
-
-    <div class="card">
-      <button type="submit" class="btn btn-primary">Crear orden</button>
-      <a href="/ordenes" class="btn btn-outline">Cancelar</a>
-    </div>
-  </div>
+    <button type="button" id="repuestoAgregarFila" class="btn btn-outline btn-sm">+ Agregar otro repuesto</button>
+    <p class="help">El precio unitario se llena solo con el precio de venta del producto ya con el {{ tasa_isv }}% de impuesto incluido, pero puedes cambiarlo si vas a cobrar un precio distinto para esta orden.</p>
+  </details>
   {% endif %}
+
+  <div class="card">
+    <button type="submit" class="btn btn-primary">{{ 'Guardar cambios' if orden else 'Crear orden' }}</button>
+    <a href="{{ '/ordenes/' + orden.id|string if orden else '/ordenes' }}" class="btn btn-outline">Cancelar</a>
+  </div>
 </form>
 
 <div class="modal-overlay" id="clienteRapidoModalOverlay" style="display:none;">

@@ -6,69 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
   inicializarMarcaModelo();
   inicializarServicioRapido();
   inicializarValidacionEnvio();
-  inicializarFormularioProgresivo();
 });
-
-// En "Nueva orden" (no aplica al editar, donde ya todo tiene datos), el
-// formulario se llena por pasos: solo se ve el campo Cliente al entrar, y
-// cada sección siguiente aparece más abajo en cuanto se completa lo
-// obligatorio de la anterior. Esto evita que la cajera o el técnico vean
-// de golpe un formulario largo y se salten campos.
-function inicializarFormularioProgresivo() {
-  var form = document.querySelector('form[data-modo="nueva"]');
-  if (!form) return; // en "Editar orden" el formulario se muestra completo
-
-  var stepper = document.getElementById("pasoStepper");
-
-  function marcarStepper(pasoAlcanzado) {
-    if (!stepper) return;
-    stepper.querySelectorAll(".paso-stepper-item").forEach(function (item) {
-      var n = parseInt(item.getAttribute("data-paso"), 10);
-      item.classList.remove("paso-stepper-activo", "paso-stepper-completo");
-      if (n < pasoAlcanzado) item.classList.add("paso-stepper-completo");
-      else if (n === pasoAlcanzado) item.classList.add("paso-stepper-activo");
-    });
-  }
-
-  function revelar(id, numeroPaso) {
-    var el = document.getElementById(id);
-    if (!el || !el.classList.contains("paso-oculto")) return; // ya estaba visible
-    el.classList.remove("paso-oculto");
-    el.classList.add("paso-visible");
-    marcarStepper(numeroPaso);
-  }
-
-  function tieneCondicionMarcada() {
-    var grid = document.getElementById("condicionGrid");
-    return !!(grid && grid.querySelector('input[type=checkbox]:checked'));
-  }
-
-  function verificarProgreso() {
-    var clienteOk = !!(document.getElementById("selectClienteId") || {}).value;
-    var marcaOk = !!((document.getElementById("hiddenMarca") || {}).value || "").trim();
-    var modeloOk = !!((document.getElementById("hiddenModelo") || {}).value || "").trim();
-    var condicionOk = tieneCondicionMarcada();
-
-    if (clienteOk) revelar("paso2", 2);
-    if (clienteOk && marcaOk && modeloOk) revelar("paso3", 3);
-    if (clienteOk && marcaOk && modeloOk && condicionOk) revelar("paso4", 4);
-  }
-
-  // Un solo listener delegado en el formulario: cubre el <select> de
-  // cliente, marca y modelo (incluyendo "Otra marca/modelo" por texto),
-  // los checkboxes de condición y los que se agregan con "+ Agregar".
-  form.addEventListener("change", verificarProgreso);
-  form.addEventListener("input", verificarProgreso);
-  form.addEventListener("click", function () {
-    // El clic en "+ Agregar" (condición/accesorio) modifica el DOM de forma
-    // síncrona antes de que este listener se ejecute (burbujeo), así que
-    // alcanza con revisar el progreso después de cualquier clic dentro del
-    // formulario (por ejemplo, al elegir un cliente nuevo desde el modal).
-    verificarProgreso();
-  });
-
-  marcarStepper(1);
-}
 
 // Antes de enviar el formulario, verifica que los campos obligatorios de
 // marca, modelo y condición física estén completos. Si falta algo, se

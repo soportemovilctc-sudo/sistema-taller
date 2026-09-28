@@ -230,6 +230,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 
+
 // Mascota panda del usuario de Caja (rol vendedor): se puede arrastrar a
 // cualquier parte de la pantalla con mouse o dedo, y recuerda en
 // localStorage dónde quedó para que siga ahí al cambiar de página (el
@@ -237,22 +238,24 @@ document.addEventListener("DOMContentLoaded", function () {
 //
 // Interacción:
 //   - toque/clic CORTO (sin arrastrar)   -> reacción al azar (ver REACCIONES)
-//   - toque MANTENIDO (sin arrastrar)    -> abre el globo del asistente
+//   - toque MANTENIDO (sin arrastrar)    -> abre el globo del asistente (consejo/vencidas al azar)
 //   - arrastre                            -> mueve al panda (como antes)
 //
-// El asistente (ver ASISTENTE_TIPS / ASISTENTE_SOLUCIONES más abajo) da
-// consejos de uso según la página en la que está la cajera (usa
-// data-pagina, que base.html llena con request.url.path), soluciones a
-// problemas comunes, y un aviso de cuántas órdenes activas ya llevan
-// demasiados días sin entregarse (mismo criterio que ya usa el Dashboard y
-// el filtro "Vencidas" de Órdenes: config.dias_vencido_alerta), consultado
-// en /api/panda/resumen. Por ahora es contenido fijo que yo redacté, sin
-// conexión a ningún modelo de IA.
+// Además de lo anterior, el panda ahora es más "activo": de vez en cuando
+// aparece solo (sin que lo toquen) para avisar algo -vencidas, un saludo,
+// un consejo-, reacciona cuando se acaba de registrar un pago/orden/factura
+// (lee el mensaje flash que ya deja el servidor), muestra un resumen del
+// cliente en cuanto se selecciona uno en Nueva Orden/POS, sugiere frases
+// ya usadas antes al describir la falla, avisa si el nombre de un cliente
+// nuevo se parece a uno que ya existe, y avisa si el precio de un repuesto
+// va a quedar por debajo de su costo. Todo con contenido fijo (sin conexión
+// a ningún modelo de IA), igual que antes.
 function inicializarPandaMascota() {
   var panda = document.getElementById("pandaCajaMascota");
   if (!panda) return;
 
   var CLAVE_POSICION = "pandaCajaPos";
+  var CLAVE_SALUDO_RICHARD = "pandaSaludoRichardFecha";
   var UMBRAL_ARRASTRE = 6; // px de movimiento antes de considerarlo arrastre y no un toque
   var UMBRAL_PRESION_LARGA = 480; // ms sostenido sin arrastrar, para abrir el asistente
 
@@ -276,38 +279,52 @@ function inicializarPandaMascota() {
     });
   }
 
-  // ---------- Asistente: consejos por página + soluciones + vencidas ----------
+  // ---------- Asistente: consejos por página + soluciones + motivación ----------
+  // Bastante más variado que antes para que no se sienta repetitivo.
 
   var ASISTENTE_TIPS = {
     "/": [
-      "Desde el Dashboard puedes ver de un vistazo cuántas órdenes están listas para entregar y cuáles llevan más días de la cuenta."
+      "Desde el Dashboard puedes ver de un vistazo cuántas órdenes están listas para entregar y cuáles llevan más días de la cuenta.",
+      "Los números del Dashboard son del día de hoy; para otro rango de fechas usa Reportes.",
+      "Si algo se ve raro en un total del Dashboard, revisa que no haya una orden con datos incompletos en Órdenes."
     ],
     "/pos": [
       "En el Punto de Venta puedes buscar un producto por nombre o código en la casilla de arriba antes de agregarlo.",
-      "Si el cliente paga combinando efectivo y tarjeta, puedes dividir el pago al finalizar la venta."
+      "Si el cliente paga combinando efectivo y tarjeta, puedes dividir el pago al finalizar la venta.",
+      "El botón \"Finalizar venta\" solo se activa cuando el monto recibido cubre el total.",
+      "Puedes vender sin seleccionar cliente (\"Cliente general\") si es una venta rápida de mostrador.",
+      "Revisa el cambio antes de entregarlo: el sistema lo calcula solo con el monto recibido."
     ],
     "/ordenes/nueva": [
       "Antes de guardar, revisa que el IMEI o número de serie esté bien escrito: sirve para identificar el equipo después.",
-      "Puedes anotar el PIN o patrón del equipo si el cliente lo autoriza; no aparece impreso en el recibo salvo que lo actives."
+      "Puedes anotar el PIN o patrón del equipo si el cliente lo autoriza; no aparece impreso en el recibo salvo que lo actives.",
+      "Marca bien la condición física al recibir: es la mejor prueba si después el cliente reclama un daño que ya traía.",
+      "Si el equipo ya trae un repuesto claro que vas a usar, agrégalo aquí mismo y se suma al total de una vez.",
+      "¿No aparece la marca o el modelo? Puedes escribirlo manual, o agregarlo en Catálogo para la próxima vez."
     ],
     "/ordenes": [
       "Puedes filtrar las órdenes por estado desde los botones de arriba, o buscar por número de orden, cliente o IMEI.",
-      "El filtro \"Vencidas\" te muestra solo las órdenes activas que llevan más días de la cuenta sin entregarse."
+      "El filtro \"Vencidas\" te muestra solo las órdenes activas que llevan más días de la cuenta sin entregarse.",
+      "Si un cliente pregunta por su equipo, busca por su nombre o teléfono, no hace falta el número de orden."
     ],
     "/clientes": [
-      "Busca primero si el cliente ya existe antes de crear uno nuevo, así evitas duplicados."
+      "Busca primero si el cliente ya existe antes de crear uno nuevo, así evitas duplicados.",
+      "Entre más completo el teléfono/WhatsApp del cliente, más fácil avisarle cuando su equipo esté listo."
     ],
     "/inventario": [
-      "Los productos con existencia igual o menor al mínimo configurado aparecen marcados como stock bajo."
+      "Los productos con existencia igual o menor al mínimo configurado aparecen marcados como stock bajo.",
+      "Cada movimiento de inventario queda en el historial del producto: entradas, salidas y ajustes, con quién lo hizo."
     ],
     "/facturas": [
-      "Una factura fiscal solo se puede emitir si hay rango de CAI disponible; si no aparece la opción, avísale a un administrador."
+      "Una factura fiscal solo se puede emitir si hay rango de CAI disponible; si no aparece la opción, avísale a un administrador.",
+      "Una factura interna se puede anular si hay un error; una fiscal solo la puede anular un administrador."
     ],
     "/catalogo": [
       "Aquí se administran las marcas y modelos que luego aparecen como opciones al crear una orden nueva."
     ],
     "/reportes": [
-      "Los reportes se pueden filtrar por fecha para ver solo un día, una semana o el rango que necesites."
+      "Los reportes se pueden filtrar por fecha para ver solo un día, una semana o el rango que necesites.",
+      "El reporte de saldos te muestra de un vistazo qué órdenes todavía deben dinero."
     ]
   };
 
@@ -317,7 +334,20 @@ function inicializarPandaMascota() {
     "¿Un producto no aparece en el Punto de Venta? Revisa que esté activo y con existencia disponible en Inventario.",
     "¿Te equivocaste de estado en una orden? Puedes corregirlo desde el detalle de la orden; el sistema guarda el historial de cada cambio.",
     "¿No encuentras una orden? Prueba buscar por el IMEI o el número de serie, no solo por el nombre del cliente.",
-    "¿La sesión se cerró sola? Por seguridad se cierra tras un tiempo sin actividad; solo inicia sesión de nuevo."
+    "¿La sesión se cerró sola? Por seguridad se cierra tras un tiempo sin actividad; solo inicia sesión de nuevo.",
+    "¿Agregaste un repuesto por error a una orden? Desde el detalle de la orden puedes quitarlo y se repone solo al inventario (si todavía no tiene factura).",
+    "¿El cliente ya pagó todo y solo falta entregar? Al marcar la orden como ENTREGADO el sistema registra el pago pendiente automáticamente.",
+    "¿No cuadra un total? Revisa que el recargo (%) y los repuestos de la orden estén correctos; el total se recalcula solo.",
+    "¿Necesitas reimprimir un recibo? Desde Facturas puedes volver a abrir el PDF o la tirilla de cualquier factura ya generada."
+  ];
+
+  var ASISTENTE_MOTIVACION = [
+    "Un cliente bien atendido siempre vuelve (y trae a otro).",
+    "Revisa dos veces el IMEI o número de serie: ahorra dolores de cabeza después.",
+    "Explicarle al cliente qué se le va a hacer al equipo, en corto, evita reclamos luego.",
+    "Un dato de contacto correcto (teléfono/WhatsApp) vale oro cuando el equipo ya está listo.",
+    "Cuenta el efectivo antes de guardarlo, sin prisa; es lo que más dolores de cabeza evita.",
+    "¡Vas bien! Cualquier duda, pregúntale a un administrador."
   ];
 
   var resumenPanda = null; // se llena con /api/panda/resumen
@@ -328,16 +358,25 @@ function inicializarPandaMascota() {
       .then(function (data) {
         if (!data) return;
         resumenPanda = data;
-        actualizarBadgePanda();
       })
       .catch(function () { /* sin conexión momentánea: el panda sigue funcionando sin el aviso */ });
   }
 
-  // ---------- Elementos del badge y del globo (se crean una sola vez) ----------
+  function mensajeVencidas() {
+    if (!resumenPanda || !resumenPanda.vencidas_total) return null;
+    var detalle = resumenPanda.vencidas_detalle || [];
+    var listado = detalle.slice(0, 3).map(function (o) { return o.numero_orden + " (" + o.dias + " días)"; }).join(", ");
+    var n = resumenPanda.vencidas_total;
+    return {
+      texto: "Tienes " + n + " " + (n === 1 ? "orden activa" : "órdenes activas") +
+        " que ya lleva" + (n === 1 ? "" : "n") + " " + resumenPanda.umbral_dias + " días o más sin entregarse" +
+        (listado ? ": " + listado : "") + ".",
+      alerta: true
+    };
+  }
 
-  var badge = document.createElement("div");
-  badge.className = "panda-badge";
-  document.body.appendChild(badge);
+  // ---------- Globo del asistente (se crea una sola vez, se reutiliza para
+  // el consejo de presión larga Y para los avisos espontáneos/reacciones) ----------
 
   var globo = document.createElement("div");
   globo.className = "panda-asistente";
@@ -350,7 +389,9 @@ function inicializarPandaMascota() {
     '<div class="panda-asistente-pie">Mantén presionado al panda para otro consejo.</div>';
   document.body.appendChild(globo);
   var globoMsg = globo.querySelector(".panda-asistente-msg");
+  var globoPie = globo.querySelector(".panda-asistente-pie");
   globo.querySelector(".panda-asistente-cerrar").addEventListener("click", cerrarAsistente);
+  var globoAutoCerrarTimer = null;
 
   function posicionarJuntoAlPanda(el) {
     var tam = panda.getBoundingClientRect();
@@ -376,39 +417,62 @@ function inicializarPandaMascota() {
     el.style.top = y + "px";
   }
 
-  function actualizarBadgePanda() {
-    if (!resumenPanda || !resumenPanda.vencidas_total) {
-      badge.classList.remove("mostrar");
-      return;
+  // Muestra el globo con un mensaje. opts.autoCerrar: ms para cerrarlo solo
+  // (null = se queda abierto hasta que lo cierren o toquen afuera, como el
+  // consejo de presión larga). opts.pie: texto del pie; si no se manda, se
+  // usa el de siempre.
+  function mostrarGlobo(msj, opts) {
+    opts = opts || {};
+    clearTimeout(globoAutoCerrarTimer);
+    globoMsg.textContent = msj.texto;
+    globoMsg.classList.toggle("es-alerta", !!msj.alerta);
+    globoPie.style.display = opts.pie === false ? "none" : "";
+    if (opts.pie && typeof opts.pie === "string") globoPie.textContent = opts.pie;
+    posicionarJuntoAlPanda(globo);
+    globo.classList.add("mostrar");
+    if (opts.autoCerrar) {
+      globoAutoCerrarTimer = setTimeout(cerrarAsistente, opts.autoCerrar);
     }
-    badge.textContent = resumenPanda.vencidas_total > 9 ? "9+" : String(resumenPanda.vencidas_total);
-    var tam = panda.getBoundingClientRect();
-    badge.style.left = (tam.right - 14) + "px";
-    badge.style.top = (tam.top - 6) + "px";
-    badge.classList.add("mostrar");
   }
+
+  function cerrarAsistente() {
+    clearTimeout(globoAutoCerrarTimer);
+    globo.classList.remove("mostrar");
+  }
+
+  document.addEventListener("click", function (e) {
+    if (globo.classList.contains("mostrar") && !globo.contains(e.target) && !panda.contains(e.target)) {
+      cerrarAsistente();
+    }
+  });
+
+  // Reacciona (animación al azar) + muestra un mensaje que se cierra solo:
+  // para eventos reales (pago, orden creada, factura, etc.), no para el
+  // consejo de presión larga.
+  function reaccionarConMensaje(texto, opts) {
+    opts = opts || {};
+    dispararReaccionAleatoria();
+    mostrarGlobo({ texto: texto, alerta: !!opts.alerta }, { autoCerrar: opts.autoCerrar || 6000, pie: false });
+  }
+  window.pandaReaccionEvento = function (tipo, detalle) {
+    if (tipo === "venta") {
+      reaccionarConMensaje("¡Venta " + (detalle || "") + " registrada! 🎉", {});
+    }
+  };
 
   var ultimoMensaje = null;
 
   function elegirMensaje() {
     var pool = [];
-    if (resumenPanda && resumenPanda.vencidas_total > 0) {
-      var detalle = resumenPanda.vencidas_detalle || [];
-      var listado = detalle.slice(0, 3).map(function (o) { return o.numero_orden + " (" + o.dias + " días)"; }).join(", ");
-      var n = resumenPanda.vencidas_total;
-      var msjVencidas = {
-        texto: "Tienes " + n + " " + (n === 1 ? "orden activa" : "órdenes activas") +
-          " que ya lleva" + (n === 1 ? "" : "n") + " " + resumenPanda.umbral_dias + " días o más sin entregarse" +
-          (listado ? ": " + listado : "") + ".",
-        alerta: true
-      };
-      // se agrega dos veces para que no quede opacada entre tantos tips
-      pool.push(msjVencidas, msjVencidas);
-    }
+    var msjVencidas = mensajeVencidas();
+    // se agrega dos veces para que no quede opacada entre tantos tips
+    if (msjVencidas) pool.push(msjVencidas, msjVencidas);
+
     var pagina = panda.dataset.pagina || "/";
     var tipsPagina = ASISTENTE_TIPS[pagina] || [];
     tipsPagina.forEach(function (t) { pool.push({ texto: t, alerta: false }); });
     ASISTENTE_SOLUCIONES.forEach(function (t) { pool.push({ texto: t, alerta: false }); });
+    ASISTENTE_MOTIVACION.forEach(function (t) { pool.push({ texto: t, alerta: false }); });
 
     if (!pool.length) {
       pool.push({ texto: "¡Sigue así! Cualquier duda, pregúntale a un administrador.", alerta: false });
@@ -423,22 +487,239 @@ function inicializarPandaMascota() {
   }
 
   function abrirAsistente() {
-    var msj = elegirMensaje();
-    globoMsg.textContent = msj.texto;
-    globoMsg.classList.toggle("es-alerta", !!msj.alerta);
-    posicionarJuntoAlPanda(globo);
-    globo.classList.add("mostrar");
+    mostrarGlobo(elegirMensaje(), { autoCerrar: null });
   }
 
-  function cerrarAsistente() {
-    globo.classList.remove("mostrar");
+  // ---------- Aparece solo de vez en cuando (vencidas, saludo del día, o un
+  // consejo), sin quedarse fijo en pantalla como antes ----------
+
+  function saludoRichardSiToca() {
+    var hoy = new Date().toISOString().slice(0, 10);
+    var ultimaFecha = null;
+    try { ultimaFecha = localStorage.getItem(CLAVE_SALUDO_RICHARD); } catch (e) { ultimaFecha = null; }
+    if (ultimaFecha === hoy) return false;
+    try { localStorage.setItem(CLAVE_SALUDO_RICHARD, hoy); } catch (e) { /* sin almacenamiento: se podría repetir, no pasa nada grave */ }
+    reaccionarConMensaje("Richard te manda saludos 👋 ¡Que tengas un excelente día!", { autoCerrar: 7000 });
+    return true;
   }
 
-  document.addEventListener("click", function (e) {
-    if (globo.classList.contains("mostrar") && !globo.contains(e.target) && !panda.contains(e.target)) {
-      cerrarAsistente();
+  function pensamientoEspontaneo() {
+    // Prioridad: saludo del día (si toca) > vencidas > un consejo cualquiera,
+    // y con probabilidad para que no se sienta como una alarma constante.
+    var hoy = new Date().toISOString().slice(0, 10);
+    var yaSaludoHoy = false;
+    try { yaSaludoHoy = localStorage.getItem(CLAVE_SALUDO_RICHARD) === hoy; } catch (e) { yaSaludoHoy = false; }
+
+    if (!yaSaludoHoy && Math.random() < 0.4) {
+      saludoRichardSiToca();
+      return;
+    }
+    var msjVencidas = mensajeVencidas();
+    if (msjVencidas && Math.random() < 0.6) {
+      reaccionarConMensaje(msjVencidas.texto, { alerta: true, autoCerrar: 8000 });
+      return;
+    }
+    if (Math.random() < 0.3) {
+      var pagina = panda.dataset.pagina || "/";
+      var pool = (ASISTENTE_TIPS[pagina] || []).concat(ASISTENTE_MOTIVACION);
+      if (pool.length) {
+        reaccionarConMensaje(pool[Math.floor(Math.random() * pool.length)], { autoCerrar: 7000 });
+      }
+    }
+    // si no tocó nada de lo anterior, no aparece: justo lo que se pidió, que
+    // no esté siempre encima avisando algo.
+  }
+
+  function programarPensamientoEspontaneo() {
+    var demora = 20000 + Math.random() * 35000; // entre 20 y 55 segundos
+    setTimeout(function () {
+      // espera a tener el resumen de vencidas cargado antes de decidir
+      if (resumenPanda === null) {
+        setTimeout(pensamientoEspontaneo, 1500);
+      } else {
+        pensamientoEspontaneo();
+      }
+    }, demora);
+  }
+
+  // ---------- Reacciona a eventos reales: pago, orden creada, factura ----------
+  // Lee los mensajes flash que el propio servidor ya deja tras la acción
+  // (no inventa nada nuevo), y en vez de solo reaccionar al azar sin
+  // motivo, lo hace justo cuando pasó algo que vale la pena celebrar.
+
+  function revisarFlashesParaReaccion() {
+    var flashes = document.querySelectorAll(".content .flash.flash-success");
+    if (!flashes.length) return;
+    var texto = Array.prototype.map.call(flashes, function (f) { return f.textContent || ""; }).join(" | ");
+
+    if (/pago automático/i.test(texto)) {
+      reaccionarConMensaje("¡Orden entregada y saldada! Buen trabajo. 💚", {});
+    } else if (/factura[^|]*generada correctamente/i.test(texto)) {
+      reaccionarConMensaje("¡Factura generada! 🧾", {});
+    } else if (/abono de[^|]*registrado correctamente/i.test(texto)) {
+      reaccionarConMensaje("¡Pago registrado! 💰", {});
+    } else if (/orden[^|]*creada correctamente/i.test(texto)) {
+      reaccionarConMensaje("¡Nueva orden registrada! 💪", {});
+    }
+  }
+
+  // ---------- Info del cliente al seleccionarlo (Nueva Orden / POS) ----------
+
+  function mostrarInfoCliente(clienteId) {
+    if (!clienteId) return;
+    fetch("/api/panda/cliente/" + encodeURIComponent(clienteId))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.encontrado) return;
+        var partes = [data.nombre];
+        if (data.telefono) partes.push(data.telefono);
+        var texto = "🧾 " + partes.join(" · ") + ". " +
+          (data.ordenes_total > 0
+            ? "Tiene " + data.ordenes_total + (data.ordenes_total === 1 ? " orden registrada" : " órdenes registradas") + "."
+            : "Es su primera orden con nosotros.");
+        if (data.saldo_pendiente > 0) {
+          texto += " Debe L " + data.saldo_pendiente.toFixed(2) + " pendiente de otra orden.";
+        }
+        mostrarGlobo({ texto: texto, alerta: data.saldo_pendiente > 0 }, { autoCerrar: 7000, pie: false });
+      })
+      .catch(function () { /* sin conexión momentánea: no pasa nada, simplemente no se muestra */ });
+  }
+
+  document.addEventListener("change", function (e) {
+    if (e.target && (e.target.id === "selectClienteId" || e.target.id === "posCliente") && e.target.value) {
+      mostrarInfoCliente(e.target.value);
     }
   });
+
+  // ---------- Autorelleno 1: aviso de cliente parecido al crear uno rápido ----------
+
+  var temporizadorDuplicado = null;
+  document.addEventListener("input", function (e) {
+    if (!e.target || e.target.id !== "clienteRapidoNombre") return;
+    clearTimeout(temporizadorDuplicado);
+    var q = e.target.value.trim();
+    if (q.length < 3) return;
+    temporizadorDuplicado = setTimeout(function () {
+      fetch("/api/buscar?q=" + encodeURIComponent(q))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data || !data.clientes || !data.clientes.length) return;
+          var c = data.clientes[0];
+          mostrarGlobo({
+            texto: "Ya existe un cliente parecido: " + c.nombre + (c.telefono ? " · " + c.telefono : "") +
+              ". Si es él, mejor cierra esto y selecciónalo de la lista en vez de crear uno nuevo.",
+            alerta: false
+          }, { autoCerrar: 8000, pie: false });
+        })
+        .catch(function () { /* sin conexión momentánea */ });
+    }, 450);
+  });
+
+  // ---------- Autorelleno 2: frases frecuentes al describir la falla ----------
+
+  var frasesFrecuentes = null;
+  var cajaSugerencias = document.createElement("div");
+  cajaSugerencias.className = "panda-sugerencias";
+  document.body.appendChild(cajaSugerencias);
+
+  function ocultarSugerenciasFrases() {
+    cajaSugerencias.classList.remove("mostrar");
+    cajaSugerencias.innerHTML = "";
+  }
+
+  function mostrarSugerenciasFrases(campo) {
+    if (!frasesFrecuentes || !frasesFrecuentes.length) return;
+    cajaSugerencias.innerHTML = '<div class="panda-sugerencias-titulo">Frases usadas antes (clic para usar):</div>';
+    frasesFrecuentes.forEach(function (frase) {
+      var item = document.createElement("div");
+      item.className = "panda-sugerencias-item";
+      item.textContent = frase;
+      item.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        campo.value = campo.value.trim() ? campo.value.replace(/\.?\s*$/, "") + ". " + frase : frase;
+        ocultarSugerenciasFrases();
+      });
+      cajaSugerencias.appendChild(item);
+    });
+    var rect = campo.getBoundingClientRect();
+    cajaSugerencias.style.left = rect.left + "px";
+    cajaSugerencias.style.top = (rect.bottom + 4) + "px";
+    cajaSugerencias.style.width = Math.min(rect.width, 360) + "px";
+    cajaSugerencias.classList.add("mostrar");
+  }
+
+  document.addEventListener("focus", function (e) {
+    if (!e.target || !e.target.matches || !e.target.matches('textarea[name="falla_reportada"]')) return;
+    var campo = e.target;
+    if (frasesFrecuentes === null) {
+      fetch("/api/panda/frases-frecuentes")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          frasesFrecuentes = (data && data.frases) || [];
+          mostrarSugerenciasFrases(campo);
+        })
+        .catch(function () { frasesFrecuentes = []; });
+    } else {
+      mostrarSugerenciasFrases(campo);
+    }
+  }, true);
+
+  document.addEventListener("blur", function (e) {
+    if (!e.target || !e.target.matches || !e.target.matches('textarea[name="falla_reportada"]')) return;
+    setTimeout(ocultarSugerenciasFrases, 150);
+  }, true);
+
+  // ---------- Corrección 1: vender un repuesto por debajo de su costo ----------
+
+  document.addEventListener("focusout", function (e) {
+    if (!e.target || !e.target.matches ||
+        !e.target.matches(".repuesto-input-precio, #inputRepuestoPrecio, #facturaRepuestoPrecio")) return;
+    var fila = e.target.closest(".repuesto-fila") || e.target.closest("form");
+    if (!fila) return;
+    var select = fila.querySelector('select[name="repuesto_producto_id"], select[name="producto_id"]');
+    if (!select || !select.value) return;
+    var opcion = select.options[select.selectedIndex];
+    var costo = opcion ? parseFloat(opcion.getAttribute("data-costo")) : NaN;
+    var precio = parseFloat(e.target.value);
+    if (costo > 0 && precio > 0 && precio < costo) {
+      mostrarGlobo({
+        texto: "⚠ Ese precio (L " + precio.toFixed(2) + ") queda por debajo del costo del producto (L " + costo.toFixed(2) + "). Vas a vender con pérdida.",
+        alerta: true
+      }, { autoCerrar: 9000, pie: false });
+    }
+  }, true);
+
+  // ---------- Corrección 2: no dejar sin marcar la condición física ----------
+
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (!form || !form.querySelector) return;
+    var grid = form.querySelector("#condicionGrid");
+    if (!grid) return;
+    var marcado = grid.querySelector('input[type="checkbox"]:checked');
+    if (!marcado) {
+      e.preventDefault();
+      mostrarGlobo({
+        texto: "Falta marcar al menos un estado en \"Condición física al recibir\" antes de guardar (es obligatorio).",
+        alerta: true
+      }, { autoCerrar: null });
+      grid.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, true);
+
+  // ---------- Corrección 3: confirmar forma de pago si no es efectivo ----------
+
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (!form || form.getAttribute("action") === null) return;
+    if (!/\/ordenes\/\d+\/abono$/.test(form.getAttribute("action") || "")) return;
+    var selectFp = form.querySelector('select[name="forma_pago"]');
+    var inputMonto = form.querySelector('input[name="monto"]');
+    if (selectFp && selectFp.value !== "Efectivo") {
+      var ok = confirm("Vas a registrar un abono de L " + (inputMonto ? inputMonto.value : "") + " vía " + selectFp.value + ". ¿Confirmas que es correcto?");
+      if (!ok) e.preventDefault();
+    }
+  }, true);
 
   // ---------- Arrastrar + click corto (reacción) + presión larga (asistente) ----------
 
@@ -455,7 +736,6 @@ function inicializarPandaMascota() {
     panda.style.top = y + "px";
     panda.style.right = "auto";
     panda.style.bottom = "auto";
-    actualizarBadgePanda();
     if (globo.classList.contains("mostrar")) posicionarJuntoAlPanda(globo);
   }
 
@@ -550,6 +830,8 @@ function inicializarPandaMascota() {
   });
 
   consultarResumenPanda();
+  revisarFlashesParaReaccion();
+  programarPensamientoEspontaneo();
 }
 
 document.addEventListener("DOMContentLoaded", function () {

@@ -621,28 +621,8 @@ html, body {
 .panda-mascota.panda-arrastrando { cursor: grabbing; transition: none; }
 @media (max-width: 900px) { .panda-mascota { width: 54px; height: 62px; right: 12px; bottom: 12px; } }
 
-/* Indicador (puntito con número) de que hay órdenes vencidas: se posiciona
-   en JS pegado a la esquina superior derecha del panda, y se recalcula cada
-   vez que el panda se mueve (ver actualizarBadgePanda() en app.js). */
-.panda-badge {
-  position: fixed;
-  z-index: 901;
-  min-width: 18px; height: 18px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--danger);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 18px;
-  text-align: center;
-  box-shadow: 0 0 0 2px var(--bg);
-  pointer-events: none;
-  display: none;
-}
-.panda-badge.mostrar { display: block; }
-
-/* Globo del asistente: aparece junto al panda al mantenerlo presionado.
+/* Globo del asistente: aparece junto al panda al mantenerlo presionado, o
+   solo (sin que lo toquen) cuando reacciona a un evento o de vez en cuando.
    Reutiliza los tokens de color del resto del sistema (--panel-2, --border,
    --radius, --shadow) para que no se vea como un componente ajeno. */
 .panda-asistente {
@@ -688,3 +668,28 @@ html, body {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* Caja de sugerencias de autorelleno (frases frecuentes de "Falla
+   reportada"): aparece pegada debajo del campo, no junto al panda. */
+.panda-sugerencias {
+  position: fixed;
+  z-index: 903;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  display: none;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.panda-sugerencias.mostrar { display: block; }
+.panda-sugerencias-titulo {
+  padding: 7px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+}
+.panda-sugerencias-item { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid var(--border); color: var(--text); }
+.panda-sugerencias-item:last-child { border-bottom: none; }
+.panda-sugerencias-item:hover { background: var(--bg-alt); }

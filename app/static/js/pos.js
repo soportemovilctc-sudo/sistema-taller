@@ -140,6 +140,7 @@ function finalizarVenta() {
           resumen.textContent = "Venta " + res.data.numero_venta + " registrada. Cambio: L " + res.data.cambio.toFixed(2);
           mensajeEl.innerHTML = "";
           mensajeEl.appendChild(resumen);
+          if (window.pandaReaccionEvento) window.pandaReaccionEvento("venta", res.data.numero_venta);
 
           if (res.data.factura_id) {
             var acciones = document.createElement("div");

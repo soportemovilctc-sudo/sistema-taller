@@ -2,7 +2,7 @@
 asistente panda (usuario de Caja)."""
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from app.database import get_db
 from app.models import OrdenServicio, Cliente, Configuracion
@@ -62,3 +62,42 @@ def panda_resumen(db: Session = Depends(get_db), usuario=Depends(login_required)
             for o in vencidas[:5]
         ],
     }
+
+
+@router.get("/api/panda/cliente/{cliente_id}")
+def panda_cliente_info(cliente_id: int, db: Session = Depends(get_db), usuario=Depends(login_required)):
+    """Resumen rápido de un cliente para mostrar en cuanto la cajera lo
+    selecciona en Nueva Orden o en el Punto de Venta: cuántas órdenes tiene
+    y si debe saldo pendiente de alguna anterior (no cuenta las
+    canceladas)."""
+    cliente = db.get(Cliente, cliente_id)
+    if not cliente:
+        return {"encontrado": False}
+    ordenes = db.query(OrdenServicio).filter(OrdenServicio.cliente_id == cliente_id).all()
+    saldo_pendiente = sum(
+        (o.saldo or 0) for o in ordenes if o.estado != "CANCELADO"
+    )
+    return {
+        "encontrado": True,
+        "nombre": cliente.nombre,
+        "telefono": cliente.telefono or "",
+        "whatsapp": cliente.whatsapp or "",
+        "ordenes_total": len(ordenes),
+        "saldo_pendiente": float(saldo_pendiente),
+    }
+
+
+@router.get("/api/panda/frases-frecuentes")
+def panda_frases_frecuentes(db: Session = Depends(get_db), usuario=Depends(login_required)):
+    """Frases de 'Falla reportada' más usadas antes en el taller, para
+    sugerirlas como autorelleno al describir el problema de una orden
+    nueva."""
+    filas = (
+        db.query(OrdenServicio.falla_reportada, func.count(OrdenServicio.id).label("n"))
+        .filter(OrdenServicio.falla_reportada.isnot(None), OrdenServicio.falla_reportada != "")
+        .group_by(OrdenServicio.falla_reportada)
+        .order_by(func.count(OrdenServicio.id).desc())
+        .limit(8)
+        .all()
+    )
+    return {"frases": [f[0] for f in filas]}

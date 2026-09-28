@@ -11,13 +11,17 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio, Tecnico
+from app.models import Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio, Tecnico, Producto
 from app.deps import login_required, roles_required
 from app.utils.flash import flash
-from app.utils.calculations import to_decimal
+from app.utils.calculations import to_decimal, aplicar_impuesto, recalcular_orden
 from app.utils.numbering import generar_numero_factura, extraer_correlativo_de_rango
 from app.utils.pdf import generar_pdf_factura, construir_contexto_pdf_factura
 from app.utils.pdf_ticket import generar_ticket_factura
+# Se reutiliza la misma función que ya usa "Repuestos utilizados" al crear/
+# editar una orden, para no duplicar la lógica de descontar inventario,
+# registrar la venta y el movimiento financiero (ver ordenes.py).
+from app.routers.ordenes import _agregar_repuesto_a_orden
 
 router = APIRouter()
 
@@ -174,10 +178,25 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
         return RedirectResponse("/ordenes", status_code=303)
     cfg = get_or_create_cfg_facturacion(db)
     tecnicos = db.query(Tecnico).filter(Tecnico.activo == True).order_by(Tecnico.nombre).all()  # noqa: E712
+
+    # Repuestos disponibles para poder agregar aquí mismo, al generar la
+    # factura, el que se haya usado en la reparación (opcional: no todos
+    # los equipos llevan un repuesto, algunos solo pasan por diagnóstico).
+    tasa_isv = to_decimal(cfg.isv_tasa if cfg.isv_tasa is not None else 15)
+    productos_disponibles = (
+        db.query(Producto)
+        .filter(Producto.estado == "activo", Producto.existencia > 0)
+        .order_by(Producto.nombre)
+        .all()
+    )
+    for p in productos_disponibles:
+        p.precio_con_impuesto = aplicar_impuesto(p.precio_venta, tasa_isv)
+
     return templates.TemplateResponse("facturacion/nueva.html", {
         "request": request, "orden": orden, "cfg": cfg, "usuario": usuario,
         "error_fiscal": _validar_fiscal_disponible(cfg),
         "tecnicos": tecnicos,
+        "productos_disponibles": productos_disponibles, "tasa_isv": tasa_isv,
     })
 
 
@@ -185,6 +204,7 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
 def factura_crear(
     orden_id: int, request: Request,
     tipo: str = Form("interno"), exento: bool = Form(False), tecnico_reparacion_id: str = Form(""),
+    repuesto_producto_id: str = Form(""), repuesto_cantidad: str = Form("1"), repuesto_precio: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
@@ -198,6 +218,46 @@ def factura_crear(
     # quien hizo la reparación, así que se guarda aparte y se puede
     # corregir aquí mismo al momento de facturar.
     orden.tecnico_reparacion_id = int(tecnico_reparacion_id) if tecnico_reparacion_id else None
+
+    # Repuesto usado (opcional): si el equipo llevó un repuesto y todavía
+    # no se había registrado en la orden, se agrega aquí mismo antes de
+    # calcular el total de la factura (algunos equipos solo se dejan para
+    # diagnóstico y no llevan repuesto, por eso este campo no es obligatorio).
+    producto_id_raw = (repuesto_producto_id or "").strip()
+    if producto_id_raw:
+        try:
+            producto_id_val = int(producto_id_raw)
+        except (TypeError, ValueError):
+            producto_id_val = None
+        try:
+            cantidad_val = int(repuesto_cantidad or "1")
+        except (TypeError, ValueError):
+            cantidad_val = 0
+
+        if not producto_id_val or cantidad_val <= 0:
+            flash(request, "Cantidad inválida para el repuesto seleccionado.", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva", status_code=303)
+
+        producto = db.get(Producto, producto_id_val)
+        if not producto:
+            flash(request, "El repuesto seleccionado no existe.", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva", status_code=303)
+        if cantidad_val > producto.existencia:
+            flash(request, f"No hay suficiente existencia de '{producto.nombre}' (disponible: {producto.existencia}).", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva", status_code=303)
+
+        precio_override = None
+        precio_raw = (repuesto_precio or "").strip()
+        if precio_raw:
+            precio_val = to_decimal(precio_raw)
+            if precio_val > 0:
+                precio_override = precio_val.quantize(Decimal("0.01"))
+
+        _agregar_repuesto_a_orden(db, orden, producto, cantidad_val, usuario["nombre_completo"], precio_override)
+        db.flush()
+        db.refresh(orden)
+        recalcular_orden(orden)
+        db.flush()
 
     cfg = get_or_create_cfg_facturacion(db)
     cfg_general = _config_general(db)

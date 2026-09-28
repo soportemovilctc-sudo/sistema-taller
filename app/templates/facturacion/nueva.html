@@ -34,9 +34,45 @@
     <div class="field">
       <label class="checkbox-chip"><input type="checkbox" name="exento" {{ 'checked' if cfg.servicios_exentos_default else '' }}> Este servicio está exento de ISV</label>
     </div>
-    <p class="help">El monto total que paga el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda.</p>
+
+    <div class="field">
+      <label>Repuesto usado (opcional)</label>
+      <div class="form-row">
+        <div class="field" style="flex:3; margin-bottom:0;">
+          <select name="repuesto_producto_id" id="facturaRepuestoProducto" class="js-buscar-select" data-placeholder="Escribe el nombre o código del repuesto...">
+            <option value="">Ninguno</option>
+            {% for p in productos_disponibles %}
+            <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field" style="flex:1; margin-bottom:0;">
+          <input type="number" step="1" min="1" name="repuesto_cantidad" value="1" placeholder="Cantidad">
+        </div>
+        <div class="field" style="flex:1; margin-bottom:0;">
+          <input type="number" step="0.01" min="0" name="repuesto_precio" id="facturaRepuestoPrecio" placeholder="Precio unitario">
+        </div>
+      </div>
+      <div class="help">Si el equipo llevó un repuesto y todavía no lo has registrado en la orden, selecciónalo aquí: se descuenta del inventario y se suma al total antes de generar la factura. Si el equipo solo se dejó para diagnóstico (sin repuesto), deja esto en blanco.</div>
+    </div>
+
+    <p class="help">El monto total que paga el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda (más el repuesto de arriba, si agregas uno).</p>
     <button type="submit" class="btn btn-primary">Generar factura</button>
     <a href="/ordenes/{{ orden.id }}" class="btn btn-outline">Cancelar</a>
   </form>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    var selectProducto = document.getElementById("facturaRepuestoProducto");
+    var campoPrecio = document.getElementById("facturaRepuestoPrecio");
+    if (!selectProducto || !campoPrecio) return;
+    selectProducto.addEventListener("change", function () {
+      var opcion = selectProducto.options[selectProducto.selectedIndex];
+      var precio = opcion ? opcion.getAttribute("data-precio") : "";
+      campoPrecio.value = precio || "";
+    });
+  })();
+</script>
 {% endblock %}

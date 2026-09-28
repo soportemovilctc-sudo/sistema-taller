@@ -7,6 +7,7 @@ import textwrap
 from io import BytesIO
 from reportlab.lib.units import mm
 from reportlab.lib.pagesizes import letter  # noqa: F401 (compatibilidad)
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from app.models import parse_condiciones_servicio
@@ -15,6 +16,8 @@ from app.utils.richtext import condiciones_a_texto_plano
 ANCHO_TICKET = 80 * mm
 MARGEN = 3 * mm
 ANCHO_UTIL_CHARS = 42  # caracteres aprox. que caben por línea a 8pt
+LOGO_ANCHO_MAX = 32 * mm
+LOGO_ALTO_MAX = 16 * mm
 
 
 def _moneda(valor, simbolo="L"):
@@ -43,6 +46,9 @@ class _ConstructorTicket:
 
     def texto(self, s, tam=8, negrita=False, centrado=False, alto=10):
         self.instrucciones.append(("texto", s, tam, negrita, centrado, alto))
+
+    def imagen(self, datos, ancho_img, alto_img, alto_reservado):
+        self.instrucciones.append(("imagen", datos, ancho_img, alto_img, None, alto_reservado))
 
     def parrafo(self, s, tam=8, negrita=False, alto=10):
         for linea in _wrap(s):
@@ -98,6 +104,20 @@ class _ConstructorTicket:
             elif tipo == "espacio":
                 alto = item[-1]
                 y -= alto
+            elif tipo == "imagen":
+                _, datos, ancho_img, alto_img, _, alto_reservado = item
+                y -= alto_reservado
+                try:
+                    lector = ImageReader(BytesIO(datos))
+                    c.drawImage(
+                        lector,
+                        x_centro - ancho_img / 2,
+                        y + (alto_reservado - alto_img),
+                        width=ancho_img, height=alto_img,
+                        mask="auto", preserveAspectRatio=True,
+                    )
+                except Exception:
+                    pass
 
         c.showPage()
         c.save()
@@ -123,6 +143,17 @@ def _condiciones_servicio(t, texto_condiciones=""):
 
 
 def _encabezado_taller(t, taller: dict):
+    logo_data = taller.get("logo_data")
+    if logo_data:
+        try:
+            lector = ImageReader(BytesIO(logo_data))
+            ancho_nat, alto_nat = lector.getSize()
+            escala = min(LOGO_ANCHO_MAX / ancho_nat, LOGO_ALTO_MAX / alto_nat)
+            ancho_img = ancho_nat * escala
+            alto_img = alto_nat * escala
+            t.imagen(logo_data, ancho_img, alto_img, alto_img + 4)
+        except Exception:
+            pass
     t.texto(taller.get("nombre", "Taller de Reparación"), tam=11, negrita=True, centrado=True, alto=14)
     if taller.get("direccion"):
         t.parrafo(taller["direccion"], tam=7, alto=9)

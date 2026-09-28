@@ -255,7 +255,7 @@ def factura_crear(
 # ---------------------------------------------------------------------------
 @router.get("/facturas")
 def facturas_list(request: Request, tipo: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
-    query = db.query(Factura).options(joinedload(Factura.orden))
+    query = db.query(Factura).options(joinedload(Factura.orden), joinedload(Factura.venta))
     if tipo in ("interno", "fiscal"):
         query = query.filter(Factura.tipo == tipo)
     facturas = query.order_by(Factura.id.desc()).all()

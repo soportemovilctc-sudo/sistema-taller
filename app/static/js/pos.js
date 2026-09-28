@@ -134,14 +134,33 @@ function finalizarVenta() {
     .then(function (res) {
       if (res.data.ok) {
         if (mensajeEl) {
-          mensajeEl.className = "flash flash-success";
-          mensajeEl.textContent = "Venta " + res.data.numero_venta + " registrada. Cambio: L " + res.data.cambio.toFixed(2);
+          mensajeEl.className = "";
+          var resumen = document.createElement("div");
+          resumen.className = "flash flash-success";
+          resumen.textContent = "Venta " + res.data.numero_venta + " registrada. Cambio: L " + res.data.cambio.toFixed(2);
+          mensajeEl.innerHTML = "";
+          mensajeEl.appendChild(resumen);
+
+          if (res.data.factura_id) {
+            var acciones = document.createElement("div");
+            acciones.style.cssText = "display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;";
+            acciones.innerHTML =
+              '<a href="/facturas/' + res.data.factura_id + '/pdf/tirilla" target="_blank" class="btn btn-success btn-sm">Imprimir recibo (tirilla)</a>' +
+              '<a href="/facturas/' + res.data.factura_id + '/pdf" target="_blank" class="btn btn-outline btn-sm">Ver recibo (PDF carta)</a>' +
+              '<button type="button" class="btn btn-primary btn-sm" id="posNuevaVenta">Nueva venta</button>';
+            mensajeEl.appendChild(acciones);
+            var btnNueva = document.getElementById("posNuevaVenta");
+            if (btnNueva) btnNueva.addEventListener("click", function () { window.location.reload(); });
+            // Intenta abrir la tirilla automáticamente para imprimir de una
+            // vez; si el navegador bloquea la ventana emergente, el botón de
+            // arriba sigue disponible para abrirla manualmente.
+            window.open("/facturas/" + res.data.factura_id + "/pdf/tirilla", "_blank");
+          }
         }
         carrito = [];
         renderCarrito();
         var recibidoInput = document.getElementById("posMontoRecibido");
         if (recibidoInput) recibidoInput.value = "";
-        setTimeout(function () { window.location.reload(); }, 1800);
       } else {
         if (mensajeEl) {
           mensajeEl.className = "flash flash-error";

@@ -1,4 +1,5 @@
 """Punto de venta (POS): carrito, cálculo de totales, cobro y descuento de inventario."""
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Request, Depends
@@ -7,13 +8,25 @@ from sqlalchemy.orm import Session
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Producto, Venta, DetalleVenta, MovimientoInventario, MovimientoFinanciero, Cliente, ConfiguracionFacturacion
+from app.models import (
+    Producto, Venta, DetalleVenta, MovimientoInventario, MovimientoFinanciero, Cliente,
+    ConfiguracionFacturacion, Factura,
+)
 from app.schemas import VentaIn
-from app.utils.numbering import generar_numero_venta
+from app.utils.numbering import generar_numero_venta, generar_numero_factura
 from app.utils.calculations import to_decimal, aplicar_impuesto
 from app.deps import login_required
 
 router = APIRouter()
+
+
+def _cfg_facturacion(db: Session) -> ConfiguracionFacturacion:
+    cfg = db.get(ConfiguracionFacturacion, 1)
+    if not cfg:
+        cfg = ConfiguracionFacturacion(id=1)
+        db.add(cfg)
+        db.flush()
+    return cfg
 
 
 def _isv_tasa(db: Session) -> Decimal:
@@ -89,8 +102,38 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
         referencia=venta.numero_venta,
     ))
 
+    # Recibo automático: cada venta del Punto de Venta genera de una vez un
+    # comprobante interno (no fiscal) para que el cliente se lleve constancia
+    # de su compra, sin necesidad de un paso aparte. Si más adelante el
+    # cliente necesita una factura fiscal, se puede emitir esa por separado
+    # desde Facturas (igual que con las órdenes de servicio).
+    cfg_fact = _cfg_facturacion(db)
+    numero_documento, correlativo = generar_numero_factura(cfg_fact, "interno")
+    cliente_venta = db.get(Cliente, venta.cliente_id) if venta.cliente_id else None
+    recibo = Factura(
+        venta_id=venta.id,
+        tipo="interno",
+        numero_documento=numero_documento,
+        correlativo=correlativo,
+        cliente_nombre=cliente_venta.nombre if cliente_venta else "Consumidor final",
+        cliente_rtn=(cliente_venta.rtn or "") if cliente_venta else "",
+        cliente_direccion=(cliente_venta.direccion or "") if cliente_venta else "",
+        fecha_emision=datetime.utcnow(),
+        subtotal=subtotal,
+        descuento=descuento,
+        importe_exento=Decimal("0.00"),
+        importe_gravado=total_neto,
+        isv_tasa=tasa,
+        isv_monto=isv_monto,
+        total=total,
+        usuario_nombre=usuario["nombre_completo"],
+    )
+    db.add(recibo)
+    db.flush()
+
     db.commit()
     return JSONResponse({
         "ok": True, "numero_venta": venta.numero_venta,
         "total": float(total), "isv": float(isv_monto), "cambio": float(cambio),
+        "factura_id": recibo.id, "numero_documento": recibo.numero_documento,
     })

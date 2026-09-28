@@ -423,6 +423,7 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
     generar_ticket_factura() a partir del objeto SQLAlchemy Factura."""
     es_fiscal = factura.tipo == "fiscal"
     orden = factura.orden
+    venta = factura.venta
     descripcion = None
     if orden:
         partes = [f"Servicio: {orden.tipo_equipo or ''} {orden.marca or ''} {orden.modelo or ''}".strip()]
@@ -445,6 +446,21 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
                 partes.append(f"PIN: {orden.pin}")
             if orden.patron:
                 partes.append(f"Patrón: {orden.patron}")
+        descripcion = " · ".join(p for p in partes if p)
+    elif venta:
+        # Recibo generado a partir de una venta del Punto de Venta (no viene
+        # de una orden de servicio): el detalle son los productos vendidos.
+        partes = [f"Venta de mostrador N.º {venta.numero_venta}"]
+        if venta.forma_pago:
+            partes.append(f"Forma de pago: {venta.forma_pago}")
+        if getattr(venta, "detalles", None):
+            moneda_factura = config_general.moneda if config_general else "L"
+            items_productos = ", ".join(
+                f"{d.producto.nombre if d.producto else 'Producto'} x{d.cantidad} ({_moneda(d.subtotal, moneda_factura)})"
+                for d in venta.detalles
+            )
+            if items_productos:
+                partes.append(f"Productos: {items_productos}")
         descripcion = " · ".join(p for p in partes if p)
 
     texto_legal = (config_facturacion.texto_legal_fiscal if es_fiscal else config_facturacion.texto_legal_interno) if config_facturacion else ""

@@ -23,3 +23,5 @@ class VentaOut(BaseModel):
     total: float | None = None
     cambio: float | None = None
     mensaje: str | None = None
+    factura_id: int | None = None
+    numero_documento: str | None = None

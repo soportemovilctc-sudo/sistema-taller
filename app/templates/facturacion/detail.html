@@ -19,6 +19,9 @@
     {% if factura.orden %}
     <div><label>Orden relacionada</label><p><a href="/ordenes/{{ factura.orden.id }}">{{ factura.orden.numero_orden }}</a></p></div>
     {% endif %}
+    {% if factura.venta %}
+    <div><label>Origen</label><p>Venta de mostrador (POS) {{ factura.venta.numero_venta }}</p></div>
+    {% endif %}
     {% if factura.tipo == 'fiscal' %}
     <div><label>CAI</label><p>{{ factura.cai_usado }}</p></div>
     <div><label>Rango autorizado</label><p>{{ factura.rango_autorizado_inicio }} al {{ factura.rango_autorizado_fin }}</p></div>

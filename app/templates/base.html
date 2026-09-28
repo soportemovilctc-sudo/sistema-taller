@@ -130,6 +130,9 @@
       {% block content %}{% endblock %}
     </div>
   </div>
+  {% if usuario.rol == 'vendedor' %}
+  <img id="pandaCajaMascota" class="panda-mascota" src="/static/img/panda-caja.svg?v={{ version_estatico('img/panda-caja.svg') }}" alt="" draggable="false" title="Arrástrame a donde quieras">
+  {% endif %}
 </div>
 {% else %}
   {% block content_public %}{% endblock %}

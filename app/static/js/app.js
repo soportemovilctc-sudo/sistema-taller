@@ -229,3 +229,92 @@ document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".action-bar-more-menu.show").forEach(function (m) { m.classList.remove("show"); });
   });
 });
+
+// Mascota panda del usuario de Caja (rol vendedor): se puede arrastrar a
+// cualquier parte de la pantalla con mouse o dedo, y recuerda en
+// localStorage dónde quedó para que siga ahí al cambiar de página (el
+// sistema recarga toda la página en cada navegación, no es un SPA).
+function inicializarPandaMascota() {
+  var panda = document.getElementById("pandaCajaMascota");
+  if (!panda) return;
+
+  var CLAVE_POSICION = "pandaCajaPos";
+
+  function limitarYAplicar(x, y) {
+    var maxX = window.innerWidth - panda.offsetWidth - 4;
+    var maxY = window.innerHeight - panda.offsetHeight - 4;
+    x = Math.max(4, Math.min(x, maxX));
+    y = Math.max(4, Math.min(y, maxY));
+    panda.style.left = x + "px";
+    panda.style.top = y + "px";
+    panda.style.right = "auto";
+    panda.style.bottom = "auto";
+  }
+
+  var posGuardada = null;
+  try {
+    posGuardada = JSON.parse(localStorage.getItem(CLAVE_POSICION) || "null");
+  } catch (e) {
+    posGuardada = null;
+  }
+  if (posGuardada && typeof posGuardada.x === "number" && typeof posGuardada.y === "number") {
+    limitarYAplicar(posGuardada.x, posGuardada.y);
+  }
+
+  var arrastrando = false;
+  var offsetX = 0, offsetY = 0;
+
+  function iniciarArrastre(clientX, clientY) {
+    arrastrando = true;
+    var rect = panda.getBoundingClientRect();
+    offsetX = clientX - rect.left;
+    offsetY = clientY - rect.top;
+    panda.classList.add("panda-arrastrando");
+  }
+
+  function moverA(clientX, clientY) {
+    if (!arrastrando) return;
+    limitarYAplicar(clientX - offsetX, clientY - offsetY);
+  }
+
+  function soltar() {
+    if (!arrastrando) return;
+    arrastrando = false;
+    panda.classList.remove("panda-arrastrando");
+    var rect = panda.getBoundingClientRect();
+    try {
+      localStorage.setItem(CLAVE_POSICION, JSON.stringify({ x: rect.left, y: rect.top }));
+    } catch (e) {
+      /* almacenamiento no disponible: simplemente no se recuerda la posición */
+    }
+  }
+
+  panda.addEventListener("mousedown", function (e) {
+    e.preventDefault();
+    iniciarArrastre(e.clientX, e.clientY);
+  });
+  document.addEventListener("mousemove", function (e) { moverA(e.clientX, e.clientY); });
+  document.addEventListener("mouseup", soltar);
+
+  panda.addEventListener("touchstart", function (e) {
+    var t = e.touches[0];
+    iniciarArrastre(t.clientX, t.clientY);
+  }, { passive: true });
+  document.addEventListener("touchmove", function (e) {
+    if (!arrastrando) return;
+    var t = e.touches[0];
+    moverA(t.clientX, t.clientY);
+  }, { passive: true });
+  document.addEventListener("touchend", soltar);
+
+  // Si la ventana cambia de tamaño y la deja fuera de la pantalla, la
+  // reacomoda dentro del área visible.
+  window.addEventListener("resize", function () {
+    var rect = panda.getBoundingClientRect();
+    limitarYAplicar(rect.left, rect.top);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  inicializarPandaMascota();
+});

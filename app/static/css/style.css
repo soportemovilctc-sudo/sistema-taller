@@ -600,3 +600,23 @@ html, body {
   }
   table.responsive-table td[data-label=""]::before { display: none; }
 }
+
+/* ---------- Mascota panda (solo usuario de Caja / rol vendedor) ----------
+   Ícono flotante pequeño que el usuario puede arrastrar a donde quiera de
+   la pantalla (ver inicializarPandaMascota() en app.js); su posición se
+   recuerda entre páginas porque el sistema recarga en cada navegación. */
+.panda-mascota {
+  position: fixed;
+  right: 18px; bottom: 18px;
+  width: 42px; height: 48px;
+  z-index: 900;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,.45));
+  transition: transform .15s ease;
+}
+.panda-mascota:hover { transform: scale(1.12); }
+.panda-mascota.panda-arrastrando { cursor: grabbing; transition: none; }
+@media (max-width: 900px) { .panda-mascota { width: 36px; height: 41px; right: 12px; bottom: 12px; } }

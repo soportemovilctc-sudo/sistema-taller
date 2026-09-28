@@ -62,7 +62,11 @@
       {% if loop.index0 == idx_actual %}
         <span class="step-dot">{{ loop.index }}</span>
       {% else %}
-        <form method="post" action="/ordenes/{{ orden.id }}/estado" onsubmit="return confirm('¿Cambiar el estado de la orden a &quot;{{ e }}&quot;?');">
+        {% set _msj_confirmar = '¿Cambiar el estado de la orden a "' ~ e ~ '"?' %}
+        {% if e == 'ENTREGADO' and orden.saldo and orden.saldo > 0 %}
+          {% set _msj_confirmar = _msj_confirmar ~ ' Se registrará un pago automático de ' ~ (orden.saldo|moneda(config_taller().moneda)) ~ ' para saldar la orden (se asume que el cliente ya pagó al recoger el equipo).' %}
+        {% endif %}
+        <form method="post" action="/ordenes/{{ orden.id }}/estado" onsubmit="return confirm('{{ _msj_confirmar }}');">
           <input type="hidden" name="nuevo_estado" value="{{ e }}">
           <input type="hidden" name="redirect_to" value="/ordenes/{{ orden.id }}">
           <button type="submit" class="step-dot" title="Cambiar a {{ e }}">
@@ -249,10 +253,23 @@
     <form method="post" action="/ordenes/{{ orden.id }}/estado">
       <div class="field">
         <label>Nuevo estado</label>
-        <select name="nuevo_estado">
+        <select name="nuevo_estado" id="selectNuevoEstado">
           {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == orden.estado else '' }}>{{ e }}</option>{% endfor %}
         </select>
       </div>
+      {% if orden.saldo and orden.saldo > 0 %}
+      <p class="help" id="avisoPagoAutomatico" style="display:none;">Esta orden tiene un saldo pendiente de {{ orden.saldo|moneda(config_taller().moneda) }}: si la marcas como ENTREGADO se registrará automáticamente un pago por ese monto.</p>
+      <script>
+        (function () {
+          var select = document.getElementById('selectNuevoEstado');
+          var aviso = document.getElementById('avisoPagoAutomatico');
+          if (!select || !aviso) return;
+          function actualizar() { aviso.style.display = (select.value === 'ENTREGADO') ? '' : 'none'; }
+          select.addEventListener('change', actualizar);
+          actualizar();
+        })();
+      </script>
+      {% endif %}
       <div class="field"><label>Observación</label><input type="text" name="observacion" placeholder="Motivo del cambio (opcional)"></div>
       <button type="submit" class="btn btn-primary">Actualizar estado</button>
     </form>

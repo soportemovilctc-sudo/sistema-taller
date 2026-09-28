@@ -408,8 +408,30 @@ def ordenes_cambiar_estado(
             orden.notificado_listo = False
             orden.fecha_notificado_listo = None
         db.add(historial)
+
+        # Al marcar la orden como ENTREGADO se asume que ya se cobró todo:
+        # un técnico no debería entregar el equipo sin que el cliente haya
+        # pagado el saldo. Si queda saldo pendiente en ese momento, se
+        # registra automáticamente un abono por ese monto (en vez de
+        # obligar a un paso aparte de "Registrar abono" antes de poder
+        # cerrar la orden).
+        monto_pago_automatico = None
+        if nuevo_estado == "ENTREGADO" and orden.saldo and orden.saldo > 0:
+            monto_pago_automatico = orden.saldo
+            db.add(Pago(
+                orden_id=orden.id, monto=monto_pago_automatico, forma_pago=orden.forma_pago or "Efectivo",
+                usuario_nombre=usuario["nombre_completo"],
+                observacion="Pago automático al marcar la orden como ENTREGADO",
+            ))
+            db.flush()
+            db.refresh(orden)
+            recalcular_orden(orden)
+
         db.commit()
-        flash(request, f"Estado actualizado a {nuevo_estado}.", "success")
+        if monto_pago_automatico:
+            flash(request, f"Estado actualizado a ENTREGADO. Se registró un pago automático de {monto_pago_automatico} para saldar la orden.", "success")
+        else:
+            flash(request, f"Estado actualizado a {nuevo_estado}.", "success")
     destino = redirect_to if redirect_to.startswith("/") else f"/ordenes/{orden_id}"
     return RedirectResponse(destino, status_code=303)
 

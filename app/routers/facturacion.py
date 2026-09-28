@@ -183,10 +183,12 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
     # factura, el que se haya usado en la reparación (opcional: no todos
     # los equipos llevan un repuesto, algunos solo pasan por diagnóstico).
     tasa_isv = to_decimal(cfg.isv_tasa if cfg.isv_tasa is not None else 15)
+    # Se muestra todo el inventario activo (no solo lo que tiene existencia
+    # ahora mismo), igual que en "Nueva orden" y el detalle de la orden.
     productos_disponibles = (
         db.query(Producto)
-        .filter(Producto.estado == "activo", Producto.existencia > 0)
-        .order_by(Producto.nombre)
+        .filter(Producto.estado == "activo")
+        .order_by(Producto.categoria, Producto.nombre)
         .all()
     )
     for p in productos_disponibles:

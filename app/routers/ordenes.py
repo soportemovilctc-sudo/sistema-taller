@@ -124,10 +124,14 @@ def _anotar_precios_con_impuesto(productos, tasa):
 def ordenes_nueva_form(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     cfg = _config(db)
     tasa = _isv_tasa(db)
+    # Se muestra todo el inventario activo (no solo lo que tiene existencia
+    # en este momento), para poder buscar y ver cualquier repuesto; si se
+    # intenta agregar uno sin existencia, la validación de cantidad lo
+    # bloquea igual más abajo.
     productos_disponibles = (
         db.query(Producto)
-        .filter(Producto.estado == "activo", Producto.existencia > 0)
-        .order_by(Producto.nombre)
+        .filter(Producto.estado == "activo")
+        .order_by(Producto.categoria, Producto.nombre)
         .all()
     )
     _anotar_precios_con_impuesto(productos_disponibles, tasa)
@@ -270,10 +274,12 @@ def ordenes_detalle(orden_id: int, request: Request, db: Session = Depends(get_d
         return RedirectResponse("/ordenes", status_code=303)
     opciones = _opciones_formulario(db)
     tasa = _isv_tasa(db)
+    # Igual que en "Nueva orden": se muestra todo el inventario activo, no
+    # solo lo que tiene existencia ahora mismo.
     productos_disponibles = (
         db.query(Producto)
-        .filter(Producto.estado == "activo", Producto.existencia > 0)
-        .order_by(Producto.nombre)
+        .filter(Producto.estado == "activo")
+        .order_by(Producto.categoria, Producto.nombre)
         .all()
     )
     _anotar_precios_con_impuesto(productos_disponibles, tasa)

@@ -229,7 +229,7 @@
           <select name="repuesto_producto_id" class="repuesto-select-producto js-buscar-select" data-placeholder="Escribe el nombre o código del repuesto...">
             <option value="">Ninguno</option>
             {% for p in productos_disponibles %}
-            <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}">{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
+            <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}">{% if p.categoria %}[{{ p.categoria }}] {% endif %}{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
             {% endfor %}
           </select>
         </div>

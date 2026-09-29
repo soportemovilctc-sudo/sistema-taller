@@ -679,6 +679,31 @@ html, body {
 .panda-mascota.panda-arrastrando { cursor: grabbing; transition: none; }
 @media (max-width: 900px) { .panda-mascota { width: 54px; height: 62px; right: 12px; bottom: 12px; } }
 
+/* Caminata autónoma: el panda se desplaza solo hacia el enlace del menú
+   relacionado con lo que va a sugerir (Inventario, Órdenes) antes de
+   mostrar el globo. La transición en left/top solo se activa con esta
+   clase (arrastrar sigue siendo instantáneo, sin esta clase) y el
+   balanceo es puramente visual, no afecta la posición real. */
+.panda-mascota.panda-caminando {
+  transition: left .9s cubic-bezier(.4,0,.2,1), top .9s cubic-bezier(.4,0,.2,1);
+  animation: panda-camina .35s ease-in-out infinite alternate;
+}
+@keyframes panda-camina {
+  from { transform: translateY(0) rotate(-3deg); }
+  to   { transform: translateY(-5px) rotate(3deg); }
+}
+
+/* Resalta (con un pulso breve) el enlace del menú al que el panda se
+   acercó, para que quede claro qué está señalando. */
+.panda-destacado {
+  animation: panda-destacado-pulso 1s ease-in-out 2;
+  border-radius: 8px;
+}
+@keyframes panda-destacado-pulso {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 0%, transparent); }
+}
+
 /* Globo del asistente: aparece junto al panda al mantenerlo presionado, o
    solo (sin que lo toquen) cuando reacciona a un evento o de vez en cuando.
    Reutiliza los tokens de color del resto del sistema (--panel-2, --border,
@@ -721,6 +746,7 @@ html, body {
 .panda-asistente-msg { color: var(--text); line-height: 1.45; }
 .panda-asistente-msg.es-alerta { color: var(--danger); font-weight: 600; }
 .panda-asistente-msg a { color: var(--primary-light); }
+.panda-asistente-accion { margin-top: 8px; }
 .panda-asistente-pie {
   margin-top: 8px;
   font-size: 11px;

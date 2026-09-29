@@ -390,6 +390,7 @@ function inicializarPandaMascota() {
     '<span class="panda-asistente-cerrar" title="Cerrar">✕</span>' +
     '</div>' +
     '<div class="panda-asistente-msg"></div>' +
+    '<div class="panda-asistente-accion"></div>' +
     '<div class="panda-chat-log"></div>' +
     '<div class="panda-chat-input-row">' +
     '<input type="text" class="panda-chat-input" placeholder="Escríbele algo, ej. “marca la orden 45 como entregada”" maxlength="200">' +
@@ -398,12 +399,17 @@ function inicializarPandaMascota() {
     '<div class="panda-asistente-pie">Escríbele abajo, o mantén presionado de nuevo para otro consejo.</div>';
   document.body.appendChild(globo);
   var globoMsg = globo.querySelector(".panda-asistente-msg");
+  var globoAccion = globo.querySelector(".panda-asistente-accion");
   var globoPie = globo.querySelector(".panda-asistente-pie");
   var globoChatLog = globo.querySelector(".panda-chat-log");
   var globoChatInput = globo.querySelector(".panda-chat-input");
   var globoChatEnviar = globo.querySelector(".panda-chat-enviar");
   globo.querySelector(".panda-asistente-cerrar").addEventListener("click", cerrarAsistente);
   var globoAutoCerrarTimer = null;
+  // Dónde estaba el panda antes de caminar hacia algo que quiere señalar
+  // (Inventario, Órdenes...), para regresarlo ahí mismo al cerrar el
+  // globo, sea por el temporizador o porque lo cerraron a mano.
+  var posicionAntesDeCaminar = null;
 
   function posicionarJuntoAlPanda(el) {
     var tam = panda.getBoundingClientRect();
@@ -440,6 +446,18 @@ function inicializarPandaMascota() {
     clearTimeout(globoAutoCerrarTimer);
     globoMsg.textContent = msj.texto;
     globoMsg.classList.toggle("es-alerta", !!msj.alerta);
+    globoAccion.innerHTML = "";
+    if (opts.accion && opts.accion.url) {
+      var btnAccion = document.createElement("button");
+      btnAccion.type = "button";
+      btnAccion.className = "panda-chat-accion-btn";
+      btnAccion.textContent = opts.accion.etiqueta || "Ver más →";
+      btnAccion.addEventListener("click", function (e) {
+        e.stopPropagation();
+        window.location.href = opts.accion.url;
+      });
+      globoAccion.appendChild(btnAccion);
+    }
     globoPie.style.display = opts.pie === false ? "none" : "";
     if (opts.pie && typeof opts.pie === "string") globoPie.textContent = opts.pie;
     globo.classList.toggle("con-chat", !!opts.chat);
@@ -459,6 +477,9 @@ function inicializarPandaMascota() {
   function cerrarAsistente() {
     clearTimeout(globoAutoCerrarTimer);
     globo.classList.remove("mostrar");
+    // Si se acercó caminando a señalar algo, regresa a donde estaba en
+    // cuanto se cierra el globo (por tiempo o porque lo cerraron a mano).
+    if (posicionAntesDeCaminar) volverPandaACasa();
   }
 
   document.addEventListener("click", function (e) {
@@ -631,7 +652,7 @@ function inicializarPandaMascota() {
   function reaccionarConMensaje(texto, opts) {
     opts = opts || {};
     dispararReaccionAleatoria();
-    mostrarGlobo({ texto: texto, alerta: !!opts.alerta }, { autoCerrar: opts.autoCerrar || 6000, pie: false });
+    mostrarGlobo({ texto: texto, alerta: !!opts.alerta }, { autoCerrar: opts.autoCerrar || 6000, pie: false, accion: opts.accion || null });
   }
   window.pandaReaccionEvento = function (tipo, detalle) {
     if (tipo === "venta") {
@@ -702,6 +723,8 @@ function inicializarPandaMascota() {
         lista.push({
           texto: "Tienes " + n1 + " " + (n1 === 1 ? "producto" : "productos") + " con poco stock. Cuando puedas, revisa Inventario.",
           alerta: true,
+          destinoSelector: 'a.nav-link[href="/inventario"]',
+          accion: { etiqueta: "Ir a Inventario →", url: "/inventario" },
         });
       }
       if (resumenPanda.saldo_pendiente_total > 0) {
@@ -710,6 +733,8 @@ function inicializarPandaMascota() {
           texto: "Tienes " + n2 + " " + (n2 === 1 ? "orden entregada" : "órdenes entregadas") + " con saldo pendiente por cobrar (L " +
             resumenPanda.saldo_pendiente_monto.toFixed(2) + " en total).",
           alerta: true,
+          destinoSelector: 'a.nav-link[href="/ordenes"]',
+          accion: { etiqueta: "Ver órdenes entregadas →", url: "/ordenes?estado=ENTREGADO" },
         });
       }
       if (resumenPanda.listas_sin_avisar_total > 0) {
@@ -722,6 +747,67 @@ function inicializarPandaMascota() {
       }
     }
     return lista;
+  }
+
+  // ---------- Movimiento autónomo: el panda camina hacia el enlace del
+  // menú relacionado antes de mostrar un aviso proactivo (stock bajo,
+  // saldo pendiente), en vez de solo aparecer un globo de la nada.
+  // Reutiliza limitarYAplicar (la misma función del arrastre) para mover
+  // la posición real del panda, con una clase aparte que solo activa la
+  // transición mientras camina (arrastrar sigue siendo instantáneo). ----------
+
+  function senalarElemento(el) {
+    if (!el) return;
+    el.classList.add("panda-destacado");
+    setTimeout(function () { el.classList.remove("panda-destacado"); }, 2200);
+  }
+
+  function moverPandaHacia(targetEl, callback) {
+    if (!targetEl) { callback(); return; }
+    var rectTarget = targetEl.getBoundingClientRect();
+    if (!rectTarget.width && !rectTarget.height) {
+      // Oculto (ej. menú colapsado en móvil): no hay a dónde caminar, se
+      // muestra el aviso igual pero sin desplazarse.
+      callback();
+      return;
+    }
+    var rectPanda = panda.getBoundingClientRect();
+    // Guarda de dónde salió para volver ahí mismo al cerrar el globo, sin
+    // depender de si ya lo habían arrastrado antes o no.
+    posicionAntesDeCaminar = { x: rectPanda.left, y: rectPanda.top };
+
+    var destX = rectTarget.left - rectPanda.width - 6;
+    var destY = rectTarget.top + rectTarget.height / 2 - rectPanda.height / 2;
+    panda.classList.add("panda-caminando");
+    limitarYAplicar(destX, destY);
+    setTimeout(function () {
+      panda.classList.remove("panda-caminando");
+      senalarElemento(targetEl);
+      callback();
+    }, 950);
+  }
+
+  function volverPandaACasa() {
+    if (!posicionAntesDeCaminar) return;
+    var destino = posicionAntesDeCaminar;
+    posicionAntesDeCaminar = null;
+    panda.classList.add("panda-caminando");
+    limitarYAplicar(destino.x, destino.y);
+    setTimeout(function () { panda.classList.remove("panda-caminando"); }, 950);
+  }
+
+  // Igual que reaccionarConMensaje, pero si el aviso trae a dónde apuntar
+  // (destinoSelector), primero camina hacia allá y recién entonces muestra
+  // el globo; si no encuentra el destino (o no aplica), se comporta igual
+  // que antes.
+  function mostrarProactivo(item) {
+    var opts = { alerta: item.alerta, autoCerrar: 8000, accion: item.accion || null };
+    var destino = item.destinoSelector ? document.querySelector(item.destinoSelector) : null;
+    if (destino) {
+      moverPandaHacia(destino, function () { reaccionarConMensaje(item.texto, opts); });
+    } else {
+      reaccionarConMensaje(item.texto, opts);
+    }
   }
 
   function pensamientoEspontaneo() {
@@ -739,7 +825,7 @@ function inicializarPandaMascota() {
     var candidatos = mensajesProactivosDisponibles();
     if (candidatos.length && Math.random() < 0.6) {
       var elegido = candidatos[Math.floor(Math.random() * candidatos.length)];
-      reaccionarConMensaje(elegido.texto, { alerta: elegido.alerta, autoCerrar: 8000 });
+      mostrarProactivo(elegido);
       return;
     }
     if (Math.random() < 0.3) {

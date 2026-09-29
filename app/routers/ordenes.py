@@ -382,6 +382,67 @@ def ordenes_actualizar(
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
+def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str, observacion: str, usuario_nombre: str):
+    """Aplica un cambio de estado a una orden (incluye el pago automático al
+    marcar ENTREGADO). No hace commit ni valida que nuevo_estado sea válido;
+    eso lo decide quien llama. Devuelve el monto del pago automático
+    registrado, o None si no aplicó. Se usa tanto desde el formulario de la
+    orden como desde el asistente (acción "marcar_entregado"), para que el
+    comportamiento sea idéntico en los dos casos."""
+    estado_anterior = orden.estado
+    historial = HistorialEstado(
+        orden_id=orden.id, estado_anterior=estado_anterior, estado_nuevo=nuevo_estado,
+        usuario_nombre=usuario_nombre, observacion=observacion,
+    )
+    orden.estado = nuevo_estado
+    if nuevo_estado in ("ENTREGADO", "CANCELADO"):
+        if not orden.fecha_cierre:
+            orden.fecha_cierre = datetime.utcnow()
+    else:
+        orden.fecha_cierre = None
+    # Si la orden vuelve a entrar a LISTO PARA ENTREGAR (por ejemplo se
+    # corrigió algo después de haber avisado al cliente), se reinicia el
+    # aviso para que quede pendiente avisar de nuevo.
+    if nuevo_estado == "LISTO PARA ENTREGAR" and estado_anterior != "LISTO PARA ENTREGAR":
+        orden.notificado_listo = False
+        orden.fecha_notificado_listo = None
+    db.add(historial)
+
+    # Al marcar la orden como ENTREGADO se asume que ya se cobró todo:
+    # un técnico no debería entregar el equipo sin que el cliente haya
+    # pagado el saldo. Si queda saldo pendiente en ese momento, se
+    # registra automáticamente un abono por ese monto (en vez de
+    # obligar a un paso aparte de "Registrar abono" antes de poder
+    # cerrar la orden).
+    monto_pago_automatico = None
+    if nuevo_estado == "ENTREGADO" and orden.saldo and orden.saldo > 0:
+        monto_pago_automatico = orden.saldo
+        db.add(Pago(
+            orden_id=orden.id, monto=monto_pago_automatico, forma_pago=orden.forma_pago or "Efectivo",
+            usuario_nombre=usuario_nombre,
+            observacion="Pago automático al marcar la orden como ENTREGADO",
+        ))
+        db.flush()
+        db.refresh(orden)
+        recalcular_orden(orden)
+    return monto_pago_automatico
+
+
+def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, observacion: str, usuario_nombre: str) -> Decimal:
+    """Registra un abono sobre una orden (valida el monto contra el saldo
+    actual, puede lanzar ValueError/InvalidOperation). No hace commit.
+    Devuelve el monto ya validado. Compartida entre el formulario de la
+    orden y el asistente (acción "registrar_abono")."""
+    monto_validado = validar_abono(monto, orden.saldo)
+    pago = Pago(orden_id=orden.id, monto=monto_validado, forma_pago=forma_pago,
+                usuario_nombre=usuario_nombre, observacion=observacion)
+    db.add(pago)
+    db.flush()
+    db.refresh(orden)
+    recalcular_orden(orden)
+    return monto_validado
+
+
 @router.post("/ordenes/{orden_id}/estado")
 def ordenes_cambiar_estado(
     orden_id: int, request: Request,
@@ -390,43 +451,7 @@ def ordenes_cambiar_estado(
 ):
     orden = db.get(OrdenServicio, orden_id)
     if orden and nuevo_estado in ESTADOS_ORDEN:
-        estado_anterior = orden.estado
-        historial = HistorialEstado(
-            orden_id=orden.id, estado_anterior=estado_anterior, estado_nuevo=nuevo_estado,
-            usuario_nombre=usuario["nombre_completo"], observacion=observacion,
-        )
-        orden.estado = nuevo_estado
-        if nuevo_estado in ("ENTREGADO", "CANCELADO"):
-            if not orden.fecha_cierre:
-                orden.fecha_cierre = datetime.utcnow()
-        else:
-            orden.fecha_cierre = None
-        # Si la orden vuelve a entrar a LISTO PARA ENTREGAR (por ejemplo se
-        # corrigió algo después de haber avisado al cliente), se reinicia el
-        # aviso para que quede pendiente avisar de nuevo.
-        if nuevo_estado == "LISTO PARA ENTREGAR" and estado_anterior != "LISTO PARA ENTREGAR":
-            orden.notificado_listo = False
-            orden.fecha_notificado_listo = None
-        db.add(historial)
-
-        # Al marcar la orden como ENTREGADO se asume que ya se cobró todo:
-        # un técnico no debería entregar el equipo sin que el cliente haya
-        # pagado el saldo. Si queda saldo pendiente en ese momento, se
-        # registra automáticamente un abono por ese monto (en vez de
-        # obligar a un paso aparte de "Registrar abono" antes de poder
-        # cerrar la orden).
-        monto_pago_automatico = None
-        if nuevo_estado == "ENTREGADO" and orden.saldo and orden.saldo > 0:
-            monto_pago_automatico = orden.saldo
-            db.add(Pago(
-                orden_id=orden.id, monto=monto_pago_automatico, forma_pago=orden.forma_pago or "Efectivo",
-                usuario_nombre=usuario["nombre_completo"],
-                observacion="Pago automático al marcar la orden como ENTREGADO",
-            ))
-            db.flush()
-            db.refresh(orden)
-            recalcular_orden(orden)
-
+        monto_pago_automatico = _aplicar_cambio_estado(db, orden, nuevo_estado, observacion, usuario["nombre_completo"])
         db.commit()
         if monto_pago_automatico:
             flash(request, f"Estado actualizado a ENTREGADO. Se registró un pago automático de {monto_pago_automatico} para saldar la orden.", "success")
@@ -446,17 +471,11 @@ def ordenes_registrar_abono(
     if not orden:
         return RedirectResponse("/ordenes", status_code=303)
     try:
-        monto_validado = validar_abono(monto, orden.saldo)
+        monto_validado = _aplicar_abono(db, orden, monto, forma_pago, observacion, usuario["nombre_completo"])
     except (ValueError, InvalidOperation) as e:
         flash(request, str(e), "error")
         return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
-    pago = Pago(orden_id=orden.id, monto=monto_validado, forma_pago=forma_pago,
-                usuario_nombre=usuario["nombre_completo"], observacion=observacion)
-    db.add(pago)
-    db.flush()
-    db.refresh(orden)
-    recalcular_orden(orden)
     db.commit()
     flash(request, f"Abono de {monto_validado} registrado correctamente.", "success")
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)

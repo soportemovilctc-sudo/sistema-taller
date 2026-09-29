@@ -751,3 +751,67 @@ html, body {
 .panda-sugerencias-item { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid var(--border); color: var(--text); }
 .panda-sugerencias-item:last-child { border-bottom: none; }
 .panda-sugerencias-item:hover { background: var(--bg-alt); }
+
+/* Chat del asistente: historial + entrada de texto, dentro del mismo
+   globo de siempre (aparece debajo del consejo/mensaje). Se activa al
+   mantener presionada la mascota o al hacer doble clic sobre ella. */
+.panda-asistente.con-chat { width: 300px; }
+.panda-chat-log {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: none;
+}
+.panda-chat-log.mostrar { display: block; }
+.panda-chat-msg {
+  padding: 6px 9px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  line-height: 1.4;
+  max-width: 92%;
+  word-wrap: break-word;
+}
+.panda-chat-msg.usuario {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  margin-left: auto;
+  text-align: right;
+}
+.panda-chat-msg.asistente { background: var(--bg-alt); color: var(--text); }
+.panda-chat-accion { margin-top: 6px; display: flex; gap: 6px; }
+.panda-chat-accion-btn {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+.panda-chat-accion-btn:hover { background: var(--primary-dark); }
+.panda-chat-accion-btn:disabled { opacity: .6; cursor: default; }
+.panda-chat-input-row { display: flex; gap: 6px; margin-top: 8px; }
+.panda-chat-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+.panda-chat-input:focus { outline: none; border-color: var(--primary); }
+.panda-chat-enviar {
+  font-size: 13px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+}
+.panda-chat-enviar:hover { background: var(--primary-dark); }
+.panda-chat-enviar:disabled { opacity: .6; cursor: default; }

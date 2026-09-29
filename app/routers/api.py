@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 
 from app.database import get_db
-from app.models import OrdenServicio, Cliente, Configuracion
+from app.models import OrdenServicio, Cliente, Configuracion, Producto
 from app.deps import login_required
 
 router = APIRouter()
@@ -39,10 +39,14 @@ def buscar_global(q: str = "", db: Session = Depends(get_db), usuario=Depends(lo
 @router.get("/api/panda/resumen")
 def panda_resumen(db: Session = Depends(get_db), usuario=Depends(login_required)):
     """Resumen liviano para el asistente panda: cuántas órdenes activas ya
-    llevan más días de la cuenta sin entregarse. Usa exactamente la misma
+    llevan más días de la cuenta sin entregarse (usa exactamente la misma
     regla que ya existe en el Dashboard y en el filtro "Vencidas" de
-    Órdenes (config.dias_vencido_alerta, por defecto 3), para no inventar
-    un criterio nuevo de "vencida"."""
+    Órdenes, config.dias_vencido_alerta, por defecto 3, para no inventar
+    un criterio nuevo de "vencida"), más otras tres cosas que vale la pena
+    recordar de vez en cuando sin que el usuario tenga que preguntar:
+    productos con stock bajo, órdenes ya entregadas con saldo pendiente de
+    cobrar, y órdenes listas para entregar que todavía no se le avisaron
+    al cliente."""
     cfg = db.get(Configuracion, 1)
     umbral = cfg.dias_vencido_alerta if cfg else 3
 
@@ -54,6 +58,17 @@ def panda_resumen(db: Session = Depends(get_db), usuario=Depends(login_required)
         key=lambda o: o.dias_en_taller(), reverse=True,
     )
 
+    productos_activos = db.query(Producto).filter(Producto.estado == "activo").all()
+    stock_bajo_total = sum(1 for p in productos_activos if p.existencia <= p.stock_minimo)
+
+    entregadas_con_saldo = db.query(OrdenServicio).filter(
+        OrdenServicio.estado == "ENTREGADO", OrdenServicio.saldo > 0
+    ).all()
+
+    listas_sin_avisar_total = db.query(OrdenServicio).filter(
+        OrdenServicio.estado == "LISTO PARA ENTREGAR", OrdenServicio.notificado_listo.is_(False)
+    ).count()
+
     return {
         "umbral_dias": umbral,
         "vencidas_total": len(vencidas),
@@ -61,6 +76,10 @@ def panda_resumen(db: Session = Depends(get_db), usuario=Depends(login_required)
             {"numero_orden": o.numero_orden, "dias": o.dias_en_taller()}
             for o in vencidas[:5]
         ],
+        "stock_bajo_total": stock_bajo_total,
+        "saldo_pendiente_total": len(entregadas_con_saldo),
+        "saldo_pendiente_monto": float(sum((o.saldo or 0) for o in entregadas_con_saldo)),
+        "listas_sin_avisar_total": listas_sin_avisar_total,
     }
 
 

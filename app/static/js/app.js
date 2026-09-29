@@ -390,10 +390,18 @@ function inicializarPandaMascota() {
     '<span class="panda-asistente-cerrar" title="Cerrar">✕</span>' +
     '</div>' +
     '<div class="panda-asistente-msg"></div>' +
-    '<div class="panda-asistente-pie">Mantén presionado al panda para otro consejo.</div>';
+    '<div class="panda-chat-log"></div>' +
+    '<div class="panda-chat-input-row">' +
+    '<input type="text" class="panda-chat-input" placeholder="Escríbele algo, ej. “marca la orden 45 como entregada”" maxlength="200">' +
+    '<button type="button" class="panda-chat-enviar" title="Enviar">➤</button>' +
+    '</div>' +
+    '<div class="panda-asistente-pie">Escríbele abajo, o mantén presionado de nuevo para otro consejo.</div>';
   document.body.appendChild(globo);
   var globoMsg = globo.querySelector(".panda-asistente-msg");
   var globoPie = globo.querySelector(".panda-asistente-pie");
+  var globoChatLog = globo.querySelector(".panda-chat-log");
+  var globoChatInput = globo.querySelector(".panda-chat-input");
+  var globoChatEnviar = globo.querySelector(".panda-chat-enviar");
   globo.querySelector(".panda-asistente-cerrar").addEventListener("click", cerrarAsistente);
   var globoAutoCerrarTimer = null;
 
@@ -424,7 +432,9 @@ function inicializarPandaMascota() {
   // Muestra el globo con un mensaje. opts.autoCerrar: ms para cerrarlo solo
   // (null = se queda abierto hasta que lo cierren o toquen afuera, como el
   // consejo de presión larga). opts.pie: texto del pie; si no se manda, se
-  // usa el de siempre.
+  // usa el de siempre. opts.chat: true para mostrar el historial + la
+  // entrada de texto del chat debajo del mensaje (presión larga y doble
+  // clic las usan; los avisos espontáneos/reacciones de evento, no).
   function mostrarGlobo(msj, opts) {
     opts = opts || {};
     clearTimeout(globoAutoCerrarTimer);
@@ -432,6 +442,13 @@ function inicializarPandaMascota() {
     globoMsg.classList.toggle("es-alerta", !!msj.alerta);
     globoPie.style.display = opts.pie === false ? "none" : "";
     if (opts.pie && typeof opts.pie === "string") globoPie.textContent = opts.pie;
+    globo.classList.toggle("con-chat", !!opts.chat);
+    globoChatLog.classList.toggle("mostrar", !!opts.chat);
+    globoChatInput.parentElement.style.display = opts.chat ? "" : "none";
+    if (opts.chat) {
+      renderizarChatLog();
+      if (opts.enfocarInput) setTimeout(function () { globoChatInput.focus(); }, 50);
+    }
     posicionarJuntoAlPanda(globo);
     globo.classList.add("mostrar");
     if (opts.autoCerrar) {
@@ -449,6 +466,164 @@ function inicializarPandaMascota() {
       cerrarAsistente();
     }
   });
+
+  // ---------- Chat del asistente: acciones rápidas con confirmación y
+  // memoria de la conversación (qué orden/monto se mencionó, para no tener
+  // que repetirlo en el siguiente mensaje) ----------
+
+  var CLAVE_CHAT_HISTORIAL = "pandaChatHistorial";
+  var CLAVE_CHAT_ESTADO = "pandaChatEstado";
+  var VERBOS_INTENCION = { marcar_entregado: "entregar", marcar_notificado: "avisar", registrar_abono: "abonar" };
+
+  var chatHistorial = [];
+  var chatOrdenContexto = null;
+  var chatEsperando = null;
+  var chatIntentoPendiente = null;
+
+  try {
+    chatHistorial = JSON.parse(sessionStorage.getItem(CLAVE_CHAT_HISTORIAL) || "[]");
+    var estadoGuardado = JSON.parse(sessionStorage.getItem(CLAVE_CHAT_ESTADO) || "null");
+    if (estadoGuardado) {
+      chatOrdenContexto = estadoGuardado.ordenContexto || null;
+      chatEsperando = estadoGuardado.esperando || null;
+      chatIntentoPendiente = estadoGuardado.intentoPendiente || null;
+    }
+  } catch (e) { chatHistorial = []; }
+
+  function guardarEstadoChat() {
+    try {
+      // se guarda solo lo último (20 mensajes) para no crecer sin límite
+      sessionStorage.setItem(CLAVE_CHAT_HISTORIAL, JSON.stringify(chatHistorial.slice(-20)));
+      sessionStorage.setItem(CLAVE_CHAT_ESTADO, JSON.stringify({
+        ordenContexto: chatOrdenContexto, esperando: chatEsperando, intentoPendiente: chatIntentoPendiente,
+      }));
+    } catch (e) { /* sin almacenamiento: el chat sigue funcionando, solo no recuerda entre recargas */ }
+  }
+
+  function renderizarChatLog() {
+    globoChatLog.innerHTML = "";
+    chatHistorial.forEach(function (msg) {
+      var div = document.createElement("div");
+      div.className = "panda-chat-msg " + (msg.rol === "usuario" ? "usuario" : "asistente");
+      div.textContent = msg.texto;
+      globoChatLog.appendChild(div);
+      if (msg.accion && !msg.accionResuelta) {
+        var cont = document.createElement("div");
+        cont.className = "panda-chat-accion";
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "panda-chat-accion-btn";
+        btn.textContent = msg.accion.etiqueta || "Confirmar";
+        btn.addEventListener("click", function () { confirmarAccionChat(msg, btn); });
+        cont.appendChild(btn);
+        globoChatLog.appendChild(cont);
+      }
+    });
+    globoChatLog.scrollTop = globoChatLog.scrollHeight;
+    // el globo crece con cada mensaje nuevo: hay que recalcular su
+    // posición o el contenido nuevo se puede salir de la pantalla (el
+    // globo queda anclado por arriba/abajo del panda según la posición
+    // que tenía cuando se abrió, con una altura que ya no aplica).
+    if (globo.classList.contains("mostrar")) posicionarJuntoAlPanda(globo);
+  }
+
+  function agregarMensajeChat(rol, texto, accion) {
+    chatHistorial.push({ rol: rol, texto: texto, accion: accion || null, accionResuelta: false });
+    guardarEstadoChat();
+    renderizarChatLog();
+  }
+
+  // Si el usuario responde con solo un número (por ejemplo tras
+  // preguntarle "¿de qué orden hablas?"), arma el mensaje completo con el
+  // verbo pendiente para no tener que interpretarlo de nuevo desde cero.
+  function prepararMensajeParaEnviar(textoOriginal) {
+    var soloNumero = /^\s*[0-9]{1,6}\s*$/.test(textoOriginal);
+    if (!soloNumero) return textoOriginal;
+    if (chatEsperando === "numero_orden" && chatIntentoPendiente) {
+      var verbo = VERBOS_INTENCION[chatIntentoPendiente] || "marca";
+      return verbo + " la orden " + textoOriginal.trim();
+    }
+    if (chatEsperando === "monto" && chatOrdenContexto) {
+      return "abona " + textoOriginal.trim() + " a la orden " + chatOrdenContexto;
+    }
+    return textoOriginal;
+  }
+
+  function enviarMensajeChat() {
+    var textoOriginal = globoChatInput.value.trim();
+    if (!textoOriginal) return;
+    agregarMensajeChat("usuario", textoOriginal);
+    globoChatInput.value = "";
+    globoChatInput.disabled = true;
+    globoChatEnviar.disabled = true;
+
+    var mensaje = prepararMensajeParaEnviar(textoOriginal);
+    fetch("/api/asistente/consulta", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mensaje: mensaje, contexto_orden: chatOrdenContexto }),
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) {
+          agregarMensajeChat("asistente", "No pude conectarme en este momento. Intenta de nuevo en un rato.");
+          return;
+        }
+        if (data.orden_numero_referencia) chatOrdenContexto = data.orden_numero_referencia;
+        chatEsperando = data.esperando || null;
+        chatIntentoPendiente = data.intencion_pendiente || null;
+        guardarEstadoChat();
+        agregarMensajeChat("asistente", data.texto, data.accion);
+      })
+      .catch(function () {
+        agregarMensajeChat("asistente", "No pude conectarme en este momento. Intenta de nuevo en un rato.");
+      })
+      .then(function () {
+        globoChatInput.disabled = false;
+        globoChatEnviar.disabled = false;
+        globoChatInput.focus();
+      });
+  }
+
+  function confirmarAccionChat(msg, btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = "Un momento...";
+    fetch("/api/asistente/ejecutar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo: msg.accion.tipo, orden_id: msg.accion.orden_id, parametros: msg.accion.parametros || {} }),
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        msg.accionResuelta = true;
+        guardarEstadoChat();
+        if (!data) {
+          agregarMensajeChat("asistente", "No pude conectarme para confirmarlo. Intenta de nuevo.");
+          return;
+        }
+        agregarMensajeChat("asistente", data.texto);
+        if (data.ok) {
+          dispararReaccionAleatoria();
+          // tarea resuelta: se limpia la memoria para que el siguiente
+          // pedido empiece de cero y no arrastre esta orden por error.
+          chatOrdenContexto = null;
+          chatEsperando = null;
+          chatIntentoPendiente = null;
+          guardarEstadoChat();
+        }
+      })
+      .catch(function () {
+        msg.accionResuelta = true;
+        agregarMensajeChat("asistente", "No pude conectarme para confirmarlo. Intenta de nuevo.");
+      });
+  }
+
+  globoChatEnviar.addEventListener("click", enviarMensajeChat);
+  globoChatInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); enviarMensajeChat(); }
+  });
+  globoChatInput.addEventListener("click", function (e) { e.stopPropagation(); });
+  globoChatInput.addEventListener("mousedown", function (e) { e.stopPropagation(); });
 
   // Reacciona (animación al azar) + muestra un mensaje que se cierra solo:
   // para eventos reales (pago, orden creada, factura, etc.), no para el
@@ -491,7 +666,13 @@ function inicializarPandaMascota() {
   }
 
   function abrirAsistente() {
-    mostrarGlobo(elegirMensaje(), { autoCerrar: null });
+    mostrarGlobo(elegirMensaje(), { autoCerrar: null, chat: true });
+  }
+
+  // Doble clic: va directo al chat (sin esperar la presión larga ni mostrar
+  // primero un consejo al azar), para quien ya sabe que le va a pedir algo.
+  function abrirChatDirecto() {
+    mostrarGlobo({ texto: "¿Qué necesitas?", alerta: false }, { autoCerrar: null, chat: true, enfocarInput: true, pie: false });
   }
 
   // ---------- Aparece solo de vez en cuando (vencidas, saludo del día, o un
@@ -507,9 +688,46 @@ function inicializarPandaMascota() {
     return true;
   }
 
+  // Recordatorios proactivos: además de las órdenes vencidas, avisa (de vez
+  // en cuando, no siempre) de otras cosas que vale la pena no dejar
+  // olvidadas. Cada uno solo entra a la lista si de verdad aplica ahora
+  // mismo (viene de /api/panda/resumen, no se inventa nada).
+  function mensajesProactivosDisponibles() {
+    var lista = [];
+    var msjVencidas = mensajeVencidas();
+    if (msjVencidas) lista.push(msjVencidas);
+    if (resumenPanda) {
+      if (resumenPanda.stock_bajo_total > 0) {
+        var n1 = resumenPanda.stock_bajo_total;
+        lista.push({
+          texto: "Tienes " + n1 + " " + (n1 === 1 ? "producto" : "productos") + " con poco stock. Cuando puedas, revisa Inventario.",
+          alerta: true,
+        });
+      }
+      if (resumenPanda.saldo_pendiente_total > 0) {
+        var n2 = resumenPanda.saldo_pendiente_total;
+        lista.push({
+          texto: "Tienes " + n2 + " " + (n2 === 1 ? "orden entregada" : "órdenes entregadas") + " con saldo pendiente por cobrar (L " +
+            resumenPanda.saldo_pendiente_monto.toFixed(2) + " en total).",
+          alerta: true,
+        });
+      }
+      if (resumenPanda.listas_sin_avisar_total > 0) {
+        var n3 = resumenPanda.listas_sin_avisar_total;
+        lista.push({
+          texto: "Tienes " + n3 + " " + (n3 === 1 ? "orden lista" : "órdenes listas") + " para entregar que todavía no se le" +
+            (n3 === 1 ? "" : "s") + " avisó al cliente.",
+          alerta: false,
+        });
+      }
+    }
+    return lista;
+  }
+
   function pensamientoEspontaneo() {
-    // Prioridad: saludo del día (si toca) > vencidas > un consejo cualquiera,
-    // y con probabilidad para que no se sienta como una alarma constante.
+    // Prioridad: saludo del día (si toca) > un recordatorio proactivo > un
+    // consejo cualquiera, y con probabilidad para que no se sienta como una
+    // alarma constante.
     var hoy = new Date().toISOString().slice(0, 10);
     var yaSaludoHoy = false;
     try { yaSaludoHoy = localStorage.getItem(CLAVE_SALUDO_RICHARD) === hoy; } catch (e) { yaSaludoHoy = false; }
@@ -518,9 +736,10 @@ function inicializarPandaMascota() {
       saludoRichardSiToca();
       return;
     }
-    var msjVencidas = mensajeVencidas();
-    if (msjVencidas && Math.random() < 0.6) {
-      reaccionarConMensaje(msjVencidas.texto, { alerta: true, autoCerrar: 8000 });
+    var candidatos = mensajesProactivosDisponibles();
+    if (candidatos.length && Math.random() < 0.6) {
+      var elegido = candidatos[Math.floor(Math.random() * candidatos.length)];
+      reaccionarConMensaje(elegido.texto, { alerta: elegido.alerta, autoCerrar: 8000 });
       return;
     }
     if (Math.random() < 0.3) {
@@ -825,6 +1044,15 @@ function inicializarPandaMascota() {
     moverA(t.clientX, t.clientY);
   }, { passive: true });
   document.addEventListener("touchend", soltar);
+
+  // Doble clic/doble toque: acceso directo al chat, sin esperar la presión
+  // larga. Se dispara junto con dos reacciones cortas normales (una por
+  // cada clic), lo cual en la práctica se ve como que la mascota se
+  // entusiasma un poco antes de abrir el chat.
+  panda.addEventListener("dblclick", function (e) {
+    e.preventDefault();
+    abrirChatDirecto();
+  });
 
   // Si la ventana cambia de tamaño y la deja fuera de la pantalla, la
   // reacomoda dentro del área visible.

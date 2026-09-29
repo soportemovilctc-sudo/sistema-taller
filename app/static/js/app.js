@@ -257,8 +257,17 @@ function inicializarPandaMascota() {
 
   var CLAVE_POSICION = "pandaCajaPos";
   var CLAVE_SALUDO_RICHARD = "pandaSaludoRichardFecha";
+  var CLAVE_SALUDO_PERSONAL = "pandaSaludoPersonalFecha";
   var UMBRAL_ARRASTRE = 6; // px de movimiento antes de considerarlo arrastre y no un toque
   var UMBRAL_PRESION_LARGA = 480; // ms sostenido sin arrastrar, para abrir el asistente
+
+  // Fecha de HOY según el reloj de la computadora (no UTC: toISOString()
+  // convierte a UTC y puede dar el día equivocado según la hora), para que
+  // "una vez al día" se calcule con la hora real del usuario.
+  function fechaLocalHoy() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
 
   // Cada reacción es la lista de ids de los <animate>/<animateTransform>
   // (begin="indefinite" en el SVG de base.html) que hay que disparar
@@ -700,12 +709,35 @@ function inicializarPandaMascota() {
   // consejo), sin quedarse fijo en pantalla como antes ----------
 
   function saludoRichardSiToca() {
-    var hoy = new Date().toISOString().slice(0, 10);
+    var hoy = fechaLocalHoy();
     var ultimaFecha = null;
     try { ultimaFecha = localStorage.getItem(CLAVE_SALUDO_RICHARD); } catch (e) { ultimaFecha = null; }
     if (ultimaFecha === hoy) return false;
     try { localStorage.setItem(CLAVE_SALUDO_RICHARD, hoy); } catch (e) { /* sin almacenamiento: se podría repetir, no pasa nada grave */ }
     reaccionarConMensaje("Richard te manda saludos 👋 ¡Que tengas un excelente día!", { autoCerrar: 7000 });
+    return true;
+  }
+
+  // Saludo personalizado: al abrir el sistema (una vez al día, no en cada
+  // página que visite), saluda por nombre y según la hora de la
+  // computadora del usuario, no la del servidor (cada quien puede estar en
+  // otra zona horaria, y da igual: lo que importa es lo que el usuario ve
+  // en su propio reloj). No depende de mensajesProactivosDisponibles ni
+  // de la probabilidad de pensamientoEspontaneo: se dispara solo, siempre,
+  // al iniciar, para que de verdad "salude cada vez que abren el sistema".
+  function saludoPersonalizado() {
+    var hoy = fechaLocalHoy();
+    var ultimaFecha = null;
+    try { ultimaFecha = localStorage.getItem(CLAVE_SALUDO_PERSONAL); } catch (e) { ultimaFecha = null; }
+    if (ultimaFecha === hoy) return false;
+    try { localStorage.setItem(CLAVE_SALUDO_PERSONAL, hoy); } catch (e) { /* sin almacenamiento: se podría repetir, no pasa nada grave */ }
+
+    var hora = new Date().getHours();
+    var saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
+    var nombreCompleto = (panda.dataset.usuario || "").trim();
+    var primerNombre = nombreCompleto ? nombreCompleto.split(/\s+/)[0] : "";
+    var texto = saludo + (primerNombre ? ", " + primerNombre : "") + ". ¡Qué bueno verte! 👋";
+    reaccionarConMensaje(texto, { autoCerrar: 7000 });
     return true;
   }
 
@@ -814,7 +846,7 @@ function inicializarPandaMascota() {
     // Prioridad: saludo del día (si toca) > un recordatorio proactivo > un
     // consejo cualquiera, y con probabilidad para que no se sienta como una
     // alarma constante.
-    var hoy = new Date().toISOString().slice(0, 10);
+    var hoy = fechaLocalHoy();
     var yaSaludoHoy = false;
     try { yaSaludoHoy = localStorage.getItem(CLAVE_SALUDO_RICHARD) === hoy; } catch (e) { yaSaludoHoy = false; }
 
@@ -924,9 +956,15 @@ function inicializarPandaMascota() {
     }, 450);
   });
 
-  // ---------- Autorelleno 2: frases frecuentes al describir la falla ----------
+  // ---------- Autorelleno 2: frases usadas antes. Ya no es solo "Falla
+  // reportada": aplica a todos los campos de texto libre donde tiene
+  // sentido repetir algo ya escrito antes (diagnóstico, trabajo
+  // realizado, observaciones, condición física, y la observación al
+  // cambiar estado o registrar un abono). La caja siempre aparece pegada
+  // justo debajo del campo que se está usando (nunca en otro lado de la
+  // pantalla), y solo mientras ese campo está enfocado, para no estorbar. ----------
 
-  var frasesFrecuentes = null;
+  var frasesFrecuentesCache = {}; // por campo: undefined = no pedido, null = pedido y en curso, [...] = ya llegó
   var cajaSugerencias = document.createElement("div");
   cajaSugerencias.className = "panda-sugerencias";
   document.body.appendChild(cajaSugerencias);
@@ -936,10 +974,30 @@ function inicializarPandaMascota() {
     cajaSugerencias.innerHTML = "";
   }
 
-  function mostrarSugerenciasFrases(campo) {
-    if (!frasesFrecuentes || !frasesFrecuentes.length) return;
+  // A qué campo de la API corresponde el elemento enfocado, o null si no
+  // aplica. El input "observacion" del detalle de la orden se repite en
+  // dos formularios distintos (cambiar estado / registrar abono): se
+  // distinguen por la acción del formulario que lo contiene.
+  function campoAutorellenoDe(el) {
+    if (!el || !el.matches) return null;
+    if (el.matches('textarea[name="falla_reportada"]')) return "falla_reportada";
+    if (el.matches('textarea[name="diagnostico"]')) return "diagnostico";
+    if (el.matches('textarea[name="trabajo_realizado"]')) return "trabajo_realizado";
+    if (el.matches('textarea[name="observaciones"]')) return "observaciones";
+    if (el.matches('textarea[name="observaciones_condicion"]')) return "observaciones_condicion";
+    if (el.matches('input[name="observacion"]')) {
+      var form = el.closest("form");
+      var accion = (form && form.getAttribute("action")) || "";
+      if (/\/abono$/.test(accion)) return "pago_observacion";
+      if (/\/estado$/.test(accion)) return "historial_observacion";
+    }
+    return null;
+  }
+
+  function mostrarSugerenciasFrases(campo, frases) {
+    if (!frases || !frases.length) return;
     cajaSugerencias.innerHTML = '<div class="panda-sugerencias-titulo">Frases usadas antes (clic para usar):</div>';
-    frasesFrecuentes.forEach(function (frase) {
+    frases.forEach(function (frase) {
       var item = document.createElement("div");
       item.className = "panda-sugerencias-item";
       item.textContent = frase;
@@ -958,23 +1016,29 @@ function inicializarPandaMascota() {
   }
 
   document.addEventListener("focus", function (e) {
-    if (!e.target || !e.target.matches || !e.target.matches('textarea[name="falla_reportada"]')) return;
+    var nombreCampo = campoAutorellenoDe(e.target);
+    if (!nombreCampo) return;
     var campo = e.target;
-    if (frasesFrecuentes === null) {
-      fetch("/api/panda/frases-frecuentes")
+    var cache = frasesFrecuentesCache[nombreCampo];
+    if (cache === undefined) {
+      frasesFrecuentesCache[nombreCampo] = null; // evita pedirlo dos veces si enfocan rápido
+      fetch("/api/panda/frases-frecuentes?campo=" + encodeURIComponent(nombreCampo))
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
-          frasesFrecuentes = (data && data.frases) || [];
-          mostrarSugerenciasFrases(campo);
+          var frases = (data && data.frases) || [];
+          frasesFrecuentesCache[nombreCampo] = frases;
+          // si ya se salió del campo mientras se esperaba la respuesta, no
+          // aparece de la nada encima de otra cosa que esté haciendo ahora
+          if (document.activeElement === campo) mostrarSugerenciasFrases(campo, frases);
         })
-        .catch(function () { frasesFrecuentes = []; });
-    } else {
-      mostrarSugerenciasFrases(campo);
+        .catch(function () { frasesFrecuentesCache[nombreCampo] = []; });
+    } else if (cache) {
+      mostrarSugerenciasFrases(campo, cache);
     }
   }, true);
 
   document.addEventListener("blur", function (e) {
-    if (!e.target || !e.target.matches || !e.target.matches('textarea[name="falla_reportada"]')) return;
+    if (!campoAutorellenoDe(e.target)) return;
     setTimeout(ocultarSugerenciasFrases, 150);
   }, true);
 
@@ -1150,6 +1214,10 @@ function inicializarPandaMascota() {
   consultarResumenPanda();
   revisarFlashesParaReaccion();
   programarPensamientoEspontaneo();
+  // Pequeña demora para que no aparezca de golpe antes de que la página
+  // termine de acomodarse, pero sin depender de la espera larga/aleatoria
+  // de los avisos espontáneos: este saludo siempre aparece al abrir.
+  setTimeout(saludoPersonalizado, 1500);
 }
 
 document.addEventListener("DOMContentLoaded", function () {

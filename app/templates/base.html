@@ -141,7 +141,7 @@
        beginElement() al tocarla (un <img> no permite eso: su SVG queda
        aislado, sin acceso desde el JS de la página). -->
   {% set _mascota = usuario.mascota or 'panda' %}
-  <svg id="pandaCajaMascota" class="panda-mascota" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
+  <svg id="pandaCajaMascota" class="panda-mascota" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
     <title>Arrástrame a donde quieras. Tócame para una sorpresa.</title>
     {% if _mascota == 'leon' %}
     <defs>

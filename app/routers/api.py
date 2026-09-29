@@ -5,10 +5,24 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 
 from app.database import get_db
-from app.models import OrdenServicio, Cliente, Configuracion, Producto
+from app.models import OrdenServicio, Cliente, Configuracion, Producto, HistorialEstado, Pago
 from app.deps import login_required
 
 router = APIRouter()
+
+# Campos de texto libre donde tiene sentido sugerir frases usadas antes
+# (autorrelleno). "observacion" vive en dos tablas distintas según el
+# formulario (cambiar estado / registrar abono), por eso son dos entradas
+# separadas aunque en la interfaz se vean como el mismo tipo de campo.
+CAMPOS_FRECUENTES = {
+    "falla_reportada": OrdenServicio.falla_reportada,
+    "diagnostico": OrdenServicio.diagnostico,
+    "trabajo_realizado": OrdenServicio.trabajo_realizado,
+    "observaciones": OrdenServicio.observaciones,
+    "observaciones_condicion": OrdenServicio.observaciones_condicion,
+    "historial_observacion": HistorialEstado.observacion,
+    "pago_observacion": Pago.observacion,
+}
 
 
 @router.get("/api/buscar")
@@ -107,15 +121,19 @@ def panda_cliente_info(cliente_id: int, db: Session = Depends(get_db), usuario=D
 
 
 @router.get("/api/panda/frases-frecuentes")
-def panda_frases_frecuentes(db: Session = Depends(get_db), usuario=Depends(login_required)):
-    """Frases de 'Falla reportada' más usadas antes en el taller, para
-    sugerirlas como autorelleno al describir el problema de una orden
-    nueva."""
+def panda_frases_frecuentes(campo: str = "falla_reportada", db: Session = Depends(get_db), usuario=Depends(login_required)):
+    """Frases más usadas antes en un campo de texto libre del taller
+    (falla reportada, diagnóstico, trabajo realizado, observaciones...),
+    para sugerirlas como autorelleno. `campo` debe ser una de las claves
+    de CAMPOS_FRECUENTES; si mandan cualquier otra cosa (o nada), se usa
+    "falla_reportada" por defecto en vez de fallar, para no depender de
+    que el frontend siempre mande un valor válido."""
+    columna = CAMPOS_FRECUENTES.get(campo, CAMPOS_FRECUENTES["falla_reportada"])
     filas = (
-        db.query(OrdenServicio.falla_reportada, func.count(OrdenServicio.id).label("n"))
-        .filter(OrdenServicio.falla_reportada.isnot(None), OrdenServicio.falla_reportada != "")
-        .group_by(OrdenServicio.falla_reportada)
-        .order_by(func.count(OrdenServicio.id).desc())
+        db.query(columna, func.count(columna).label("n"))
+        .filter(columna.isnot(None), columna != "")
+        .group_by(columna)
+        .order_by(func.count(columna).desc())
         .limit(8)
         .all()
     )

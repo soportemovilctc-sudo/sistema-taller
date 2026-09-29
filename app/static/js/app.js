@@ -537,11 +537,14 @@ function inicializarPandaMascota() {
 
   function guardarEstadoChat() {
     try {
-      // se guarda solo lo último (8 mensajes) para que el historial no se
-      // sienta pesado ni se llene de texto viejo; para verlo desde cero,
-      // está el botón de "Nueva conversación" (🧹) en el encabezado.
-      sessionStorage.setItem(CLAVE_CHAT_HISTORIAL, JSON.stringify(chatHistorial.slice(-8)));
-      chatHistorial = chatHistorial.slice(-8);
+      // Solo se guarda y se muestra el ÚLTIMO mensaje: nada de historial
+      // acumulado en pantalla, para que el globo no se sienta pesado ni
+      // lleno de texto viejo. La memoria de la conversación (qué orden o
+      // monto se mencionó) sigue funcionando igual: vive aparte, en
+      // chatOrdenContexto/chatEsperando/chatIntentoPendiente, no en este
+      // arreglo que es solo para lo que se ve en pantalla.
+      sessionStorage.setItem(CLAVE_CHAT_HISTORIAL, JSON.stringify(chatHistorial.slice(-1)));
+      chatHistorial = chatHistorial.slice(-1);
       sessionStorage.setItem(CLAVE_CHAT_ESTADO, JSON.stringify({
         ordenContexto: chatOrdenContexto, esperando: chatEsperando, intentoPendiente: chatIntentoPendiente,
       }));

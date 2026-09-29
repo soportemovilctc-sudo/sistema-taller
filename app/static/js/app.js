@@ -396,7 +396,10 @@ function inicializarPandaMascota() {
   globo.innerHTML =
     '<div class="panda-asistente-header">' +
     '<span>' + emojiMascota + ' Asistente</span>' +
+    '<span class="panda-asistente-header-btns">' +
+    '<span class="panda-asistente-limpiar" title="Nueva conversación (borra este historial)">🧹</span>' +
     '<span class="panda-asistente-cerrar" title="Cerrar">✕</span>' +
+    '</span>' +
     '</div>' +
     '<div class="panda-asistente-msg"></div>' +
     '<div class="panda-asistente-accion"></div>' +
@@ -414,6 +417,18 @@ function inicializarPandaMascota() {
   var globoChatInput = globo.querySelector(".panda-chat-input");
   var globoChatEnviar = globo.querySelector(".panda-chat-enviar");
   globo.querySelector(".panda-asistente-cerrar").addEventListener("click", cerrarAsistente);
+  // Para que el historial del chat no se sienta pesado con el tiempo: el
+  // usuario puede borrarlo cuando quiera y empezar de cero (además del
+  // límite automático de mensajes guardados, ver CLAVE_CHAT_HISTORIAL).
+  globo.querySelector(".panda-asistente-limpiar").addEventListener("click", function (e) {
+    e.stopPropagation();
+    chatHistorial = [];
+    chatOrdenContexto = null;
+    chatEsperando = null;
+    chatIntentoPendiente = null;
+    guardarEstadoChat();
+    renderizarChatLog();
+  });
   var globoAutoCerrarTimer = null;
   // Dónde estaba el panda antes de caminar hacia algo que quiere señalar
   // (Inventario, Órdenes...), para regresarlo ahí mismo al cerrar el
@@ -522,8 +537,11 @@ function inicializarPandaMascota() {
 
   function guardarEstadoChat() {
     try {
-      // se guarda solo lo último (20 mensajes) para no crecer sin límite
-      sessionStorage.setItem(CLAVE_CHAT_HISTORIAL, JSON.stringify(chatHistorial.slice(-20)));
+      // se guarda solo lo último (8 mensajes) para que el historial no se
+      // sienta pesado ni se llene de texto viejo; para verlo desde cero,
+      // está el botón de "Nueva conversación" (🧹) en el encabezado.
+      sessionStorage.setItem(CLAVE_CHAT_HISTORIAL, JSON.stringify(chatHistorial.slice(-8)));
+      chatHistorial = chatHistorial.slice(-8);
       sessionStorage.setItem(CLAVE_CHAT_ESTADO, JSON.stringify({
         ordenContexto: chatOrdenContexto, esperando: chatEsperando, intentoPendiente: chatIntentoPendiente,
       }));
@@ -660,8 +678,13 @@ function inicializarPandaMascota() {
   // consejo de presión larga.
   function reaccionarConMensaje(texto, opts) {
     opts = opts || {};
+    // Si el globo ya está abierto (el usuario está chateando o leyendo un
+    // aviso anterior), no lo interrumpe ni le pisa el chat a medio
+    // escribir: se queda callado esta vez en vez de estorbar.
+    if (globo.classList.contains("mostrar")) return false;
     dispararReaccionAleatoria();
     mostrarGlobo({ texto: texto, alerta: !!opts.alerta }, { autoCerrar: opts.autoCerrar || 6000, pie: false, accion: opts.accion || null });
+    return true;
   }
   window.pandaReaccionEvento = function (tipo, detalle) {
     if (tipo === "venta") {
@@ -713,8 +736,12 @@ function inicializarPandaMascota() {
     var ultimaFecha = null;
     try { ultimaFecha = localStorage.getItem(CLAVE_SALUDO_RICHARD); } catch (e) { ultimaFecha = null; }
     if (ultimaFecha === hoy) return false;
+    // Solo se marca como "ya saludado hoy" si de verdad se alcanzó a
+    // mostrar (reaccionarConMensaje no interrumpe un chat abierto); si no
+    // se mostró, queda pendiente para la próxima página que visite hoy
+    // mismo, en vez de perderse el día completo.
+    if (!reaccionarConMensaje("Richard te manda saludos 👋 ¡Que tengas un excelente día!", { autoCerrar: 7000 })) return false;
     try { localStorage.setItem(CLAVE_SALUDO_RICHARD, hoy); } catch (e) { /* sin almacenamiento: se podría repetir, no pasa nada grave */ }
-    reaccionarConMensaje("Richard te manda saludos 👋 ¡Que tengas un excelente día!", { autoCerrar: 7000 });
     return true;
   }
 
@@ -730,14 +757,18 @@ function inicializarPandaMascota() {
     var ultimaFecha = null;
     try { ultimaFecha = localStorage.getItem(CLAVE_SALUDO_PERSONAL); } catch (e) { ultimaFecha = null; }
     if (ultimaFecha === hoy) return false;
-    try { localStorage.setItem(CLAVE_SALUDO_PERSONAL, hoy); } catch (e) { /* sin almacenamiento: se podría repetir, no pasa nada grave */ }
 
     var hora = new Date().getHours();
     var saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
     var nombreCompleto = (panda.dataset.usuario || "").trim();
     var primerNombre = nombreCompleto ? nombreCompleto.split(/\s+/)[0] : "";
     var texto = saludo + (primerNombre ? ", " + primerNombre : "") + ". ¡Qué bueno verte! 👋";
-    reaccionarConMensaje(texto, { autoCerrar: 7000 });
+    // Igual que con el saludo de Richard: solo cuenta como "ya saludado
+    // hoy" si en verdad se mostró (por si el usuario ya tenía el chat
+    // abierto en cuanto cargó la página), para no perder el saludo del
+    // día entero por esa coincidencia.
+    if (!reaccionarConMensaje(texto, { autoCerrar: 7000 })) return false;
+    try { localStorage.setItem(CLAVE_SALUDO_PERSONAL, hoy); } catch (e) { /* sin almacenamiento: se podría repetir, no pasa nada grave */ }
     return true;
   }
 
@@ -836,7 +867,12 @@ function inicializarPandaMascota() {
     var opts = { alerta: item.alerta, autoCerrar: 8000, accion: item.accion || null };
     var destino = item.destinoSelector ? document.querySelector(item.destinoSelector) : null;
     if (destino) {
-      moverPandaHacia(destino, function () { reaccionarConMensaje(item.texto, opts); });
+      moverPandaHacia(destino, function () {
+        // Si ya no se pudo mostrar (por ejemplo, el usuario abrió el chat
+        // justo mientras caminaba), que no se quede varado junto al
+        // enlace: regresa a su lugar de una vez.
+        if (!reaccionarConMensaje(item.texto, opts)) volverPandaACasa();
+      });
     } else {
       reaccionarConMensaje(item.texto, opts);
     }

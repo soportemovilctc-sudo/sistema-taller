@@ -734,7 +734,8 @@ html, body {
   font-weight: 700;
   color: var(--text);
 }
-.panda-asistente-cerrar {
+.panda-asistente-header-btns { display: flex; align-items: center; gap: 2px; }
+.panda-asistente-cerrar, .panda-asistente-limpiar {
   cursor: pointer;
   color: var(--text-muted);
   font-size: 15px;
@@ -742,7 +743,7 @@ html, body {
   padding: 2px 4px;
   border-radius: 6px;
 }
-.panda-asistente-cerrar:hover { background: var(--bg-alt); color: var(--text); }
+.panda-asistente-cerrar:hover, .panda-asistente-limpiar:hover { background: var(--bg-alt); color: var(--text); }
 .panda-asistente-msg { color: var(--text); line-height: 1.45; }
 .panda-asistente-msg.es-alerta { color: var(--danger); font-weight: 600; }
 .panda-asistente-msg a { color: var(--primary-light); }

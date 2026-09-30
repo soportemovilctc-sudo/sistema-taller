@@ -70,6 +70,28 @@ def configuracion_actualizar(
     return RedirectResponse("/configuracion", status_code=303)
 
 
+@router.post("/configuracion/notificaciones")
+def configuracion_notificaciones_actualizar(
+    request: Request,
+    twilio_account_sid: str = Form(""), twilio_auth_token: str = Form(""),
+    twilio_whatsapp_from: str = Form(""),
+    notificar_whatsapp_automatico: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    """Guarda las credenciales de Twilio para el envío automático de
+    WhatsApp al cliente cuando su equipo queda LISTO PARA ENTREGAR. Si se
+    dejan vacías, el envío automático simplemente no hace nada y el aviso
+    manual (botón "Avisar por WhatsApp") sigue funcionando igual."""
+    cfg = get_or_create_config(db)
+    cfg.twilio_account_sid = twilio_account_sid.strip()
+    cfg.twilio_auth_token = twilio_auth_token.strip()
+    cfg.twilio_whatsapp_from = twilio_whatsapp_from.strip()
+    cfg.notificar_whatsapp_automatico = notificar_whatsapp_automatico == "on"
+    db.commit()
+    flash(request, "Configuración de notificaciones guardada correctamente.", "success")
+    return RedirectResponse("/configuracion", status_code=303)
+
+
 @router.get("/configuracion/qr")
 def configuracion_qr(usuario=Depends(roles_required("admin"))):
     url = url_acceso_local()

@@ -23,6 +23,7 @@ from app.utils.calculations import calcular_recargo, calcular_total, calcular_sa
 from app.utils.pdf import generar_pdf_orden, construir_contexto_pdf
 from app.utils.pdf_ticket import generar_ticket_orden
 from app.utils.flash import flash
+from app.utils.notificaciones import enviar_whatsapp
 from app.deps import login_required, roles_required
 
 router = APIRouter()
@@ -402,10 +403,29 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
         orden.fecha_cierre = None
     # Si la orden vuelve a entrar a LISTO PARA ENTREGAR (por ejemplo se
     # corrigió algo después de haber avisado al cliente), se reinicia el
-    # aviso para que quede pendiente avisar de nuevo.
+    # aviso para que quede pendiente avisar de nuevo. Antes de dejarlo
+    # pendiente, intenta avisarle automáticamente por WhatsApp (si hay
+    # credenciales de Twilio configuradas en Configuración >
+    # Notificaciones); si no hay credenciales o el envío falla, se queda
+    # pendiente igual que antes y el botón manual de "Avisar por WhatsApp"
+    # sigue disponible como respaldo.
     if nuevo_estado == "LISTO PARA ENTREGAR" and estado_anterior != "LISTO PARA ENTREGAR":
         orden.notificado_listo = False
         orden.fecha_notificado_listo = None
+        cfg = db.get(Configuracion, 1)
+        cliente = orden.cliente
+        telefono_cliente = (cliente.whatsapp or cliente.telefono or "") if cliente else ""
+        if telefono_cliente:
+            mensaje = (
+                f"Hola {cliente.nombre if cliente else ''}, tu equipo (orden {orden.numero_orden}) "
+                f"ya está listo para entregar."
+            )
+            if orden.saldo and orden.saldo > 0:
+                mensaje += f" Saldo pendiente: L{orden.saldo}."
+            mensaje += " ¡Te esperamos!"
+            if enviar_whatsapp(cfg, telefono_cliente, mensaje):
+                orden.notificado_listo = True
+                orden.fecha_notificado_listo = datetime.utcnow()
     db.add(historial)
 
     # Al marcar la orden como ENTREGADO se asume que ya se cobró todo:

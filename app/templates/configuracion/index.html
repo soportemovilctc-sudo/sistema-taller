@@ -76,6 +76,32 @@
   </div>
 
   <div class="card">
+    <div class="card-title">Notificaciones automáticas por WhatsApp</div>
+    <p>Cuando una orden pasa a <b>LISTO PARA ENTREGAR</b>, el sistema puede avisarle solo al cliente por WhatsApp (sin que nadie tenga que darle clic a nada). Para activarlo necesitas una cuenta de <a href="https://www.twilio.com" target="_blank" rel="noopener">Twilio</a> (es el servicio externo que realmente manda el mensaje).</p>
+    <details style="margin:8px 0 14px;">
+      <summary style="cursor:pointer; color:var(--primary-light); font-weight:600;">¿Cómo saco las credenciales de Twilio?</summary>
+      <ol style="margin:10px 0 0 18px; padding:0; font-size:13px; color:var(--text-muted); line-height:1.6;">
+        <li>Crea una cuenta gratis en <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener">twilio.com/try-twilio</a> (te pedirá tu correo y un número de teléfono para verificarte).</li>
+        <li>En el Console de Twilio (la pantalla principal al entrar), copia el <b>Account SID</b> y el <b>Auth Token</b> — están arriba, en la sección "Account Info".</li>
+        <li>Activa el WhatsApp Sandbox de prueba: en el menú, busca <b>Messaging → Try it out → Send a WhatsApp message</b>. Ahí te dan un número remitente (algo como <code>whatsapp:+14155238886</code>) y un código que cada cliente debe mandar una vez por WhatsApp para poder recibir tus mensajes de prueba.</li>
+        <li>Para no depender del código de prueba y poder escribirle a cualquier cliente sin que te escriba primero, más adelante puedes pedir un número de WhatsApp Business propio dentro de Twilio (ya tiene costo mensual). Mientras tanto, el sandbox ya sirve para probar que todo funciona.</li>
+        <li>Pega esos tres datos abajo y guarda. Cada mensaje enviado tiene un costo pequeño (unos centavos de dólar) que Twilio cobra a la tarjeta que registres en tu cuenta de Twilio — el sistema no maneja ningún pago, eso es directamente con ellos.</li>
+      </ol>
+    </details>
+    <form method="post" action="/configuracion/notificaciones">
+      <div class="field"><label>Account SID</label><input type="text" name="twilio_account_sid" value="{{ config.twilio_account_sid or '' }}" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"></div>
+      <div class="field"><label>Auth Token</label><input type="password" name="twilio_auth_token" value="{{ config.twilio_auth_token or '' }}" placeholder="Tu Auth Token de Twilio"></div>
+      <div class="field"><label>Número de WhatsApp remitente</label><input type="text" name="twilio_whatsapp_from" value="{{ config.twilio_whatsapp_from or '' }}" placeholder="whatsapp:+14155238886"></div>
+      <div class="field" style="flex-direction:row; align-items:center; gap:8px;">
+        <input type="checkbox" name="notificar_whatsapp_automatico" id="notificarAuto" style="width:auto;" {{ 'checked' if config.notificar_whatsapp_automatico else '' }}>
+        <label for="notificarAuto" style="margin:0;">Enviar automáticamente al marcar una orden como LISTO PARA ENTREGAR</label>
+      </div>
+      <div class="help" style="margin-top:4px;">Si no llenas el Account SID, el Auth Token y el número remitente, esta casilla no tiene efecto: el sistema sigue usando el botón manual de "Avisar por WhatsApp" como hasta ahora.</div>
+      <button type="submit" class="btn btn-primary" style="margin-top:10px;">Guardar notificaciones</button>
+    </form>
+  </div>
+
+  <div class="card">
     <div class="card-title">Acceso desde el celular (misma red Wi-Fi)</div>
     <p>Abre esta dirección desde el navegador del celular, conectado a la misma red Wi-Fi que esta computadora:</p>
     <p style="font-size:16px;"><b>{{ url_local }}</b></p>

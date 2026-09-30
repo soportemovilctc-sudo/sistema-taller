@@ -9,8 +9,8 @@ import io
 from datetime import datetime, date
 from decimal import Decimal
 
-from fastapi import APIRouter, Request, Depends
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Request, Depends, Form
+from fastapi.responses import StreamingResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from openpyxl import Workbook
@@ -24,6 +24,7 @@ from app.models import (
     ConfiguracionFacturacion, ESTADOS_ORDEN, FORMAS_PAGO,
 )
 from app.utils.calculations import to_decimal
+from app.utils.flash import flash
 from app.deps import login_required
 
 router = APIRouter()
@@ -451,3 +452,37 @@ def reportes_exportar_excel(
         nombre_taller=_nombre_taller(db),
         columnas_totales=columnas_totales,
     )
+
+
+@router.post("/reportes/movimiento")
+def reportes_registrar_movimiento(
+    request: Request,
+    tipo: str = Form(...), categoria: str = Form(...), monto: str = Form(...), descripcion: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    """Registra un ingreso o gasto manual (por ejemplo el pago de un
+    servicio, una compra de insumos, un retiro de caja): para que cualquiera
+    que use el sistema (no solo lo que genera automáticamente una venta o
+    un pago de orden) pueda dejarlo anotado en Ingresos/Gastos."""
+    if tipo not in ("ingreso", "gasto"):
+        flash(request, "Tipo de movimiento no válido.", "error")
+        return RedirectResponse("/reportes?tipo=ingresos", status_code=303)
+
+    categoria_limpia = categoria.strip()
+    if not categoria_limpia:
+        flash(request, "La categoría es obligatoria.", "error")
+        return RedirectResponse(f"/reportes?tipo={'ingresos' if tipo == 'ingreso' else 'gastos'}", status_code=303)
+
+    monto_decimal = to_decimal(monto)
+    if monto_decimal <= 0:
+        flash(request, "El monto debe ser mayor a cero.", "error")
+        return RedirectResponse(f"/reportes?tipo={'ingresos' if tipo == 'ingreso' else 'gastos'}", status_code=303)
+
+    db.add(MovimientoFinanciero(
+        tipo=tipo, categoria=categoria_limpia, monto=monto_decimal.quantize(Decimal("0.01")),
+        descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
+        referencia="Manual",
+    ))
+    db.commit()
+    flash(request, ("Ingreso" if tipo == "ingreso" else "Gasto") + " registrado correctamente.", "success")
+    return RedirectResponse(f"/reportes?tipo={'ingresos' if tipo == 'ingreso' else 'gastos'}", status_code=303)

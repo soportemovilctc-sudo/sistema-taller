@@ -32,9 +32,9 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   var descuentoInput = document.getElementById("posDescuento");
-  if (descuentoInput) descuentoInput.addEventListener("input", renderCarrito);
+  if (descuentoInput) descuentoInput.addEventListener("input", actualizarTotales);
   var recibidoInput = document.getElementById("posMontoRecibido");
-  if (recibidoInput) recibidoInput.addEventListener("input", renderCarrito);
+  if (recibidoInput) recibidoInput.addEventListener("input", actualizarTotales);
 
   var finalizarBtn = document.getElementById("posFinalizar");
   if (finalizarBtn) finalizarBtn.addEventListener("click", finalizarVenta);
@@ -68,29 +68,49 @@ function quitarDelCarrito(id) {
   renderCarrito();
 }
 
+// Cambia el precio de venta de una línea del carrito (el cajero lo puede
+// ajustar aquí mismo, por ejemplo si el precio del catálogo quedó
+// configurado como el de costo). Solo recalcula los totales, sin
+// reconstruir las filas del carrito, para no perder el foco del campo
+// mientras se está escribiendo.
+function cambiarPrecio(id, valorTexto) {
+  var item = carrito.find(function (i) { return i.id === id; });
+  if (!item) return;
+  var valor = parseFloat(valorTexto);
+  if (isNaN(valor) || valor < 0) valor = 0;
+  item.precio = valor;
+  actualizarTotales();
+}
+
 function renderCarrito() {
   var lista = document.getElementById("carritoLista");
   if (!lista) return;
   lista.innerHTML = "";
-  var subtotal = 0;
 
   if (carrito.length === 0) {
     lista.innerHTML = '<div class="empty-state">El carrito está vacío. Toca un producto para agregarlo.</div>';
   }
 
   carrito.forEach(function (item) {
-    var sub = item.precio * item.cantidad;
-    subtotal += sub;
     var row = document.createElement("div");
     row.className = "cart-item";
     row.innerHTML =
-      '<span class="name">' + item.nombre + '<br><small>L ' + item.precio.toFixed(2) + ' c/u</small></span>' +
+      '<span class="name">' + item.nombre + '<br><small>L ' +
+        '<input type="number" min="0" step="0.01" class="cart-price-input" value="' + item.precio.toFixed(2) +
+        '" oninput="cambiarPrecio(' + item.id + ', this.value)"> c/u</small></span>' +
       '<button type="button" class="btn btn-outline btn-sm" onclick="cambiarCantidad(' + item.id + ', -1)">-</button>' +
       '<input type="number" min="1" value="' + item.cantidad + '" readonly>' +
       '<button type="button" class="btn btn-outline btn-sm" onclick="cambiarCantidad(' + item.id + ', 1)">+</button>' +
       '<button type="button" class="btn btn-danger btn-sm" onclick="quitarDelCarrito(' + item.id + ')">x</button>';
     lista.appendChild(row);
   });
+
+  actualizarTotales();
+}
+
+function actualizarTotales() {
+  var subtotal = 0;
+  carrito.forEach(function (item) { subtotal += item.precio * item.cantidad; });
 
   var descuento = parseFloat((document.getElementById("posDescuento") || {}).value) || 0;
   if (descuento < 0) descuento = 0;
@@ -117,7 +137,7 @@ function setTexto(id, texto) {
 
 function finalizarVenta() {
   var payload = {
-    items: carrito.map(function (i) { return { producto_id: i.id, cantidad: i.cantidad }; }),
+    items: carrito.map(function (i) { return { producto_id: i.id, cantidad: i.cantidad, precio_unitario: i.precio }; }),
     descuento: parseFloat((document.getElementById("posDescuento") || {}).value) || 0,
     forma_pago: (document.getElementById("posFormaPago") || {}).value || "Efectivo",
     monto_recibido: parseFloat((document.getElementById("posMontoRecibido") || {}).value) || 0,

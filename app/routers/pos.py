@@ -59,7 +59,13 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
             return JSONResponse({"ok": False, "mensaje": f"Producto {item.producto_id} no encontrado."}, status_code=400)
         if item.cantidad > producto.existencia:
             return JSONResponse({"ok": False, "mensaje": f"No hay suficiente existencia de '{producto.nombre}'."}, status_code=400)
-        precio = to_decimal(producto.precio_venta)
+        # Si viene un precio_unitario (el cajero lo ajustó en el carrito), se
+        # usa ese en vez del precio_venta del catálogo, igual que ya se
+        # permite al agregar un repuesto a una orden de servicio.
+        if item.precio_unitario is not None and item.precio_unitario > 0:
+            precio = to_decimal(item.precio_unitario)
+        else:
+            precio = to_decimal(producto.precio_venta)
         sub = (precio * item.cantidad).quantize(Decimal("0.01"))
         subtotal += sub
         detalles.append((producto, item.cantidad, precio, sub))

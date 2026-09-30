@@ -55,6 +55,22 @@
       </tbody>
     </table></div>
   {% elif tipo in ['ingresos', 'gastos'] %}
+    <details style="margin-bottom:14px;">
+      <summary class="btn btn-outline btn-sm" style="display:inline-block; cursor:pointer;">
+        {{ '+ Registrar ingreso' if tipo == 'ingresos' else '+ Registrar gasto' }}
+      </summary>
+      <form method="post" action="/reportes/movimiento" class="form-row" style="margin-top:10px;">
+        <input type="hidden" name="tipo" value="{{ 'ingreso' if tipo == 'ingresos' else 'gasto' }}">
+        <div class="field"><label>Categoría *</label><input type="text" name="categoria" required placeholder="{{ 'Ej: Retiro de caja, Abono de socio' if tipo == 'ingresos' else 'Ej: Luz, Agua, Papelería' }}"></div>
+        <div class="field"><label>Monto *</label><input type="number" name="monto" min="0.01" step="0.01" required></div>
+        <div class="field" style="flex:2;"><label>Descripción</label><input type="text" name="descripcion" placeholder="Detalle opcional"></div>
+        <div class="field" style="flex:0; align-self:flex-end;">
+          <button type="submit" class="btn {{ 'btn-success' if tipo == 'ingresos' else 'btn-danger' }}">
+            {{ 'Registrar ingreso' if tipo == 'ingresos' else 'Registrar gasto' }}
+          </button>
+        </div>
+      </form>
+    </details>
     <div class="table-wrap"><table>
       <thead><tr><th>Fecha</th><th>Categoría</th><th>Monto</th><th>Descripción</th><th>Referencia</th></tr></thead>
       <tbody>

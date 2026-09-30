@@ -7,6 +7,11 @@ from typing import Optional
 class ItemCarritoIn(BaseModel):
     producto_id: int
     cantidad: int = Field(gt=0)
+    # Precio unitario opcional: si viene y es mayor a 0, reemplaza el
+    # precio_venta del producto para esa línea (permite que quien cobra
+    # ajuste el precio de venta de un repuesto en el momento, igual que ya
+    # se puede hacer al agregar un repuesto a una orden de servicio).
+    precio_unitario: Optional[Decimal] = Field(default=None, ge=0)
 
 
 class VentaIn(BaseModel):

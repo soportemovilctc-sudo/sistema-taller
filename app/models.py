@@ -156,6 +156,15 @@ class Configuracion(Base):
     logo_mime = Column(String(50), nullable=True)
     dias_vencido_alerta = Column(Integer, default=3, nullable=False)
 
+    # --- Envío automático de WhatsApp al cliente (vía Twilio) ---
+    # Si estos campos están vacíos, el sistema simplemente no manda nada
+    # automático y se queda con el flujo manual (botón "Avisar por
+    # WhatsApp"), sin romper nada.
+    twilio_account_sid = Column(String(80), default="")
+    twilio_auth_token = Column(String(120), default="")
+    twilio_whatsapp_from = Column(String(40), default="")  # ej: whatsapp:+14155238886
+    notificar_whatsapp_automatico = Column(Boolean, default=True, nullable=False)
+
 
 class OrdenServicio(Base):
     __tablename__ = "ordenes_servicio"

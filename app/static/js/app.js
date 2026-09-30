@@ -271,9 +271,9 @@ function inicializarPandaMascota() {
 
   // Cada reacción es la lista de ids de los <animate>/<animateTransform>
   // (begin="indefinite" en el SVG de base.html) que hay que disparar
-  // juntos para verla completa. Todas se rediseñaron más exageradas
-  // (más grandes, más rápidas o con más "chispa") y se agregaron 3
-  // reacciones nuevas (baile, estrellas y sorpresa).
+  // juntos para verla completa. Todas exageradas al máximo, con 6
+  // reacciones nuevas (baile, estrellas, sorpresa, risa, mareo y confeti)
+  // sumadas a las 4 originales.
   var REACCIONES = [
     ["reaccionSaltoAnim", "reaccionEscalaAnim"],
     ["reaccionGiroAnim"],
@@ -281,7 +281,10 @@ function inicializarPandaMascota() {
     ["reaccionCorazonMov", "reaccionCorazonOpacidad", "reaccionCorazonMov2", "reaccionCorazonOpacidad2", "reaccionCorazonMov3", "reaccionCorazonOpacidad3"],
     ["reaccionBaileAnim"],
     ["reaccionEstrellaIzq", "reaccionEstrellaDer"],
-    ["reaccionSorpresaOjoIzq", "reaccionSorpresaOjoDer"]
+    ["reaccionSorpresaOjoIzq", "reaccionSorpresaOjoDer"],
+    ["reaccionRisaCuerpo", "reaccionRisaBoca"],
+    ["reaccionMareoOjoIzq", "reaccionMareoOjoDer", "reaccionMareoOrbita", "reaccionMareoOrbitaOpacidad"],
+    ["reaccionConfetiMov1", "reaccionConfetiGiro1", "reaccionConfetiOpacidad1", "reaccionConfetiMov2", "reaccionConfetiGiro2", "reaccionConfetiOpacidad2", "reaccionConfetiMov3", "reaccionConfetiGiro3", "reaccionConfetiOpacidad3"]
   ];
 
   function dispararReaccionAleatoria() {

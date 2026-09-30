@@ -681,10 +681,22 @@ html, body {
   filter: drop-shadow(0 3px 8px rgba(0,0,0,.45));
   transition: transform .2s cubic-bezier(.34,1.56,.64,1), filter .2s ease;
 }
-.panda-mascota:hover { transform: scale(1.08); filter: drop-shadow(0 5px 12px rgba(0,0,0,.5)); }
+.panda-mascota:hover { transform: scale(1.08) rotate(-4deg); filter: drop-shadow(0 5px 12px rgba(0,0,0,.5)); }
 .panda-mascota:active { transform: scale(.97); }
 .panda-mascota.panda-arrastrando { cursor: grabbing; transition: none; }
 @media (max-width: 900px) { .panda-mascota { width: 54px; height: 62px; right: 12px; bottom: 12px; } }
+
+/* Respiración: un vaivén suave y continuo cuando está quieta (ni
+   arrastrándola, ni caminando, ni con el mouse encima), para que se sienta
+   "viva" incluso sin tocarla. Se apaga con :hover para no pelear con la
+   transición de la línea de arriba. */
+.panda-mascota:not(.panda-arrastrando):not(.panda-caminando):not(:hover) {
+  animation: panda-respirar 2.6s ease-in-out infinite;
+}
+@keyframes panda-respirar {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.03) translateY(-3px); }
+}
 
 /* Caminata autónoma: el panda se desplaza solo hacia el enlace del menú
    relacionado con lo que va a sugerir (Inventario, Órdenes) antes de

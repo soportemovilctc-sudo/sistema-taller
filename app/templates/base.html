@@ -171,10 +171,26 @@
     <!-- Envuelve TODO el dibujo: aquí pivotean las reacciones de "salto" y
          "giro" (se disparan desde afuera con beginElement(), ver app.js). -->
     <g id="pandaVisualCompleto">
+      <!-- Salto: exagerado tipo "cartoon", con anticipación (agachada
+           breve) antes de despegar y un pequeño rebote extra al aterrizar. -->
       <animateTransform id="reaccionSaltoAnim" attributeName="transform" type="translate"
-        values="0,0; 0,-24; 0,0; 0,-11; 0,0" keyTimes="0;.25;.5;.75;1" dur="0.6s" begin="indefinite"/>
+        values="0,0; 0,7; 0,-55; 0,-55; 0,4; 0,0" keyTimes="0;.12;.42;.58;.82;1" dur="0.72s" begin="indefinite"/>
+      <!-- Giro: da una vuelta y media (no solo una), con un pequeño
+           "arranque" hacia atrás antes de girar y un frenazo al final. -->
       <animateTransform id="reaccionGiroAnim" attributeName="transform" type="rotate"
-        values="0 120 180; 360 120 180" dur="0.6s" begin="indefinite"/>
+        values="0 120 180; -22 120 180; 560 120 180; 540 120 180" keyTimes="0;.1;.88;1" dur="0.78s" begin="indefinite"/>
+      <!-- Baile: meneo rápido de lado a lado, como un bailecito breve. -->
+      <animateTransform id="reaccionBaileAnim" attributeName="transform" type="rotate"
+        values="0 120 180; -16 120 180; 15 120 180; -16 120 180; 15 120 180; -11 120 180; 10 120 180; -5 120 180; 0 120 180"
+        keyTimes="0;.12;.25;.37;.5;.62;.75;.87;1" dur="0.95s" begin="indefinite"/>
+      <!-- Envoltorio dedicado solo a "estirar y aplastar" (squash & stretch)
+           en sincronía con el salto, anclado cerca de los pies (120,213)
+           mediante una matriz precalculada (evita depender de
+           transform-origin, que no siempre se respeta igual con SMIL). -->
+      <g id="pandaEscalaReaccion">
+        <animateTransform id="reaccionEscalaAnim" attributeName="transform" type="matrix"
+          values="1,0,0,1,0,0; 1.22,0,0,.82,-26.4,38.34; .82,0,0,1.18,21.6,-38.34; .86,0,0,1.14,16.8,-29.82; 1.18,0,0,.86,-21.6,29.82; 1,0,0,1,0,0"
+          keyTimes="0;.12;.42;.58;.82;1" dur="0.72s" begin="indefinite"/>
 
       <g stroke="#1a1a1a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
 
@@ -219,7 +235,7 @@
         <!-- brazo izquierdo levantado, saludando (animado en bucle: pivotea en el hombro) -->
         <g transform="translate(82,156)">
           <g>
-            <animateTransform attributeName="transform" type="rotate" values="-8;12;-8" dur="0.85s" repeatCount="indefinite"/>
+            <animateTransform attributeName="transform" type="rotate" values="-16;24;-16" dur="0.6s" repeatCount="indefinite"/>
             <g transform="translate(-82,-156)">
               <ellipse cx="46" cy="128" rx="21" ry="46" fill="url(#furDark)" transform="rotate(-52 46 128)"/>
               <circle cx="18" cy="58" r="17" fill="url(#furDark)"/>
@@ -230,10 +246,10 @@
         <!-- lineas de movimiento del saludo (parpadean junto con el vaiven) -->
         <g stroke="#1a1a1a" stroke-width="3" fill="none">
           <path d="M-10 30 Q-16 40 -10 50" opacity="0">
-            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.15;.4;.6;1" dur="0.85s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.15;.4;.6;1" dur="0.6s" repeatCount="indefinite"/>
           </path>
           <path d="M-1 20 Q-9 34 -1 48" opacity="0">
-            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.25;.5;.7;1" dur="0.85s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.25;.5;.7;1" dur="0.6s" repeatCount="indefinite"/>
           </path>
         </g>
 
@@ -247,8 +263,12 @@
         <circle cx="120" cy="112" r="82" fill="url(#furWhite)"/>
 
         <!-- cachetes -->
-        <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
-        <ellipse cx="166" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
+        <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none">
+          <animate id="reaccionSonrojoIzq" attributeName="opacity" values=".9;1;.55;1;.9" keyTimes="0;.25;.5;.75;1" dur="0.5s" begin="indefinite"/>
+        </ellipse>
+        <ellipse cx="166" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none">
+          <animate id="reaccionSonrojoDer" attributeName="opacity" values=".9;1;.55;1;.9" keyTimes="0;.25;.5;.75;1" dur="0.5s" begin="indefinite"/>
+        </ellipse>
 
         <!-- pestañas -->
         <path d="M58 74 Q50 65 42 64" stroke-width="3.4" fill="none"/>
@@ -257,8 +277,18 @@
         <path d="M177 68 Q182 57 188 54" stroke-width="3.4" fill="none"/>
 
         <!-- ojos: blanco -->
-        <ellipse cx="91" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
-        <ellipse cx="149" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+        <g transform="translate(91,116)">
+          <g id="pandaOjoIzqSorpresa">
+            <animateTransform id="reaccionSorpresaOjoIzq" attributeName="transform" type="scale" values="1;1.4;1.15;1" keyTimes="0;.3;.6;1" dur="0.55s" begin="indefinite"/>
+            <ellipse cx="0" cy="0" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+          </g>
+        </g>
+        <g transform="translate(149,116)">
+          <g id="pandaOjoDerSorpresa">
+            <animateTransform id="reaccionSorpresaOjoDer" attributeName="transform" type="scale" values="1;1.4;1.15;1" keyTimes="0;.3;.6;1" dur="0.55s" begin="indefinite"/>
+            <ellipse cx="0" cy="0" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+          </g>
+        </g>
       </g>
 
       <!-- pupilas (sin stroke, brillo aparte) -->
@@ -269,9 +299,24 @@
       <circle cx="99.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
       <circle cx="149.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
 
+      <!-- reaccion de "estrellas": brillo de ojos de estrella, se agranda
+           y desaparece encima de cada pupila. -->
+      <g transform="translate(95,120)">
+        <g id="pandaEstrellaIzq" transform="scale(0)">
+          <animateTransform id="reaccionEstrellaIzq" attributeName="transform" type="scale" values="0;1.5;1.15;0" keyTimes="0;.35;.65;1" dur="0.8s" begin="indefinite"/>
+          <path d="M0,-13 L3.2,-4.2 L12.5,-4 L5,1.8 L7.8,11 L0,5.3 L-7.8,11 L-5,1.8 L-12.5,-4 L-3.2,-4.2 Z" fill="#ffd93d" stroke="#e8a500" stroke-width="1.4" stroke-linejoin="round"/>
+        </g>
+      </g>
+      <g transform="translate(145,120)">
+        <g id="pandaEstrellaDer" transform="scale(0)">
+          <animateTransform id="reaccionEstrellaDer" attributeName="transform" type="scale" values="0;1.5;1.15;0" keyTimes="0;.35;.65;1" dur="0.8s" begin="indefinite"/>
+          <path d="M0,-13 L3.2,-4.2 L12.5,-4 L5,1.8 L7.8,11 L0,5.3 L-7.8,11 L-5,1.8 L-12.5,-4 L-3.2,-4.2 Z" fill="#ffd93d" stroke="#e8a500" stroke-width="1.4" stroke-linejoin="round"/>
+        </g>
+      </g>
+
       <!-- parpado del ojo derecho, para la reaccion de "guiño" -->
       <ellipse cx="149" cy="116" rx="18.5" ry="0" fill="url(#furWhite)" stroke="#1a1a1a" stroke-width="2.4">
-        <animate id="reaccionGuinoAnim" attributeName="ry" values="0;21;0" keyTimes="0;.5;1" dur="0.42s" begin="indefinite"/>
+        <animate id="reaccionGuinoAnim" attributeName="ry" values="0;24;0" keyTimes="0;.5;1" dur="0.34s" begin="indefinite"/>
       </ellipse>
 
       <g stroke="#1a1a1a" stroke-linejoin="round" stroke-linecap="round">
@@ -285,16 +330,42 @@
       <path d="M110 147 Q120 161 130 147 Q120 154 110 147 Z" fill="#ff9db3" stroke="none"/>
 
       <!-- reaccion de "corazon" -->
-      <g transform="translate(150,10)">
+      <!-- reaccion de "lluvia de corazones": tres corazones, cada uno con
+           su propio despegue (posicion y retraso dentro de la MISMA
+           linea de tiempo) para que no salgan los tres pegados. -->
+      <g transform="translate(150,4)">
         <g>
-          <animateTransform id="reaccionCorazonMov" attributeName="transform" type="translate" values="0,0; 0,-32" dur="0.9s" begin="indefinite"/>
-          <g transform="scale(0.42)">
+          <animateTransform id="reaccionCorazonMov" attributeName="transform" type="translate" values="0,0; 0,-42" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.55)">
             <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
                   fill="#ff5c8a" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
               <animate id="reaccionCorazonOpacidad" attributeName="opacity" values="0;1;1;0" keyTimes="0;.18;.7;1" dur="0.9s" begin="indefinite"/>
             </path>
           </g>
         </g>
+      </g>
+      <g transform="translate(88,10)">
+        <g>
+          <animateTransform id="reaccionCorazonMov2" attributeName="transform" type="translate" values="0,0; 0,0; 0,-38; 0,-38" keyTimes="0;.12;.7;1" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.44) rotate(-14)">
+            <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
+                  fill="#ff8fab" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
+              <animate id="reaccionCorazonOpacidad2" attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.12;.3;.82;1" dur="0.9s" begin="indefinite"/>
+            </path>
+          </g>
+        </g>
+      </g>
+      <g transform="translate(122,-14)">
+        <g>
+          <animateTransform id="reaccionCorazonMov3" attributeName="transform" type="translate" values="0,0; 0,0; 0,0; 0,-34; 0,-34" keyTimes="0;.24;.3;.86;1" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.36) rotate(12)">
+            <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
+                  fill="#ff5c8a" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
+              <animate id="reaccionCorazonOpacidad3" attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.24;.42;.9;1" dur="0.9s" begin="indefinite"/>
+            </path>
+          </g>
+        </g>
+      </g>
       </g>
     </g>
     {% elif _mascota == 'raton' %}
@@ -325,10 +396,26 @@
     <!-- Envuelve TODO el dibujo: aquí pivotean las reacciones de "salto" y
          "giro" (se disparan desde afuera con beginElement(), ver app.js). -->
     <g id="pandaVisualCompleto">
+      <!-- Salto: exagerado tipo "cartoon", con anticipación (agachada
+           breve) antes de despegar y un pequeño rebote extra al aterrizar. -->
       <animateTransform id="reaccionSaltoAnim" attributeName="transform" type="translate"
-        values="0,0; 0,-24; 0,0; 0,-11; 0,0" keyTimes="0;.25;.5;.75;1" dur="0.6s" begin="indefinite"/>
+        values="0,0; 0,7; 0,-55; 0,-55; 0,4; 0,0" keyTimes="0;.12;.42;.58;.82;1" dur="0.72s" begin="indefinite"/>
+      <!-- Giro: da una vuelta y media (no solo una), con un pequeño
+           "arranque" hacia atrás antes de girar y un frenazo al final. -->
       <animateTransform id="reaccionGiroAnim" attributeName="transform" type="rotate"
-        values="0 120 180; 360 120 180" dur="0.6s" begin="indefinite"/>
+        values="0 120 180; -22 120 180; 560 120 180; 540 120 180" keyTimes="0;.1;.88;1" dur="0.78s" begin="indefinite"/>
+      <!-- Baile: meneo rápido de lado a lado, como un bailecito breve. -->
+      <animateTransform id="reaccionBaileAnim" attributeName="transform" type="rotate"
+        values="0 120 180; -16 120 180; 15 120 180; -16 120 180; 15 120 180; -11 120 180; 10 120 180; -5 120 180; 0 120 180"
+        keyTimes="0;.12;.25;.37;.5;.62;.75;.87;1" dur="0.95s" begin="indefinite"/>
+      <!-- Envoltorio dedicado solo a "estirar y aplastar" (squash & stretch)
+           en sincronía con el salto, anclado cerca de los pies (120,213)
+           mediante una matriz precalculada (evita depender de
+           transform-origin, que no siempre se respeta igual con SMIL). -->
+      <g id="pandaEscalaReaccion">
+        <animateTransform id="reaccionEscalaAnim" attributeName="transform" type="matrix"
+          values="1,0,0,1,0,0; 1.22,0,0,.82,-26.4,38.34; .82,0,0,1.18,21.6,-38.34; .86,0,0,1.14,16.8,-29.82; 1.18,0,0,.86,-21.6,29.82; 1,0,0,1,0,0"
+          keyTimes="0;.12;.42;.58;.82;1" dur="0.72s" begin="indefinite"/>
 
       <g stroke="#1a1a1a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
 
@@ -362,7 +449,7 @@
         <!-- brazo izquierdo levantado, saludando (animado en bucle: pivotea en el hombro) -->
         <g transform="translate(82,156)">
           <g>
-            <animateTransform attributeName="transform" type="rotate" values="-8;12;-8" dur="0.85s" repeatCount="indefinite"/>
+            <animateTransform attributeName="transform" type="rotate" values="-16;24;-16" dur="0.6s" repeatCount="indefinite"/>
             <g transform="translate(-82,-156)">
               <ellipse cx="46" cy="128" rx="21" ry="46" fill="url(#furDark)" transform="rotate(-52 46 128)"/>
               <circle cx="18" cy="58" r="17" fill="url(#furDark)"/>
@@ -373,10 +460,10 @@
         <!-- lineas de movimiento del saludo (parpadean junto con el vaiven) -->
         <g stroke="#1a1a1a" stroke-width="3" fill="none">
           <path d="M-10 30 Q-16 40 -10 50" opacity="0">
-            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.15;.4;.6;1" dur="0.85s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.15;.4;.6;1" dur="0.6s" repeatCount="indefinite"/>
           </path>
           <path d="M-1 20 Q-9 34 -1 48" opacity="0">
-            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.25;.5;.7;1" dur="0.85s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.25;.5;.7;1" dur="0.6s" repeatCount="indefinite"/>
           </path>
         </g>
 
@@ -390,8 +477,12 @@
         <circle cx="120" cy="112" r="82" fill="url(#furWhite)"/>
 
         <!-- cachetes -->
-        <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
-        <ellipse cx="166" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
+        <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none">
+          <animate id="reaccionSonrojoIzq" attributeName="opacity" values=".9;1;.55;1;.9" keyTimes="0;.25;.5;.75;1" dur="0.5s" begin="indefinite"/>
+        </ellipse>
+        <ellipse cx="166" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none">
+          <animate id="reaccionSonrojoDer" attributeName="opacity" values=".9;1;.55;1;.9" keyTimes="0;.25;.5;.75;1" dur="0.5s" begin="indefinite"/>
+        </ellipse>
 
         <!-- pestañas -->
         <path d="M58 74 Q50 65 42 64" stroke-width="3.4" fill="none"/>
@@ -400,8 +491,18 @@
         <path d="M177 68 Q182 57 188 54" stroke-width="3.4" fill="none"/>
 
         <!-- ojos: blanco -->
-        <ellipse cx="91" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
-        <ellipse cx="149" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+        <g transform="translate(91,116)">
+          <g id="pandaOjoIzqSorpresa">
+            <animateTransform id="reaccionSorpresaOjoIzq" attributeName="transform" type="scale" values="1;1.4;1.15;1" keyTimes="0;.3;.6;1" dur="0.55s" begin="indefinite"/>
+            <ellipse cx="0" cy="0" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+          </g>
+        </g>
+        <g transform="translate(149,116)">
+          <g id="pandaOjoDerSorpresa">
+            <animateTransform id="reaccionSorpresaOjoDer" attributeName="transform" type="scale" values="1;1.4;1.15;1" keyTimes="0;.3;.6;1" dur="0.55s" begin="indefinite"/>
+            <ellipse cx="0" cy="0" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+          </g>
+        </g>
       </g>
 
       <!-- pupilas (sin stroke, brillo aparte) -->
@@ -412,9 +513,24 @@
       <circle cx="99.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
       <circle cx="149.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
 
+      <!-- reaccion de "estrellas": brillo de ojos de estrella, se agranda
+           y desaparece encima de cada pupila. -->
+      <g transform="translate(95,120)">
+        <g id="pandaEstrellaIzq" transform="scale(0)">
+          <animateTransform id="reaccionEstrellaIzq" attributeName="transform" type="scale" values="0;1.5;1.15;0" keyTimes="0;.35;.65;1" dur="0.8s" begin="indefinite"/>
+          <path d="M0,-13 L3.2,-4.2 L12.5,-4 L5,1.8 L7.8,11 L0,5.3 L-7.8,11 L-5,1.8 L-12.5,-4 L-3.2,-4.2 Z" fill="#ffd93d" stroke="#e8a500" stroke-width="1.4" stroke-linejoin="round"/>
+        </g>
+      </g>
+      <g transform="translate(145,120)">
+        <g id="pandaEstrellaDer" transform="scale(0)">
+          <animateTransform id="reaccionEstrellaDer" attributeName="transform" type="scale" values="0;1.5;1.15;0" keyTimes="0;.35;.65;1" dur="0.8s" begin="indefinite"/>
+          <path d="M0,-13 L3.2,-4.2 L12.5,-4 L5,1.8 L7.8,11 L0,5.3 L-7.8,11 L-5,1.8 L-12.5,-4 L-3.2,-4.2 Z" fill="#ffd93d" stroke="#e8a500" stroke-width="1.4" stroke-linejoin="round"/>
+        </g>
+      </g>
+
       <!-- parpado del ojo derecho, para la reaccion de "guiño" -->
       <ellipse cx="149" cy="116" rx="18.5" ry="0" fill="url(#furWhite)" stroke="#1a1a1a" stroke-width="2.4">
-        <animate id="reaccionGuinoAnim" attributeName="ry" values="0;21;0" keyTimes="0;.5;1" dur="0.42s" begin="indefinite"/>
+        <animate id="reaccionGuinoAnim" attributeName="ry" values="0;24;0" keyTimes="0;.5;1" dur="0.34s" begin="indefinite"/>
       </ellipse>
 
       <!-- bigotes -->
@@ -437,16 +553,42 @@
       </g>
 
       <!-- reaccion de "corazon" -->
-      <g transform="translate(150,10)">
+      <!-- reaccion de "lluvia de corazones": tres corazones, cada uno con
+           su propio despegue (posicion y retraso dentro de la MISMA
+           linea de tiempo) para que no salgan los tres pegados. -->
+      <g transform="translate(150,4)">
         <g>
-          <animateTransform id="reaccionCorazonMov" attributeName="transform" type="translate" values="0,0; 0,-32" dur="0.9s" begin="indefinite"/>
-          <g transform="scale(0.42)">
+          <animateTransform id="reaccionCorazonMov" attributeName="transform" type="translate" values="0,0; 0,-42" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.55)">
             <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
                   fill="#ff5c8a" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
               <animate id="reaccionCorazonOpacidad" attributeName="opacity" values="0;1;1;0" keyTimes="0;.18;.7;1" dur="0.9s" begin="indefinite"/>
             </path>
           </g>
         </g>
+      </g>
+      <g transform="translate(88,10)">
+        <g>
+          <animateTransform id="reaccionCorazonMov2" attributeName="transform" type="translate" values="0,0; 0,0; 0,-38; 0,-38" keyTimes="0;.12;.7;1" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.44) rotate(-14)">
+            <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
+                  fill="#ff8fab" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
+              <animate id="reaccionCorazonOpacidad2" attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.12;.3;.82;1" dur="0.9s" begin="indefinite"/>
+            </path>
+          </g>
+        </g>
+      </g>
+      <g transform="translate(122,-14)">
+        <g>
+          <animateTransform id="reaccionCorazonMov3" attributeName="transform" type="translate" values="0,0; 0,0; 0,0; 0,-34; 0,-34" keyTimes="0;.24;.3;.86;1" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.36) rotate(12)">
+            <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
+                  fill="#ff5c8a" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
+              <animate id="reaccionCorazonOpacidad3" attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.24;.42;.9;1" dur="0.9s" begin="indefinite"/>
+            </path>
+          </g>
+        </g>
+      </g>
       </g>
     </g>
     {% else %}
@@ -477,10 +619,26 @@
     <!-- Envuelve TODO el dibujo: aquí pivotean las reacciones de "salto" y
          "giro" (se disparan desde afuera con beginElement(), ver app.js). -->
     <g id="pandaVisualCompleto">
+      <!-- Salto: exagerado tipo "cartoon", con anticipación (agachada
+           breve) antes de despegar y un pequeño rebote extra al aterrizar. -->
       <animateTransform id="reaccionSaltoAnim" attributeName="transform" type="translate"
-        values="0,0; 0,-24; 0,0; 0,-11; 0,0" keyTimes="0;.25;.5;.75;1" dur="0.6s" begin="indefinite"/>
+        values="0,0; 0,7; 0,-55; 0,-55; 0,4; 0,0" keyTimes="0;.12;.42;.58;.82;1" dur="0.72s" begin="indefinite"/>
+      <!-- Giro: da una vuelta y media (no solo una), con un pequeño
+           "arranque" hacia atrás antes de girar y un frenazo al final. -->
       <animateTransform id="reaccionGiroAnim" attributeName="transform" type="rotate"
-        values="0 120 180; 360 120 180" dur="0.6s" begin="indefinite"/>
+        values="0 120 180; -22 120 180; 560 120 180; 540 120 180" keyTimes="0;.1;.88;1" dur="0.78s" begin="indefinite"/>
+      <!-- Baile: meneo rápido de lado a lado, como un bailecito breve. -->
+      <animateTransform id="reaccionBaileAnim" attributeName="transform" type="rotate"
+        values="0 120 180; -16 120 180; 15 120 180; -16 120 180; 15 120 180; -11 120 180; 10 120 180; -5 120 180; 0 120 180"
+        keyTimes="0;.12;.25;.37;.5;.62;.75;.87;1" dur="0.95s" begin="indefinite"/>
+      <!-- Envoltorio dedicado solo a "estirar y aplastar" (squash & stretch)
+           en sincronía con el salto, anclado cerca de los pies (120,213)
+           mediante una matriz precalculada (evita depender de
+           transform-origin, que no siempre se respeta igual con SMIL). -->
+      <g id="pandaEscalaReaccion">
+        <animateTransform id="reaccionEscalaAnim" attributeName="transform" type="matrix"
+          values="1,0,0,1,0,0; 1.22,0,0,.82,-26.4,38.34; .82,0,0,1.18,21.6,-38.34; .86,0,0,1.14,16.8,-29.82; 1.18,0,0,.86,-21.6,29.82; 1,0,0,1,0,0"
+          keyTimes="0;.12;.42;.58;.82;1" dur="0.72s" begin="indefinite"/>
 
       <g stroke="#1a1a1a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
 
@@ -511,7 +669,7 @@
         <!-- brazo izquierdo levantado, saludando (animado en bucle: pivotea en el hombro) -->
         <g transform="translate(82,156)">
           <g>
-            <animateTransform attributeName="transform" type="rotate" values="-8;12;-8" dur="0.85s" repeatCount="indefinite"/>
+            <animateTransform attributeName="transform" type="rotate" values="-16;24;-16" dur="0.6s" repeatCount="indefinite"/>
             <g transform="translate(-82,-156)">
               <ellipse cx="46" cy="128" rx="21" ry="46" fill="url(#furDark)" transform="rotate(-52 46 128)"/>
               <circle cx="18" cy="58" r="17" fill="url(#furDark)"/>
@@ -522,10 +680,10 @@
         <!-- lineas de movimiento del saludo (parpadean junto con el vaiven) -->
         <g stroke="#1a1a1a" stroke-width="3" fill="none">
           <path d="M-10 30 Q-16 40 -10 50" opacity="0">
-            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.15;.4;.6;1" dur="0.85s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.15;.4;.6;1" dur="0.6s" repeatCount="indefinite"/>
           </path>
           <path d="M-1 20 Q-9 34 -1 48" opacity="0">
-            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.25;.5;.7;1" dur="0.85s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;0;.65;0;0" keyTimes="0;.25;.5;.7;1" dur="0.6s" repeatCount="indefinite"/>
           </path>
         </g>
 
@@ -543,8 +701,12 @@
         <ellipse cx="160" cy="108" rx="31" ry="40" fill="url(#furDark)" transform="rotate(14 160 108)"/>
 
         <!-- cachetes -->
-        <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
-        <ellipse cx="166" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none"/>
+        <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none">
+          <animate id="reaccionSonrojoIzq" attributeName="opacity" values=".9;1;.55;1;.9" keyTimes="0;.25;.5;.75;1" dur="0.5s" begin="indefinite"/>
+        </ellipse>
+        <ellipse cx="166" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none">
+          <animate id="reaccionSonrojoDer" attributeName="opacity" values=".9;1;.55;1;.9" keyTimes="0;.25;.5;.75;1" dur="0.5s" begin="indefinite"/>
+        </ellipse>
 
         <!-- pestañas -->
         <path d="M58 74 Q50 65 42 64" stroke-width="3.4" fill="none"/>
@@ -553,8 +715,18 @@
         <path d="M177 68 Q182 57 188 54" stroke-width="3.4" fill="none"/>
 
         <!-- ojos: blanco -->
-        <ellipse cx="91" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
-        <ellipse cx="149" cy="116" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+        <g transform="translate(91,116)">
+          <g id="pandaOjoIzqSorpresa">
+            <animateTransform id="reaccionSorpresaOjoIzq" attributeName="transform" type="scale" values="1;1.4;1.15;1" keyTimes="0;.3;.6;1" dur="0.55s" begin="indefinite"/>
+            <ellipse cx="0" cy="0" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+          </g>
+        </g>
+        <g transform="translate(149,116)">
+          <g id="pandaOjoDerSorpresa">
+            <animateTransform id="reaccionSorpresaOjoDer" attributeName="transform" type="scale" values="1;1.4;1.15;1" keyTimes="0;.3;.6;1" dur="0.55s" begin="indefinite"/>
+            <ellipse cx="0" cy="0" rx="18.5" ry="20.5" fill="#fff" stroke-width="2.4"/>
+          </g>
+        </g>
       </g>
 
       <!-- pupilas (sin stroke, brillo aparte) -->
@@ -565,10 +737,25 @@
       <circle cx="99.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
       <circle cx="149.5" cy="125" r="1.7" fill="#fff" opacity=".85"/>
 
+      <!-- reaccion de "estrellas": brillo de ojos de estrella, se agranda
+           y desaparece encima de cada pupila. -->
+      <g transform="translate(95,120)">
+        <g id="pandaEstrellaIzq" transform="scale(0)">
+          <animateTransform id="reaccionEstrellaIzq" attributeName="transform" type="scale" values="0;1.5;1.15;0" keyTimes="0;.35;.65;1" dur="0.8s" begin="indefinite"/>
+          <path d="M0,-13 L3.2,-4.2 L12.5,-4 L5,1.8 L7.8,11 L0,5.3 L-7.8,11 L-5,1.8 L-12.5,-4 L-3.2,-4.2 Z" fill="#ffd93d" stroke="#e8a500" stroke-width="1.4" stroke-linejoin="round"/>
+        </g>
+      </g>
+      <g transform="translate(145,120)">
+        <g id="pandaEstrellaDer" transform="scale(0)">
+          <animateTransform id="reaccionEstrellaDer" attributeName="transform" type="scale" values="0;1.5;1.15;0" keyTimes="0;.35;.65;1" dur="0.8s" begin="indefinite"/>
+          <path d="M0,-13 L3.2,-4.2 L12.5,-4 L5,1.8 L7.8,11 L0,5.3 L-7.8,11 L-5,1.8 L-12.5,-4 L-3.2,-4.2 Z" fill="#ffd93d" stroke="#e8a500" stroke-width="1.4" stroke-linejoin="round"/>
+        </g>
+      </g>
+
       <!-- parpado del ojo derecho, para la reaccion de "guiño": crece y
            vuelve a cero (cubre el ojo un instante y se abre de nuevo) -->
       <ellipse cx="149" cy="116" rx="18.5" ry="0" fill="url(#furWhite)" stroke="#1a1a1a" stroke-width="2.4">
-        <animate id="reaccionGuinoAnim" attributeName="ry" values="0;21;0" keyTimes="0;.5;1" dur="0.42s" begin="indefinite"/>
+        <animate id="reaccionGuinoAnim" attributeName="ry" values="0;24;0" keyTimes="0;.5;1" dur="0.34s" begin="indefinite"/>
       </ellipse>
 
       <g stroke="#1a1a1a" stroke-linejoin="round" stroke-linecap="round">
@@ -586,16 +773,42 @@
            desvanece. Grupo estatico de posicion -> grupo SOLO animado
            (traslado) -> grupo estatico de escala -> el corazon en si
            (opacidad animada aparte), mismo truco que el brazo saludando. -->
-      <g transform="translate(150,10)">
+      <!-- reaccion de "lluvia de corazones": tres corazones, cada uno con
+           su propio despegue (posicion y retraso dentro de la MISMA
+           linea de tiempo) para que no salgan los tres pegados. -->
+      <g transform="translate(150,4)">
         <g>
-          <animateTransform id="reaccionCorazonMov" attributeName="transform" type="translate" values="0,0; 0,-32" dur="0.9s" begin="indefinite"/>
-          <g transform="scale(0.42)">
+          <animateTransform id="reaccionCorazonMov" attributeName="transform" type="translate" values="0,0; 0,-42" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.55)">
             <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
                   fill="#ff5c8a" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
               <animate id="reaccionCorazonOpacidad" attributeName="opacity" values="0;1;1;0" keyTimes="0;.18;.7;1" dur="0.9s" begin="indefinite"/>
             </path>
           </g>
         </g>
+      </g>
+      <g transform="translate(88,10)">
+        <g>
+          <animateTransform id="reaccionCorazonMov2" attributeName="transform" type="translate" values="0,0; 0,0; 0,-38; 0,-38" keyTimes="0;.12;.7;1" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.44) rotate(-14)">
+            <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
+                  fill="#ff8fab" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
+              <animate id="reaccionCorazonOpacidad2" attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.12;.3;.82;1" dur="0.9s" begin="indefinite"/>
+            </path>
+          </g>
+        </g>
+      </g>
+      <g transform="translate(122,-14)">
+        <g>
+          <animateTransform id="reaccionCorazonMov3" attributeName="transform" type="translate" values="0,0; 0,0; 0,0; 0,-34; 0,-34" keyTimes="0;.24;.3;.86;1" dur="0.9s" begin="indefinite"/>
+          <g transform="scale(0.36) rotate(12)">
+            <path d="M0,-8 C -15,-24 -36,-9 -18,8 L0,24 L18,8 C36,-9 15,-24 0,-8 Z"
+                  fill="#ff5c8a" stroke="#c81d5c" stroke-width="5" stroke-linejoin="round" opacity="0">
+              <animate id="reaccionCorazonOpacidad3" attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.24;.42;.9;1" dur="0.9s" begin="indefinite"/>
+            </path>
+          </g>
+        </g>
+      </g>
       </g>
     </g>
     {% endif %}

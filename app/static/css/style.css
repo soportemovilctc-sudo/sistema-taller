@@ -693,11 +693,11 @@ html, body {
    balanceo es puramente visual, no afecta la posición real. */
 .panda-mascota.panda-caminando {
   transition: left .9s cubic-bezier(.4,0,.2,1), top .9s cubic-bezier(.4,0,.2,1);
-  animation: panda-camina .35s ease-in-out infinite alternate;
+  animation: panda-camina .3s ease-in-out infinite alternate;
 }
 @keyframes panda-camina {
-  from { transform: translateY(0) rotate(-3deg); }
-  to   { transform: translateY(-5px) rotate(3deg); }
+  from { transform: translateY(0) rotate(-7deg) scale(1); }
+  to   { transform: translateY(-9px) rotate(7deg) scale(1.05); }
 }
 
 /* Resalta (con un pulso breve) el enlace del menú al que el panda se

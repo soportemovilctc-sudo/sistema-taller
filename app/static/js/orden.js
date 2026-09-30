@@ -315,12 +315,16 @@ function inicializarServicioRapido() {
     return base.getFullYear() + "-" + pad2(base.getMonth() + 1) + "-" + pad2(base.getDate());
   }
 
-  function aplicarServicio() {
-    var s = servicioSeleccionado();
+  // servicioForzado: si se pasa (por ejemplo desde la sugerencia automática
+  // del panda), se aplica ESE servicio sin importar cuál esté seleccionado
+  // en la lista, y de paso se refleja la selección en el <select>.
+  function aplicarServicio(servicioForzado) {
+    var s = servicioForzado || servicioSeleccionado();
     if (!s) {
       preview.textContent = "Selecciona un servicio rápido de la lista antes de aplicar.";
       return;
     }
+    if (servicioForzado) select.value = String(s.id);
     var campoFallaOrden = document.querySelector('textarea[name="falla_reportada"]');
     var campoEstadoOrden = document.querySelector('textarea[name="observaciones_condicion"]');
     var campoObsOrden = document.querySelector('textarea[name="observaciones"]');
@@ -454,7 +458,7 @@ function inicializarServicioRapido() {
   }
 
   select.addEventListener("change", actualizarPreview);
-  if (btnAplicar) btnAplicar.addEventListener("click", aplicarServicio);
+  if (btnAplicar) btnAplicar.addEventListener("click", function () { aplicarServicio(); });
   if (btnAgregar) btnAgregar.addEventListener("click", function () { abrirModal("crear", null); });
   if (btnEditar) btnEditar.addEventListener("click", function () {
     var s = servicioSeleccionado();
@@ -465,6 +469,60 @@ function inicializarServicioRapido() {
   if (btnGuardar) btnGuardar.addEventListener("click", guardarModal);
   if (btnCancelar) btnCancelar.addEventListener("click", cerrarModal);
   if (overlay) overlay.addEventListener("click", function (e) { if (e.target === overlay) cerrarModal(); });
+
+  // ---------- Sugerencia automática: si lo que se escribió en "Falla
+  // reportada" se parece a un servicio rápido ya guardado, el panda lo
+  // sugiere con un botón para aplicarlo de una vez, en vez de tener que
+  // buscarlo a mano en la lista. Comparación simple por palabras en común
+  // (sin IA ni conexión externa), igual de "manual" que el resto del
+  // asistente. ----------
+
+  var sugeridosEstaCarga = {}; // ids de servicios ya sugeridos en esta página, para no insistir
+
+  function normalizarParaComparar(s) {
+    return (s || "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  }
+
+  function mejorServicioParaTexto(texto) {
+    var textoNorm = normalizarParaComparar(texto);
+    var palabras = textoNorm.split(/[^a-z0-9]+/).filter(function (p) { return p.length >= 4; });
+    if (!palabras.length) return null;
+
+    var mejor = null;
+    var mejorPuntaje = 0;
+    servicios.forEach(function (s) {
+      var objetivo = normalizarParaComparar(s.nombre + " " + (s.falla_reportada || ""));
+      var puntaje = 0;
+      palabras.forEach(function (p) { if (objetivo.indexOf(p) !== -1) puntaje++; });
+      if (puntaje > mejorPuntaje) { mejorPuntaje = puntaje; mejor = s; }
+    });
+    return mejorPuntaje >= 1 ? mejor : null;
+  }
+
+  function sugerirServicioRapidoSiAplica() {
+    if (typeof window.pandaSugerir !== "function") return;
+    var campoFallaOrden = document.querySelector('textarea[name="falla_reportada"]');
+    if (!campoFallaOrden) return;
+    var texto = campoFallaOrden.value.trim();
+    if (texto.length < 8) return;
+
+    var sugerido = mejorServicioParaTexto(texto);
+    if (!sugerido || sugeridosEstaCarga[sugerido.id]) return;
+    var actual = servicioSeleccionado();
+    if (actual && actual.id === sugerido.id) return;
+
+    var mostrado = window.pandaSugerir(
+      'La falla se parece al servicio rápido "' + sugerido.nombre + '". ¿Lo aplico?',
+      "Sí, aplicar",
+      function () { aplicarServicio(sugerido); }
+    );
+    if (mostrado) sugeridosEstaCarga[sugerido.id] = true;
+  }
+
+  var campoFallaParaSugerir = document.querySelector('textarea[name="falla_reportada"]');
+  if (campoFallaParaSugerir) {
+    campoFallaParaSugerir.addEventListener("blur", sugerirServicioRapidoSiAplica);
+  }
 
   poblarSelect("");
 }

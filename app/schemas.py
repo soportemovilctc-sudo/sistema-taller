@@ -30,14 +30,3 @@ class VentaOut(BaseModel):
     mensaje: str | None = None
     factura_id: int | None = None
     numero_documento: str | None = None
-
-
-class AsistenteConsultaIn(BaseModel):
-    mensaje: str
-    contexto_orden: str | None = None
-
-
-class AsistenteEjecutarIn(BaseModel):
-    tipo: str
-    orden_id: int
-    parametros: dict = {}

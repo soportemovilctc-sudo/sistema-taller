@@ -439,23 +439,30 @@ function inicializarPandaMascota() {
   // Muestra el globo con un mensaje. opts.autoCerrar: ms para cerrarlo solo
   // (null = se queda abierto hasta que lo cierren o toquen afuera, como el
   // consejo de presión larga). opts.pie: texto del pie; si no se manda, se
-  // usa el de siempre. opts.accion: {etiqueta, url} opcional, un botón que
-  // lleva a otra pantalla (por ejemplo "Ir a Inventario →"), para los
-  // avisos proactivos que señalan algo concreto.
+  // usa el de siempre. opts.accion: {etiqueta, url} o {etiqueta, onClick}
+  // opcional, un botón para un aviso proactivo que señala algo concreto:
+  // con "url" navega a otra pantalla (p. ej. "Ir a Inventario →"); con
+  // "onClick" ejecuta una función en la página actual (p. ej. aplicar una
+  // sugerencia) y cierra el globo después.
   function mostrarGlobo(msj, opts) {
     opts = opts || {};
     clearTimeout(globoAutoCerrarTimer);
     globoMsg.textContent = msj.texto;
     globoMsg.classList.toggle("es-alerta", !!msj.alerta);
     globoAccion.innerHTML = "";
-    if (opts.accion && opts.accion.url) {
+    if (opts.accion && (opts.accion.url || opts.accion.onClick)) {
       var btnAccion = document.createElement("button");
       btnAccion.type = "button";
       btnAccion.className = "panda-chat-accion-btn";
       btnAccion.textContent = opts.accion.etiqueta || "Ver más →";
       btnAccion.addEventListener("click", function (e) {
         e.stopPropagation();
-        window.location.href = opts.accion.url;
+        if (opts.accion.onClick) {
+          opts.accion.onClick();
+          cerrarAsistente();
+        } else {
+          window.location.href = opts.accion.url;
+        }
       });
       globoAccion.appendChild(btnAccion);
     }
@@ -495,6 +502,16 @@ function inicializarPandaMascota() {
     mostrarGlobo({ texto: texto, alerta: !!opts.alerta }, { autoCerrar: opts.autoCerrar || 6000, pie: false, accion: opts.accion || null });
     return true;
   }
+
+  // Punto de entrada genérico para que OTRAS páginas (por ejemplo orden.js,
+  // al detectar que la falla escrita se parece a un servicio rápido
+  // guardado) le pidan al panda que reaccione y sugiera algo con un botón
+  // de acción propio, sin tener que reimplementar el globo. Devuelve false
+  // (y no sugiere nada) si el panda ya está mostrando otra cosa, igual que
+  // reaccionarConMensaje.
+  window.pandaSugerir = function (texto, etiquetaBoton, onClick) {
+    return reaccionarConMensaje(texto, { autoCerrar: 10000, accion: { etiqueta: etiquetaBoton, onClick: onClick } });
+  };
   window.pandaReaccionEvento = function (tipo, detalle) {
     if (tipo === "venta") {
       reaccionarConMensaje("¡Venta " + (detalle || "") + " registrada! 🎉", {});

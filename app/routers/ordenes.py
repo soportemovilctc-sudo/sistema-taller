@@ -387,9 +387,7 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
     """Aplica un cambio de estado a una orden (incluye el pago automático al
     marcar ENTREGADO). No hace commit ni valida que nuevo_estado sea válido;
     eso lo decide quien llama. Devuelve el monto del pago automático
-    registrado, o None si no aplicó. Se usa tanto desde el formulario de la
-    orden como desde el asistente (acción "marcar_entregado"), para que el
-    comportamiento sea idéntico en los dos casos."""
+    registrado, o None si no aplicó."""
     estado_anterior = orden.estado
     historial = HistorialEstado(
         orden_id=orden.id, estado_anterior=estado_anterior, estado_nuevo=nuevo_estado,
@@ -442,6 +440,13 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
             usuario_nombre=usuario_nombre,
             observacion="Pago automático al marcar la orden como ENTREGADO",
         ))
+        # Se registra también como ingreso en Reportes (antes solo quedaba
+        # en el historial de pagos de la orden, invisible ahí).
+        db.add(MovimientoFinanciero(
+            tipo="ingreso", categoria="Cancelación de orden (automático)", monto=monto_pago_automatico,
+            descripcion=f"Pago automático al entregar - Orden {orden.numero_orden}",
+            usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
+        ))
         db.flush()
         db.refresh(orden)
         recalcular_orden(orden)
@@ -451,12 +456,18 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
 def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, observacion: str, usuario_nombre: str) -> Decimal:
     """Registra un abono sobre una orden (valida el monto contra el saldo
     actual, puede lanzar ValueError/InvalidOperation). No hace commit.
-    Devuelve el monto ya validado. Compartida entre el formulario de la
-    orden y el asistente (acción "registrar_abono")."""
+    Devuelve el monto ya validado."""
     monto_validado = validar_abono(monto, orden.saldo)
     pago = Pago(orden_id=orden.id, monto=monto_validado, forma_pago=forma_pago,
                 usuario_nombre=usuario_nombre, observacion=observacion)
     db.add(pago)
+    # Se registra también como ingreso en Reportes (antes solo quedaba en
+    # el historial de pagos de la orden, invisible ahí).
+    db.add(MovimientoFinanciero(
+        tipo="ingreso", categoria="Abono de orden", monto=monto_validado,
+        descripcion=f"Abono - Orden {orden.numero_orden}" + (f" ({observacion})" if observacion else ""),
+        usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
+    ))
     db.flush()
     db.refresh(orden)
     recalcular_orden(orden)

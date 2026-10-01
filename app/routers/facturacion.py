@@ -209,7 +209,8 @@ def factura_crear(
     orden_id: int, request: Request,
     tipo: str = Form("interno"), exento: bool = Form(False), tecnico_reparacion_id: str = Form(""),
     repuesto_producto_id: str = Form(""), repuesto_cantidad: str = Form("1"), repuesto_precio: str = Form(""),
-    servicio_id: str = Form(""), servicio_cantidad: str = Form("1"), servicio_precio: str = Form(""),
+    servicio_nombre: str = Form(""), servicio_categoria: str = Form(""),
+    servicio_cantidad: str = Form("1"), servicio_precio: str = Form(""), servicio_costo: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
@@ -265,36 +266,34 @@ def factura_crear(
         db.flush()
 
     # Servicio adicional (opcional): igual que el repuesto de arriba, por si
-    # el trabajo llevó un servicio del catálogo que todavía no se había
-    # registrado en la orden.
-    servicio_id_raw = (servicio_id or "").strip()
-    if servicio_id_raw:
-        try:
-            servicio_id_val = int(servicio_id_raw)
-        except (TypeError, ValueError):
-            servicio_id_val = None
+    # el trabajo llevó un servicio que todavía no se había registrado en la
+    # orden. Se busca por nombre en el catálogo (ver Servicio); si no existe
+    # todavía, se crea ahí mismo con el precio (y costo, si se escribió).
+    servicio_nombre_raw = (servicio_nombre or "").strip()
+    if servicio_nombre_raw:
         try:
             servicio_cantidad_val = int(servicio_cantidad or "1")
         except (TypeError, ValueError):
             servicio_cantidad_val = 0
-
-        if not servicio_id_val or servicio_cantidad_val <= 0:
-            flash(request, "Cantidad inválida para el servicio seleccionado.", "error")
+        if servicio_cantidad_val <= 0:
+            flash(request, "Cantidad inválida para el servicio.", "error")
             return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva", status_code=303)
 
-        servicio = db.get(Servicio, servicio_id_val)
-        if not servicio:
-            flash(request, "El servicio seleccionado no existe.", "error")
-            return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva", status_code=303)
-
-        servicio_precio_override = None
         servicio_precio_raw = (servicio_precio or "").strip()
-        if servicio_precio_raw:
-            servicio_precio_val = to_decimal(servicio_precio_raw)
-            if servicio_precio_val > 0:
-                servicio_precio_override = servicio_precio_val.quantize(Decimal("0.01"))
+        servicio_precio_dec = to_decimal(servicio_precio_raw) if servicio_precio_raw else to_decimal(0)
+        servicio_costo_raw = (servicio_costo or "").strip()
+        servicio_costo_dec = to_decimal(servicio_costo_raw) if servicio_costo_raw else None
 
-        _agregar_servicio_a_orden(db, orden, servicio, servicio_cantidad_val, usuario["nombre_completo"], servicio_precio_override)
+        servicio = db.query(Servicio).filter(Servicio.nombre.ilike(servicio_nombre_raw)).first()
+        if not servicio:
+            servicio = Servicio(
+                nombre=servicio_nombre_raw, categoria=(servicio_categoria or "").strip(),
+                precio_venta=servicio_precio_dec, costo=servicio_costo_dec, activo=True,
+            )
+            db.add(servicio)
+            db.flush()
+
+        _agregar_servicio_a_orden(db, orden, servicio, servicio_cantidad_val, usuario["nombre_completo"], servicio_precio_dec)
         db.flush()
         db.refresh(orden)
         recalcular_orden(orden)

@@ -10,30 +10,13 @@
     <div class="form-row">
       <div class="field"><label>Precio de venta *</label><input type="number" step="0.01" min="0" name="precio_venta" required value="{{ servicio.precio_venta if servicio else '0' }}"></div>
       <div class="field">
-        <label>Costo</label>
-        <input type="number" step="0.01" min="0" name="costo" id="inputCostoServicio" value="{{ servicio.costo if servicio and servicio.costo is not none else '0' }}" {{ 'disabled' if not servicio or servicio.costo is none else '' }}>
+        <label>Costo (opcional)</label>
+        <input type="number" step="0.01" min="0" name="costo" placeholder="Déjalo en blanco si no tiene" value="{{ servicio.costo if servicio and servicio.costo is not none else '' }}">
       </div>
     </div>
-    <div class="field">
-      <label class="checkbox-chip">
-        <input type="checkbox" name="tiene_costo" id="checkTieneCosto" value="true" {{ 'checked' if not servicio or servicio.costo is not none else '' }}>
-        Este servicio tiene un costo asociado
-      </label>
-      <div class="help">Desmárcalo si este servicio es 100% mano de obra y no tiene ningún costo (algunos servicios no lo tienen). Si lo marcas, ese costo se usa en Reportes para calcular la utilidad de este servicio.</div>
-    </div>
+    <div class="help" style="margin-top:-8px;margin-bottom:12px;">Deja el costo en blanco si este servicio es 100% mano de obra y no tiene ningún costo. Si escribes un número, ese costo se usa en Reportes para calcular la utilidad de este servicio.</div>
     <button type="submit" class="btn btn-primary">Guardar</button>
     <a href="/servicios" class="btn btn-outline">Cancelar</a>
   </form>
 </div>
-<script>
-  (function () {
-    var check = document.getElementById('checkTieneCosto');
-    var campo = document.getElementById('inputCostoServicio');
-    if (!check || !campo) return;
-    check.addEventListener('change', function () {
-      campo.disabled = !check.checked;
-      if (!check.checked) campo.value = '0';
-    });
-  })();
-</script>
 {% endblock %}

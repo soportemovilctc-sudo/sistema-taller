@@ -249,6 +249,40 @@
     <button type="button" id="repuestoAgregarFila" class="btn btn-outline btn-sm">+ Agregar otro repuesto</button>
     <p class="help">El precio unitario se llena solo con el precio de venta del producto ya con el {{ tasa_isv }}% de impuesto incluido, pero puedes cambiarlo si vas a cobrar un precio distinto para esta orden.</p>
   </details>
+
+  <details class="card">
+    <summary class="card-title" style="cursor:pointer;">Servicios adicionales (opcional) <span class="help" style="font-weight:400;">— toca para mostrar</span></summary>
+    <p class="help">Si ya sabes qué servicios vas a cobrar en esta orden (cambio de pantalla, formateo, diagnóstico, etc.), agrégalos aquí: se sumarán al total en cuanto crees la orden. Escribe el nombre: si ya existe en el <a href="/servicios">catálogo</a>, elígelo de la lista para autocompletar el precio; si es nuevo, escribe su precio (y costo, si tiene) y se crea solo, guardado para la próxima vez. También puedes agregarlos más adelante desde el detalle de la orden.</p>
+    <datalist id="listaServiciosNuevaOrden">
+      {% for s in servicios_disponibles %}
+      <option value="{{ s.nombre }}" data-precio="{{ s.precio_venta }}" data-costo="{{ s.costo if s.costo is not none else '' }}">
+      {% endfor %}
+    </datalist>
+    <div id="serviciosFilas">
+      <div class="form-row servicio-fila">
+        <div class="field" style="flex:2;">
+          <label>Servicio</label>
+          <input type="text" name="servicio_nombre" class="servicio-input-nombre" list="listaServiciosNuevaOrden" placeholder="Escribe o elige un servicio...">
+        </div>
+        <div class="field" style="flex:1;">
+          <label>Cantidad</label>
+          <input type="number" step="1" min="1" name="servicio_cantidad" value="1">
+        </div>
+        <div class="field" style="flex:1;">
+          <label>Precio de venta</label>
+          <input type="number" step="0.01" min="0" name="servicio_precio" class="servicio-input-precio" placeholder="0.00">
+        </div>
+        <div class="field" style="flex:1;">
+          <label>Costo (opcional)</label>
+          <input type="number" step="0.01" min="0" name="servicio_costo" class="servicio-input-costo" placeholder="Déjalo en blanco si no tiene">
+        </div>
+        <div class="field" style="flex:0 0 auto; align-self:flex-end;">
+          <button type="button" class="btn btn-outline btn-sm servicio-quitar">Quitar</button>
+        </div>
+      </div>
+    </div>
+    <button type="button" id="servicioAgregarFila" class="btn btn-outline btn-sm">+ Agregar otro servicio</button>
+  </details>
   {% endif %}
 
   <div class="card">
@@ -352,6 +386,55 @@
       nueva.querySelector('input[name="repuesto_precio"]').value = '';
       cont.appendChild(nueva);
       if (selectClon && window.inicializarBuscadorSelect) window.inicializarBuscadorSelect(selectClon);
+    });
+  })();
+
+  (function () {
+    var cont = document.getElementById('serviciosFilas');
+    var btnAgregar = document.getElementById('servicioAgregarFila');
+    var datalist = document.getElementById('listaServiciosNuevaOrden');
+    if (!cont || !btnAgregar) return;
+
+    function limpiarFila(fila) {
+      fila.querySelector('input[name="servicio_nombre"]').value = '';
+      fila.querySelector('input[name="servicio_cantidad"]').value = 1;
+      fila.querySelector('input[name="servicio_precio"]').value = '';
+      fila.querySelector('input[name="servicio_costo"]').value = '';
+    }
+
+    cont.addEventListener('click', function (e) {
+      if (!e.target.classList.contains('servicio-quitar')) return;
+      var fila = e.target.closest('.servicio-fila');
+      var filas = cont.querySelectorAll('.servicio-fila');
+      if (filas.length > 1) {
+        fila.remove();
+      } else {
+        limpiarFila(fila);
+      }
+    });
+
+    // El atributo "list" del input ya autocompleta nativamente con el
+    // datalist (sin necesidad de reinicializar nada al clonar la fila);
+    // aquí solo se llena el precio/costo cuando el nombre escrito coincide
+    // exactamente con un servicio del catálogo.
+    cont.addEventListener('input', function (e) {
+      if (!e.target.classList.contains('servicio-input-nombre') || !datalist) return;
+      var fila = e.target.closest('.servicio-fila');
+      var opciones = datalist.querySelectorAll('option');
+      for (var i = 0; i < opciones.length; i++) {
+        if (opciones[i].value === e.target.value) {
+          fila.querySelector('input[name="servicio_precio"]').value = opciones[i].getAttribute('data-precio') || '';
+          fila.querySelector('input[name="servicio_costo"]').value = opciones[i].getAttribute('data-costo') || '';
+          return;
+        }
+      }
+    });
+
+    btnAgregar.addEventListener('click', function () {
+      var filas = cont.querySelectorAll('.servicio-fila');
+      var nueva = filas[0].cloneNode(true);
+      limpiarFila(nueva);
+      cont.appendChild(nueva);
     });
   })();
 

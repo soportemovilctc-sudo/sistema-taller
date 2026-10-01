@@ -35,18 +35,22 @@ def servicios_nuevo_form(request: Request, db: Session = Depends(get_db), usuari
     })
 
 
-def _validar_formulario(nombre: str, precio_venta: str, costo: str, tiene_costo: bool):
+def _validar_formulario(nombre: str, precio_venta: str, costo: str):
     """Valida y convierte los campos del formulario. Devuelve
-    (nombre_limpio, precio_dec, costo_dec_o_none, error)."""
+    (nombre_limpio, precio_dec, costo_dec_o_none, error). El costo es
+    simplemente un campo opcional: si se deja en blanco, el servicio
+    queda sin costo; si se escribe un número (incluyendo 0), ese es su
+    costo. No hace falta ninguna casilla aparte para esto."""
     nombre_limpio = nombre.strip()
     if not nombre_limpio:
         return None, None, None, "El nombre del servicio es obligatorio."
     precio_dec = to_decimal(precio_venta or 0)
     if precio_dec < 0:
         return None, None, None, "El precio de venta no puede ser negativo."
+    costo_raw = (costo or "").strip()
     costo_dec = None
-    if tiene_costo:
-        costo_dec = to_decimal(costo or 0)
+    if costo_raw:
+        costo_dec = to_decimal(costo_raw)
         if costo_dec < 0:
             return None, None, None, "El costo no puede ser negativo."
     return nombre_limpio, precio_dec, costo_dec, None
@@ -56,10 +60,10 @@ def _validar_formulario(nombre: str, precio_venta: str, costo: str, tiene_costo:
 def servicios_crear(
     request: Request,
     nombre: str = Form(...), descripcion: str = Form(""), categoria: str = Form(""),
-    precio_venta: str = Form("0"), tiene_costo: bool = Form(False), costo: str = Form("0"),
+    precio_venta: str = Form("0"), costo: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
-    nombre_limpio, precio_dec, costo_dec, error = _validar_formulario(nombre, precio_venta, costo, tiene_costo)
+    nombre_limpio, precio_dec, costo_dec, error = _validar_formulario(nombre, precio_venta, costo)
     if error:
         flash(request, error, "error")
         return RedirectResponse("/servicios/nuevo", status_code=303)
@@ -93,7 +97,7 @@ def servicios_editar_form(servicio_id: int, request: Request, db: Session = Depe
 def servicios_actualizar(
     servicio_id: int, request: Request,
     nombre: str = Form(...), descripcion: str = Form(""), categoria: str = Form(""),
-    precio_venta: str = Form("0"), tiene_costo: bool = Form(False), costo: str = Form("0"),
+    precio_venta: str = Form("0"), costo: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     servicio = db.get(Servicio, servicio_id)
@@ -101,7 +105,7 @@ def servicios_actualizar(
         flash(request, "Servicio no encontrado.", "error")
         return RedirectResponse("/servicios", status_code=303)
 
-    nombre_limpio, precio_dec, costo_dec, error = _validar_formulario(nombre, precio_venta, costo, tiene_costo)
+    nombre_limpio, precio_dec, costo_dec, error = _validar_formulario(nombre, precio_venta, costo)
     if error:
         flash(request, error, "error")
         return RedirectResponse(f"/servicios/{servicio_id}/editar", status_code=303)

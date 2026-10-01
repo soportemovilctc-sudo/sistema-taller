@@ -147,6 +147,7 @@ def ordenes_nueva_form(request: Request, db: Session = Depends(get_db), usuario=
         "request": request, "orden": None, "usuario": usuario,
         "recargo_default": cfg.recargo_default_pct if cfg else 0,
         "productos_disponibles": productos_disponibles, "tasa_isv": tasa,
+        "servicios_disponibles": _servicios_disponibles(db),
         **_opciones_formulario(db),
     })
 
@@ -180,6 +181,11 @@ def ordenes_crear(
     repuesto_producto_id: list[str] = Form([]),
     repuesto_cantidad: list[str] = Form([]),
     repuesto_precio: list[str] = Form([]),
+    servicio_nombre: list[str] = Form([]),
+    servicio_categoria: list[str] = Form([]),
+    servicio_cantidad: list[str] = Form([]),
+    servicio_precio: list[str] = Form([]),
+    servicio_costo: list[str] = Form([]),
     db: Session = Depends(get_db),
     usuario=Depends(login_required),
 ):
@@ -258,7 +264,47 @@ def ordenes_crear(
         _agregar_repuesto_a_orden(db, orden, producto, cantidad_val, usuario["nombre_completo"], precio_override)
         repuestos_agregados.append(producto.nombre)
 
-    if repuestos_agregados:
+    # Servicios adicionales (opcional): igual que los repuestos, pero cada
+    # fila trae su propio nombre/precio/costo en vez de elegirse de un
+    # catálogo de productos con existencia. Si el nombre ya existe en el
+    # catálogo de Servicios se reutiliza (y se puede ajustar el precio solo
+    # para esta orden); si no existe, se crea ahí mismo con el precio y
+    # costo escritos, sin tener que ir primero a Servicios.
+    servicios_agregados = []
+    _cant_servicios = len(servicio_nombre)
+    for nombre_raw, cantidad_raw, precio_raw, costo_raw, categoria_raw in zip(
+        servicio_nombre,
+        servicio_cantidad or [""] * _cant_servicios,
+        servicio_precio or [""] * _cant_servicios,
+        servicio_costo or [""] * _cant_servicios,
+        servicio_categoria or [""] * _cant_servicios,
+    ):
+        nombre_raw = (nombre_raw or "").strip()
+        if not nombre_raw:
+            continue
+        try:
+            cantidad_val = int(cantidad_raw)
+        except (TypeError, ValueError):
+            cantidad_val = 0
+        if cantidad_val <= 0:
+            continue
+        precio_dec = to_decimal(precio_raw or 0)
+        if precio_dec < 0:
+            continue
+        costo_raw = (costo_raw or "").strip()
+        costo_dec = to_decimal(costo_raw) if costo_raw else None
+        servicio = db.query(Servicio).filter(Servicio.nombre.ilike(nombre_raw)).first()
+        if not servicio:
+            servicio = Servicio(
+                nombre=nombre_raw, categoria=(categoria_raw or "").strip(),
+                precio_venta=precio_dec, costo=costo_dec, activo=True,
+            )
+            db.add(servicio)
+            db.flush()
+        _agregar_servicio_a_orden(db, orden, servicio, cantidad_val, usuario["nombre_completo"], precio_override=precio_dec)
+        servicios_agregados.append(servicio.nombre)
+
+    if repuestos_agregados or servicios_agregados:
         db.flush()
         db.refresh(orden)
         recalcular_orden(orden)
@@ -270,6 +316,8 @@ def ordenes_crear(
     mensaje = f"Orden {orden.numero_orden} creada correctamente."
     if repuestos_agregados:
         mensaje += f" Repuestos agregados: {', '.join(repuestos_agregados)}."
+    if servicios_agregados:
+        mensaje += f" Servicios agregados: {', '.join(servicios_agregados)}."
     flash(request, mensaje, "success")
     return RedirectResponse(f"/ordenes/{orden.id}", status_code=303)
 
@@ -708,58 +756,17 @@ def ordenes_quitar_repuesto(
 @router.post("/ordenes/{orden_id}/servicios")
 def ordenes_agregar_servicio(
     orden_id: int, request: Request,
-    servicio_id: int = Form(...), cantidad: str = Form("1"), precio: str = Form(""),
+    nombre: str = Form(...), categoria: str = Form(""), cantidad: str = Form("1"),
+    precio_venta: str = Form("0"), costo: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
-    """Agrega un servicio del catálogo a la orden (ver Servicio): queda
-    registrado como ingreso (para reportes y contabilidad) y su precio se
-    suma al total de la orden y a la factura que se genere a partir de
-    ella."""
-    orden = db.get(OrdenServicio, orden_id)
-    if not orden:
-        return RedirectResponse("/ordenes", status_code=303)
-
-    servicio = db.get(Servicio, servicio_id)
-    if not servicio:
-        flash(request, "Servicio no encontrado.", "error")
-        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
-
-    try:
-        cantidad_int = int(cantidad)
-    except (TypeError, ValueError):
-        cantidad_int = 0
-    if cantidad_int <= 0:
-        flash(request, "La cantidad debe ser mayor a cero.", "error")
-        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
-
-    precio_override = None
-    precio_raw = (precio or "").strip()
-    if precio_raw:
-        precio_val = to_decimal(precio_raw)
-        if precio_val > 0:
-            precio_override = precio_val.quantize(Decimal("0.01"))
-
-    _agregar_servicio_a_orden(db, orden, servicio, cantidad_int, usuario["nombre_completo"], precio_override)
-    db.flush()
-    db.refresh(orden)
-    recalcular_orden(orden)
-    db.commit()
-    flash(request, f"Servicio '{servicio.nombre}' agregado a la orden.", "success")
-    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
-
-
-@router.post("/ordenes/{orden_id}/servicios/rapido")
-def ordenes_agregar_servicio_rapido(
-    orden_id: int, request: Request,
-    nombre: str = Form(...), categoria: str = Form(""), precio_venta: str = Form("0"),
-    tiene_costo: bool = Form(False), costo: str = Form("0"), cantidad: str = Form("1"),
-    db: Session = Depends(get_db), usuario=Depends(login_required),
-):
-    """Crea un servicio nuevo en el catálogo (o reutiliza uno que ya exista
-    con ese mismo nombre) y lo agrega a esta orden en un solo paso, para
-    cuando surge un trabajo que todavía no está en el catálogo y no quiere
-    perderse tiempo yendo primero a Servicios y luego volviendo a la orden.
-    El servicio queda guardado en el catálogo para la próxima vez."""
+    """Agrega un servicio a la orden por nombre, sin pasos extra: si ya
+    existe un servicio con ese nombre en el catálogo (ver Servicio) se
+    reutiliza ese (se puede ajustar el precio solo para esta orden); si no
+    existe, se crea en el catálogo con el precio y costo escritos aquí, sin
+    tener que ir primero a Servicios y luego volver. Queda registrado como
+    ingreso (para reportes y contabilidad) y su precio se suma al total de
+    la orden y a la factura que se genere a partir de ella."""
     orden = db.get(OrdenServicio, orden_id)
     if not orden:
         return RedirectResponse("/ordenes", status_code=303)
@@ -769,18 +776,6 @@ def ordenes_agregar_servicio_rapido(
         flash(request, "Escribe un nombre para el servicio.", "error")
         return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
-    precio_dec = to_decimal(precio_venta or 0)
-    if precio_dec < 0:
-        flash(request, "El precio de venta no puede ser negativo.", "error")
-        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
-
-    costo_dec = None
-    if tiene_costo:
-        costo_dec = to_decimal(costo or 0)
-        if costo_dec < 0:
-            flash(request, "El costo no puede ser negativo.", "error")
-            return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
-
     try:
         cantidad_int = int(cantidad)
     except (TypeError, ValueError):
@@ -789,11 +784,22 @@ def ordenes_agregar_servicio_rapido(
         flash(request, "La cantidad debe ser mayor a cero.", "error")
         return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
+    precio_dec = to_decimal(precio_venta or 0)
+    if precio_dec < 0:
+        flash(request, "El precio de venta no puede ser negativo.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    costo_raw = (costo or "").strip()
+    costo_dec = None
+    if costo_raw:
+        costo_dec = to_decimal(costo_raw)
+        if costo_dec < 0:
+            flash(request, "El costo no puede ser negativo.", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
     servicio = db.query(Servicio).filter(Servicio.nombre.ilike(nombre_limpio)).first()
     mensaje_catalogo = ""
-    if servicio:
-        mensaje_catalogo = " (ya existía en el catálogo, se usó ese)"
-    else:
+    if not servicio:
         servicio = Servicio(
             nombre=nombre_limpio, categoria=categoria.strip(),
             precio_venta=precio_dec, costo=costo_dec, activo=True,

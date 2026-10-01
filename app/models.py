@@ -207,6 +207,7 @@ class OrdenServicio(Base):
     recargo_pct = Column(Numeric(6, 2), default=0)
     recargo_monto = Column(Numeric(10, 2), default=0)
     repuestos_subtotal = Column(Numeric(10, 2), default=0)
+    servicios_subtotal = Column(Numeric(10, 2), default=0)
     total = Column(Numeric(10, 2), default=0)
     abonado = Column(Numeric(10, 2), default=0)
     saldo = Column(Numeric(10, 2), default=0)
@@ -232,6 +233,7 @@ class OrdenServicio(Base):
     historial = relationship("HistorialEstado", back_populates="orden", cascade="all,delete-orphan", order_by="HistorialEstado.fecha")
     pagos = relationship("Pago", back_populates="orden", cascade="all,delete-orphan", order_by="Pago.fecha")
     repuestos = relationship("OrdenRepuesto", back_populates="orden", cascade="all,delete-orphan", order_by="OrdenRepuesto.fecha")
+    servicios_extra = relationship("OrdenServicioExtra", back_populates="orden", cascade="all,delete-orphan", order_by="OrdenServicioExtra.fecha")
     facturas = relationship("Factura", back_populates="orden", order_by="Factura.id")
 
     def lista_accesorios(self):
@@ -276,6 +278,50 @@ class OrdenRepuesto(Base):
     orden = relationship("OrdenServicio", back_populates="repuestos")
     producto = relationship("Producto")
     venta = relationship("Venta")
+
+
+class Servicio(Base):
+    """Catálogo de servicios que ofrece el taller (ej. 'Cambio de pantalla',
+    'Formateo', 'Diagnóstico a profundidad'), cada uno con su propio precio
+    de venta. El costo es OPCIONAL porque no todos los servicios lo tienen:
+    algunos son 100% mano de obra (sin costo), y otros sí llevan un costo
+    (por ejemplo un técnico subcontratado o un insumo que no se controla en
+    Inventario). Ese costo permite calcular la utilidad del servicio en
+    Reportes, igual que ya se hace con los productos del inventario."""
+    __tablename__ = "servicios"
+
+    id = Column(Integer, primary_key=True)
+    nombre = Column(String(150), unique=True, nullable=False, index=True)
+    descripcion = Column(Text, default="")
+    categoria = Column(String(80), default="")
+    precio_venta = Column(Numeric(10, 2), nullable=False, default=0)
+    costo = Column(Numeric(10, 2), nullable=True)  # None = sin costo (no todos los servicios lo tienen)
+    activo = Column(Boolean, default=True, nullable=False)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
+
+class OrdenServicioExtra(Base):
+    """Un servicio del catálogo (ver Servicio) agregado a una orden, además
+    de la cotización base del equipo: por ejemplo cuando el trabajo
+    combina varios servicios con nombre propio (diagnóstico + formateo), o
+    se agrega un servicio adicional ya avanzada la orden. Guarda su propio
+    precio y costo unitario al momento de agregarlo (puede ajustarse del
+    precio de catálogo), para que un cambio posterior en el catálogo no
+    altere órdenes o facturas ya emitidas."""
+    __tablename__ = "orden_servicios_extra"
+
+    id = Column(Integer, primary_key=True)
+    orden_id = Column(Integer, ForeignKey("ordenes_servicio.id"), nullable=False)
+    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=False)
+    cantidad = Column(Integer, nullable=False, default=1)
+    precio_unitario = Column(Numeric(10, 2), nullable=False)
+    costo_unitario = Column(Numeric(10, 2), nullable=True)
+    subtotal = Column(Numeric(10, 2), nullable=False)
+    fecha = Column(DateTime, default=datetime.utcnow)
+    usuario_nombre = Column(String(150))
+
+    orden = relationship("OrdenServicio", back_populates="servicios_extra")
+    servicio = relationship("Servicio")
 
 
 class HistorialEstado(Base):

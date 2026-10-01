@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar servicio' if servicio else 'Nuevo servicio' }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+  <div class="card-title">{{ 'Editar servicio' if servicio else 'Nuevo servicio' }}</div>
+  <form method="post" action="{{ '/servicios/' + servicio.id|string + '/editar' if servicio else '/servicios/nuevo' }}">
+    <div class="field"><label>Nombre *</label><input type="text" name="nombre" required value="{{ servicio.nombre if servicio else '' }}" placeholder="Ej: Cambio de pantalla"></div>
+    <div class="field"><label>Descripción</label><input type="text" name="descripcion" value="{{ servicio.descripcion if servicio else '' }}" placeholder="Detalle opcional"></div>
+    <div class="field"><label>Categoría</label><input type="text" name="categoria" value="{{ servicio.categoria if servicio else '' }}" placeholder="Ej: Pantallas, Software, Diagnóstico (opcional)"></div>
+    <div class="form-row">
+      <div class="field"><label>Precio de venta *</label><input type="number" step="0.01" min="0" name="precio_venta" required value="{{ servicio.precio_venta if servicio else '0' }}"></div>
+      <div class="field">
+        <label>Costo</label>
+        <input type="number" step="0.01" min="0" name="costo" id="inputCostoServicio" value="{{ servicio.costo if servicio and servicio.costo is not none else '0' }}" {{ 'disabled' if not servicio or servicio.costo is none else '' }}>
+      </div>
+    </div>
+    <div class="field">
+      <label class="checkbox-chip">
+        <input type="checkbox" name="tiene_costo" id="checkTieneCosto" value="true" {{ 'checked' if not servicio or servicio.costo is not none else '' }}>
+        Este servicio tiene un costo asociado
+      </label>
+      <div class="help">Desmárcalo si este servicio es 100% mano de obra y no tiene ningún costo (algunos servicios no lo tienen). Si lo marcas, ese costo se usa en Reportes para calcular la utilidad de este servicio.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a href="/servicios" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+<script>
+  (function () {
+    var check = document.getElementById('checkTieneCosto');
+    var campo = document.getElementById('inputCostoServicio');
+    if (!check || !campo) return;
+    check.addEventListener('change', function () {
+      campo.disabled = !check.checked;
+      if (!check.checked) campo.value = '0';
+    });
+  })();
+</script>
+{% endblock %}

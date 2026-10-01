@@ -122,6 +122,9 @@
       {% if orden.repuestos_subtotal and orden.repuestos_subtotal > 0 %}
       <tr><td>Repuestos utilizados</td><td style="text-align:right;">{{ orden.repuestos_subtotal|moneda(config_taller().moneda) }}</td></tr>
       {% endif %}
+      {% if orden.servicios_subtotal and orden.servicios_subtotal > 0 %}
+      <tr><td>Servicios adicionales</td><td style="text-align:right;">{{ orden.servicios_subtotal|moneda(config_taller().moneda) }}</td></tr>
+      {% endif %}
       <tr><td><b>Total del servicio</b></td><td style="text-align:right;"><b>{{ orden.total|moneda(config_taller().moneda) }}</b></td></tr>
       <tr><td>Abonado</td><td style="text-align:right;">{{ orden.abonado|moneda(config_taller().moneda) }}</td></tr>
       <tr><td><b>Saldo pendiente</b></td><td style="text-align:right;"><b class="{{ 'money-negative' if orden.saldo > 0 else 'money-positive' }}">{{ orden.saldo|moneda(config_taller().moneda) }}</b></td></tr>
@@ -215,6 +218,107 @@
         </tr>
         {% else %}
         <tr><td colspan="7" class="empty-state">Sin repuestos agregados a esta orden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+</div>
+
+<div class="card">
+  <div class="card-title">Servicios agregados</div>
+    <p class="help">Agrega servicios del <a href="/servicios">catálogo de servicios</a> (cambio de pantalla, formateo, diagnóstico, etc.): se suman al total de la orden y de la factura, y quedan registrados como ingreso para Reportes.</p>
+    {% if servicios_disponibles %}
+    <form method="post" action="/ordenes/{{ orden.id }}/servicios" id="formAgregarServicio">
+      <div class="form-row">
+        <div class="field">
+          <label>Servicio</label>
+          <select name="servicio_id" id="selectServicioCatalogo" class="js-buscar-select" data-placeholder="Escribe el nombre del servicio..." data-entidad="un servicio" required>
+            <option value="">Selecciona un servicio...</option>
+            {% for s in servicios_disponibles %}
+            <option value="{{ s.id }}" data-precio="{{ s.precio_venta }}">{% if s.categoria %}[{{ s.categoria }}] {% endif %}{{ s.nombre }} - {{ s.precio_venta|moneda(config_taller().moneda) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Cantidad</label><input type="number" step="1" min="1" name="cantidad" value="1" required></div>
+        <div class="field"><label>Precio unitario</label><input type="number" step="0.01" min="0" name="precio" id="inputServicioPrecio" placeholder="Precio de venta"></div>
+      </div>
+      <p class="help">El precio se llena solo con el precio de venta del catálogo; cámbialo si vas a cobrar otro precio en este caso particular.</p>
+      <button type="submit" class="btn btn-success">Agregar servicio</button>
+    </form>
+    <script>
+      (function () {
+        var select = document.getElementById('selectServicioCatalogo');
+        var campoPrecio = document.getElementById('inputServicioPrecio');
+        if (!select || !campoPrecio) return;
+        select.addEventListener('change', function () {
+          var opcion = select.options[select.selectedIndex];
+          campoPrecio.value = (opcion && opcion.getAttribute('data-precio')) || '';
+        });
+      })();
+    </script>
+    {% else %}
+    <p class="help">Aún no hay servicios activos en el <a href="/servicios">catálogo de servicios</a>.</p>
+    {% endif %}
+
+    <details style="margin-top:10px;">
+      <summary class="btn btn-outline btn-sm" style="display:inline-block; cursor:pointer;">+ Crear y agregar un servicio nuevo</summary>
+      <form method="post" action="/ordenes/{{ orden.id }}/servicios/rapido" style="margin-top:10px;">
+        <p class="help" style="margin-top:0;">¿El trabajo no está en el catálogo todavía? Créalo aquí mismo con su precio (y costo, si aplica): queda agregado a esta orden y guardado en <a href="/servicios">Servicios</a> para la próxima vez.</p>
+        <div class="form-row">
+          <div class="field" style="flex:2;"><label>Nombre del servicio</label><input type="text" name="nombre" required placeholder="Ej: Reparación de puerto de carga"></div>
+          <div class="field"><label>Categoría</label><input type="text" name="categoria" placeholder="Opcional"></div>
+          <div class="field"><label>Cantidad</label><input type="number" step="1" min="1" name="cantidad" value="1" required></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Precio de venta</label><input type="number" step="0.01" min="0" name="precio_venta" required></div>
+          <div class="field">
+            <label>Costo</label>
+            <input type="number" step="0.01" min="0" name="costo" id="inputCostoServicioRapido" value="0">
+          </div>
+        </div>
+        <div class="field">
+          <label class="checkbox-chip"><input type="checkbox" name="tiene_costo" id="checkTieneCostoRapido" value="true" checked> Este servicio tiene un costo asociado</label>
+          <div class="help">Desmárcalo si es 100% mano de obra sin ningún costo.</div>
+        </div>
+        <button type="submit" class="btn btn-success">Crear y agregar</button>
+      </form>
+    </details>
+    <script>
+      (function () {
+        var check = document.getElementById('checkTieneCostoRapido');
+        var campo = document.getElementById('inputCostoServicioRapido');
+        if (!check || !campo) return;
+        check.addEventListener('change', function () {
+          campo.disabled = !check.checked;
+          if (!check.checked) campo.value = '0';
+        });
+      })();
+    </script>
+
+    <div class="card-title" style="font-size:13px; margin-top:16px;">Servicios agregados a esta orden</div>
+    <table>
+      <thead><tr><th>Fecha</th><th>Servicio</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th><th>Usuario</th><th></th></tr></thead>
+      <tbody>
+        {% for s in orden.servicios_extra %}
+        <tr>
+          <td>{{ s.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ s.servicio.nombre if s.servicio else '-' }}</td>
+          <td>{{ s.cantidad }}</td>
+          <td>{{ s.precio_unitario|moneda(config_taller().moneda) }}</td>
+          <td>{{ s.subtotal|moneda(config_taller().moneda) }}</td>
+          <td>{{ s.usuario_nombre }}</td>
+          <td>
+            {% if _tiene_factura_vigente %}
+            <span class="text-muted" title="No se puede quitar: la orden ya tiene una factura vigente">—</span>
+            {% else %}
+            <form method="post" action="/ordenes/{{ orden.id }}/servicios/{{ s.id }}/eliminar"
+                  onsubmit="return confirm('¿Quitar este servicio de la orden? Se revertirá el cobro.');">
+              <button type="submit" class="btn btn-danger btn-sm" title="Quitar este servicio de la orden">Quitar</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty-state">Sin servicios agregados a esta orden.</td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -216,12 +216,22 @@ def generar_ticket_orden(data: dict) -> bytes:
             t.parrafo(f"{r.get('producto', '')} x{r.get('cantidad', '')}", tam=7, alto=9)
             t.linea_doble("", _moneda(r.get("subtotal", 0), moneda), alto=9)
 
+    servicios_extra = data.get("servicios_extra") or []
+    if servicios_extra:
+        t.separador()
+        t.texto("SERVICIOS ADICIONALES", tam=8, negrita=True, alto=10)
+        for s in servicios_extra:
+            t.parrafo(f"{s.get('servicio', '')} x{s.get('cantidad', '')}", tam=7, alto=9)
+            t.linea_doble("", _moneda(s.get("subtotal", 0), moneda), alto=9)
+
     t.separador()
     fin = data.get("financiero", {}) or {}
     t.linea_doble("Cotizacion", _moneda(fin.get("cotizacion", 0), moneda), alto=10)
     t.linea_doble(f"Recargo ({fin.get('recargo_pct', 0)}%)", _moneda(fin.get("recargo_monto", 0), moneda), alto=10)
     if float(fin.get("repuestos_subtotal", 0) or 0) > 0:
         t.linea_doble("Repuestos utilizados", _moneda(fin.get("repuestos_subtotal", 0), moneda), alto=10)
+    if float(fin.get("servicios_subtotal", 0) or 0) > 0:
+        t.linea_doble("Servicios adicionales", _moneda(fin.get("servicios_subtotal", 0), moneda), alto=10)
     t.linea_doble("TOTAL", _moneda(fin.get("total", 0), moneda), tam=9, negrita=True, alto=12)
     t.linea_doble("Abonado", _moneda(fin.get("abonado", 0), moneda), alto=10)
     t.linea_doble("SALDO PENDIENTE", _moneda(fin.get("saldo", 0), moneda), tam=9, negrita=True, alto=12)

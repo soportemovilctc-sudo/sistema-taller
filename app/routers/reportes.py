@@ -21,7 +21,7 @@ from app.templates_env import templates
 from app.database import get_db
 from app.models import (
     OrdenServicio, MovimientoFinanciero, Venta, DetalleVenta, Producto, Tecnico, Configuracion,
-    ConfiguracionFacturacion, ESTADOS_ORDEN, FORMAS_PAGO,
+    ConfiguracionFacturacion, ESTADOS_ORDEN, FORMAS_PAGO, Servicio, OrdenServicioExtra,
 )
 from app.utils.calculations import to_decimal
 from app.utils.flash import flash
@@ -80,6 +80,43 @@ def _utilidades_por_producto(db: Session, fecha_desde=None, fecha_hasta=None):
             "producto_id": producto_id, "codigo": codigo, "nombre": nombre,
             "unidades": unidades, "costo_unitario": costo, "precio_unitario": to_decimal(precio_venta),
             "ingresos": ingresos, "costo_total": costo_total, "utilidad": utilidad, "margen_pct": margen_pct,
+        })
+    resultado.sort(key=lambda r: r["utilidad"], reverse=True)
+    return resultado
+
+
+def _utilidades_por_servicio(db: Session, fecha_desde=None, fecha_hasta=None):
+    """Utilidad generada por cada servicio del catálogo agregado a alguna
+    orden: ingresos menos costo, usando el costo que se guardó al momento
+    de agregar el servicio a la orden (no el costo actual del catálogo, por
+    si cambió después de esa fecha). Un servicio sin costo asociado cuenta
+    como costo cero (utilidad = 100% del precio). Ordenado de mayor a menor
+    utilidad."""
+    q = (
+        db.query(
+            Servicio.id, Servicio.nombre, Servicio.categoria,
+            func.coalesce(func.sum(OrdenServicioExtra.cantidad), 0),
+            func.coalesce(func.sum(OrdenServicioExtra.subtotal), 0),
+            func.coalesce(func.sum(OrdenServicioExtra.costo_unitario * OrdenServicioExtra.cantidad), 0),
+        )
+        .join(OrdenServicioExtra, OrdenServicioExtra.servicio_id == Servicio.id)
+    )
+    if fecha_desde:
+        q = q.filter(OrdenServicioExtra.fecha >= fecha_desde)
+    if fecha_hasta:
+        q = q.filter(OrdenServicioExtra.fecha <= fecha_hasta)
+    q = q.group_by(Servicio.id, Servicio.nombre, Servicio.categoria)
+
+    resultado = []
+    for servicio_id, nombre, categoria, unidades, ingresos, costo_total in q.all():
+        ingresos = to_decimal(ingresos)
+        costo_total = to_decimal(costo_total).quantize(Decimal("0.01"))
+        utilidad = (ingresos - costo_total).quantize(Decimal("0.01"))
+        margen_pct = float((utilidad / ingresos * 100).quantize(Decimal("0.1"))) if ingresos > 0 else 0.0
+        resultado.append({
+            "servicio_id": servicio_id, "nombre": nombre, "categoria": categoria or "-",
+            "unidades": unidades, "ingresos": ingresos, "costo_total": costo_total,
+            "utilidad": utilidad, "margen_pct": margen_pct,
         })
     resultado.sort(key=lambda r: r["utilidad"], reverse=True)
     return resultado
@@ -234,6 +271,8 @@ def reportes_index(
         ).order_by(OrdenServicio.fecha.desc()).all()
     elif tipo == "utilidades":
         contexto["utilidades"] = _utilidades_por_producto(db, fecha_desde, fecha_hasta)
+    elif tipo == "utilidad_servicios":
+        contexto["utilidad_servicios"] = _utilidades_por_servicio(db, fecha_desde, fecha_hasta)
     elif tipo == "ventas_detallado":
         filas = _ventas_detallado(db, fecha_desde, fecha_hasta)
         truncado = len(filas) > MAX_FILAS_PANTALLA_DETALLADO
@@ -391,6 +430,13 @@ def _datos_reporte(tipo, fecha_desde, fecha_hasta, tecnico_id, estado, db):
         return (filas, ["Codigo", "Nombre", "Categoria", "Marca", "Caja", "Costo", "Precio", "Existencia", "Stock minimo"],
                 "reporte_inventario", "Inventario", [7, 8])
 
+    if tipo == "utilidad_servicios":
+        utilidad_servicios = _utilidades_por_servicio(db, fecha_desde, fecha_hasta)
+        filas = [[u["nombre"], u["categoria"], u["unidades"], float(u["ingresos"]),
+                  float(u["costo_total"]), float(u["utilidad"]), f"{u['margen_pct']:.2f}%"] for u in utilidad_servicios]
+        return (filas, ["Servicio", "Categoria", "Unidades agregadas", "Ingresos", "Costo total", "Utilidad", "Margen %"],
+                "reporte_utilidad_servicios", "Utilidad de Servicios", [2, 3, 4, 5])
+
     if tipo == "saldos":
         ordenes = db.query(OrdenServicio).options(joinedload(OrdenServicio.cliente)).filter(
             OrdenServicio.saldo > 0, OrdenServicio.estado != "CANCELADO"
@@ -415,6 +461,7 @@ TITULOS_REPORTE = {
     "ventas": "Reporte de Ventas", "ventas_detallado": "Reporte de Ventas Detallado",
     "inventario": "Reporte de Inventario", "saldos": "Reporte de Saldos Pendientes",
     "utilidades": "Reporte de Utilidades por Producto",
+    "utilidad_servicios": "Reporte de Utilidad de Servicios",
 }
 
 

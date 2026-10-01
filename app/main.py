@@ -12,7 +12,7 @@ from app.utils.flash import flash
 from app import models
 from app.security import hash_password
 
-from app.routers import auth, dashboard, clientes, ordenes, tecnicos, inventario, pos, contabilidad, reportes, configuracion, api, catalogo, facturacion, servicio_rapido
+from app.routers import auth, dashboard, clientes, ordenes, tecnicos, inventario, pos, contabilidad, reportes, configuracion, api, catalogo, facturacion, servicio_rapido, servicios
 
 app = FastAPI(title="Sistema de Taller", version="1.0.0")
 
@@ -114,6 +114,7 @@ app.include_router(clientes.router)
 app.include_router(ordenes.router)
 app.include_router(tecnicos.router)
 app.include_router(inventario.router)
+app.include_router(servicios.router)
 app.include_router(pos.router)
 app.include_router(contabilidad.router)
 app.include_router(reportes.router)

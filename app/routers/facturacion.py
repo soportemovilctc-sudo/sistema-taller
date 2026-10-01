@@ -11,17 +11,18 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio, Tecnico, Producto
+from app.models import Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio, Tecnico, Producto, Servicio
 from app.deps import login_required, roles_required
 from app.utils.flash import flash
 from app.utils.calculations import to_decimal, aplicar_impuesto, recalcular_orden
 from app.utils.numbering import generar_numero_factura, extraer_correlativo_de_rango
 from app.utils.pdf import generar_pdf_factura, construir_contexto_pdf_factura
 from app.utils.pdf_ticket import generar_ticket_factura
-# Se reutiliza la misma función que ya usa "Repuestos utilizados" al crear/
-# editar una orden, para no duplicar la lógica de descontar inventario,
-# registrar la venta y el movimiento financiero (ver ordenes.py).
-from app.routers.ordenes import _agregar_repuesto_a_orden
+# Se reutilizan las mismas funciones que ya usan "Repuestos utilizados" y
+# "Servicios agregados" al editar una orden, para no duplicar la lógica de
+# descontar inventario, registrar la venta/el ingreso y el movimiento
+# financiero (ver ordenes.py).
+from app.routers.ordenes import _agregar_repuesto_a_orden, _agregar_servicio_a_orden, _servicios_disponibles
 
 router = APIRouter()
 
@@ -199,6 +200,7 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
         "error_fiscal": _validar_fiscal_disponible(cfg),
         "tecnicos": tecnicos,
         "productos_disponibles": productos_disponibles, "tasa_isv": tasa_isv,
+        "servicios_disponibles": _servicios_disponibles(db),
     })
 
 
@@ -207,6 +209,7 @@ def factura_crear(
     orden_id: int, request: Request,
     tipo: str = Form("interno"), exento: bool = Form(False), tecnico_reparacion_id: str = Form(""),
     repuesto_producto_id: str = Form(""), repuesto_cantidad: str = Form("1"), repuesto_precio: str = Form(""),
+    servicio_id: str = Form(""), servicio_cantidad: str = Form("1"), servicio_precio: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
@@ -256,6 +259,42 @@ def factura_crear(
                 precio_override = precio_val.quantize(Decimal("0.01"))
 
         _agregar_repuesto_a_orden(db, orden, producto, cantidad_val, usuario["nombre_completo"], precio_override)
+        db.flush()
+        db.refresh(orden)
+        recalcular_orden(orden)
+        db.flush()
+
+    # Servicio adicional (opcional): igual que el repuesto de arriba, por si
+    # el trabajo llevó un servicio del catálogo que todavía no se había
+    # registrado en la orden.
+    servicio_id_raw = (servicio_id or "").strip()
+    if servicio_id_raw:
+        try:
+            servicio_id_val = int(servicio_id_raw)
+        except (TypeError, ValueError):
+            servicio_id_val = None
+        try:
+            servicio_cantidad_val = int(servicio_cantidad or "1")
+        except (TypeError, ValueError):
+            servicio_cantidad_val = 0
+
+        if not servicio_id_val or servicio_cantidad_val <= 0:
+            flash(request, "Cantidad inválida para el servicio seleccionado.", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva", status_code=303)
+
+        servicio = db.get(Servicio, servicio_id_val)
+        if not servicio:
+            flash(request, "El servicio seleccionado no existe.", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva", status_code=303)
+
+        servicio_precio_override = None
+        servicio_precio_raw = (servicio_precio or "").strip()
+        if servicio_precio_raw:
+            servicio_precio_val = to_decimal(servicio_precio_raw)
+            if servicio_precio_val > 0:
+                servicio_precio_override = servicio_precio_val.quantize(Decimal("0.01"))
+
+        _agregar_servicio_a_orden(db, orden, servicio, servicio_cantidad_val, usuario["nombre_completo"], servicio_precio_override)
         db.flush()
         db.refresh(orden)
         recalcular_orden(orden)

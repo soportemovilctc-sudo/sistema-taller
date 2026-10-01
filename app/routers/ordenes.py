@@ -16,7 +16,7 @@ from app.models import (
     TIPOS_EQUIPO, ESTADOS_ORDEN, PRIORIDADES, FORMAS_PAGO,
     ACCESORIOS_DISPONIBLES, CONDICIONES_FISICAS, MarcaEquipo, ServicioRapido,
     Producto, OrdenRepuesto, Venta, DetalleVenta, MovimientoInventario, MovimientoFinanciero,
-    ConfiguracionFacturacion,
+    ConfiguracionFacturacion, Servicio, OrdenServicioExtra,
 )
 from app.utils.numbering import generar_numero_orden, generar_numero_venta
 from app.utils.calculations import calcular_recargo, calcular_total, calcular_saldo, validar_abono, to_decimal, recalcular_orden, aplicar_impuesto
@@ -119,6 +119,13 @@ def _anotar_precios_con_impuesto(productos, tasa):
     for p in productos:
         p.precio_con_impuesto = aplicar_impuesto(p.precio_venta, tasa)
     return productos
+
+
+def _servicios_disponibles(db: Session):
+    """Servicios activos del catálogo (ver app/routers/servicios.py), para
+    el selector de 'Agregar servicio' en el detalle de la orden y al
+    generar la factura."""
+    return db.query(Servicio).filter(Servicio.activo == True).order_by(Servicio.categoria, Servicio.nombre).all()  # noqa: E712
 
 
 @router.get("/ordenes/nueva")
@@ -286,7 +293,8 @@ def ordenes_detalle(orden_id: int, request: Request, db: Session = Depends(get_d
     _anotar_precios_con_impuesto(productos_disponibles, tasa)
     return templates.TemplateResponse("ordenes/detail.html", {
         "request": request, "orden": orden, "usuario": usuario,
-        "productos_disponibles": productos_disponibles, "tasa_isv": tasa, **opciones,
+        "productos_disponibles": productos_disponibles, "tasa_isv": tasa,
+        "servicios_disponibles": _servicios_disponibles(db), **opciones,
     })
 
 
@@ -561,6 +569,35 @@ def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Produ
     return orden_repuesto
 
 
+def _agregar_servicio_a_orden(db: Session, orden: OrdenServicio, servicio: Servicio, cantidad: int, usuario_nombre: str, precio_override: Optional[Decimal] = None) -> OrdenServicioExtra:
+    """Agrega un servicio del catálogo (ver app/routers/servicios.py) a la
+    orden: registra el ingreso en Reportes/Contabilidad y guarda una copia
+    del precio y costo del servicio al momento de agregarlo (igual que con
+    los repuestos), para que un cambio posterior en el catálogo no altere
+    órdenes o facturas ya emitidas. No hace commit ni recalcula la orden;
+    quien llama decide cuándo hacerlo. Si se pasa `precio_override`, se usa
+    ese precio en vez del precio de venta del catálogo. A diferencia de los
+    repuestos, el precio del servicio NO lleva el ajuste de impuesto (se
+    trata igual que la cotización: un monto final que ya cobra el taller)."""
+    precio = precio_override if precio_override is not None else to_decimal(servicio.precio_venta)
+    subtotal = (precio * cantidad).quantize(Decimal("0.01"))
+    costo_unitario = to_decimal(servicio.costo) if servicio.costo is not None else None
+
+    db.add(MovimientoFinanciero(
+        tipo="ingreso", categoria="Venta de servicio (orden)", monto=subtotal,
+        descripcion=f"{servicio.nombre} x{cantidad} - Orden {orden.numero_orden}",
+        usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
+    ))
+
+    orden_servicio_extra = OrdenServicioExtra(
+        orden_id=orden.id, servicio_id=servicio.id, cantidad=cantidad,
+        precio_unitario=precio, costo_unitario=costo_unitario, subtotal=subtotal,
+        usuario_nombre=usuario_nombre,
+    )
+    db.add(orden_servicio_extra)
+    return orden_servicio_extra
+
+
 @router.post("/ordenes/{orden_id}/repuestos")
 def ordenes_agregar_repuesto(
     orden_id: int, request: Request,
@@ -665,6 +702,155 @@ def ordenes_quitar_repuesto(
     recalcular_orden(orden)
     db.commit()
     flash(request, f"Se quitó '{nombre_producto}' de la orden y se repuso al inventario.", "success")
+    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
+@router.post("/ordenes/{orden_id}/servicios")
+def ordenes_agregar_servicio(
+    orden_id: int, request: Request,
+    servicio_id: int = Form(...), cantidad: str = Form("1"), precio: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    """Agrega un servicio del catálogo a la orden (ver Servicio): queda
+    registrado como ingreso (para reportes y contabilidad) y su precio se
+    suma al total de la orden y a la factura que se genere a partir de
+    ella."""
+    orden = db.get(OrdenServicio, orden_id)
+    if not orden:
+        return RedirectResponse("/ordenes", status_code=303)
+
+    servicio = db.get(Servicio, servicio_id)
+    if not servicio:
+        flash(request, "Servicio no encontrado.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    try:
+        cantidad_int = int(cantidad)
+    except (TypeError, ValueError):
+        cantidad_int = 0
+    if cantidad_int <= 0:
+        flash(request, "La cantidad debe ser mayor a cero.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    precio_override = None
+    precio_raw = (precio or "").strip()
+    if precio_raw:
+        precio_val = to_decimal(precio_raw)
+        if precio_val > 0:
+            precio_override = precio_val.quantize(Decimal("0.01"))
+
+    _agregar_servicio_a_orden(db, orden, servicio, cantidad_int, usuario["nombre_completo"], precio_override)
+    db.flush()
+    db.refresh(orden)
+    recalcular_orden(orden)
+    db.commit()
+    flash(request, f"Servicio '{servicio.nombre}' agregado a la orden.", "success")
+    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
+@router.post("/ordenes/{orden_id}/servicios/rapido")
+def ordenes_agregar_servicio_rapido(
+    orden_id: int, request: Request,
+    nombre: str = Form(...), categoria: str = Form(""), precio_venta: str = Form("0"),
+    tiene_costo: bool = Form(False), costo: str = Form("0"), cantidad: str = Form("1"),
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    """Crea un servicio nuevo en el catálogo (o reutiliza uno que ya exista
+    con ese mismo nombre) y lo agrega a esta orden en un solo paso, para
+    cuando surge un trabajo que todavía no está en el catálogo y no quiere
+    perderse tiempo yendo primero a Servicios y luego volviendo a la orden.
+    El servicio queda guardado en el catálogo para la próxima vez."""
+    orden = db.get(OrdenServicio, orden_id)
+    if not orden:
+        return RedirectResponse("/ordenes", status_code=303)
+
+    nombre_limpio = nombre.strip()
+    if not nombre_limpio:
+        flash(request, "Escribe un nombre para el servicio.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    precio_dec = to_decimal(precio_venta or 0)
+    if precio_dec < 0:
+        flash(request, "El precio de venta no puede ser negativo.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    costo_dec = None
+    if tiene_costo:
+        costo_dec = to_decimal(costo or 0)
+        if costo_dec < 0:
+            flash(request, "El costo no puede ser negativo.", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    try:
+        cantidad_int = int(cantidad)
+    except (TypeError, ValueError):
+        cantidad_int = 0
+    if cantidad_int <= 0:
+        flash(request, "La cantidad debe ser mayor a cero.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    servicio = db.query(Servicio).filter(Servicio.nombre.ilike(nombre_limpio)).first()
+    mensaje_catalogo = ""
+    if servicio:
+        mensaje_catalogo = " (ya existía en el catálogo, se usó ese)"
+    else:
+        servicio = Servicio(
+            nombre=nombre_limpio, categoria=categoria.strip(),
+            precio_venta=precio_dec, costo=costo_dec, activo=True,
+        )
+        db.add(servicio)
+        db.flush()
+        mensaje_catalogo = " y se guardó en el catálogo de Servicios para la próxima vez"
+
+    _agregar_servicio_a_orden(db, orden, servicio, cantidad_int, usuario["nombre_completo"], precio_override=precio_dec)
+    db.flush()
+    db.refresh(orden)
+    recalcular_orden(orden)
+    db.commit()
+    flash(request, f"Servicio '{servicio.nombre}' agregado a la orden{mensaje_catalogo}.", "success")
+    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
+@router.post("/ordenes/{orden_id}/servicios/{item_id}/eliminar")
+def ordenes_quitar_servicio(
+    orden_id: int, item_id: int, request: Request,
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    """Deshace el agregado de un servicio a la orden (por ejemplo si se
+    agregó por error): revierte el ingreso contable con un movimiento de
+    gasto de corrección, igual que al quitar un repuesto. No se permite si
+    la orden ya tiene una factura vigente (fiscal o interna, no anulada):
+    su total ya quedó impreso y no se actualiza solo."""
+    orden = db.get(OrdenServicio, orden_id)
+    if not orden:
+        flash(request, "Orden no encontrada.", "error")
+        return RedirectResponse("/ordenes", status_code=303)
+
+    item = db.get(OrdenServicioExtra, item_id)
+    if not item or item.orden_id != orden.id:
+        flash(request, "Ese servicio no pertenece a esta orden.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    if any(not f.anulada for f in orden.facturas):
+        flash(request, "No se puede quitar un servicio: esta orden ya tiene una factura vigente. Anúlala primero (un administrador puede hacerlo) antes de modificar los servicios.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    nombre_servicio = item.servicio.nombre if item.servicio else "(servicio ya no existe)"
+    cantidad = item.cantidad
+    subtotal = item.subtotal
+
+    db.add(MovimientoFinanciero(
+        tipo="gasto", categoria="Corrección de servicio (orden)", monto=subtotal,
+        descripcion=f"Se quitó {nombre_servicio} x{cantidad} de la Orden {orden.numero_orden}",
+        usuario_nombre=usuario["nombre_completo"], referencia=orden.numero_orden,
+    ))
+
+    db.delete(item)
+    db.flush()
+    db.refresh(orden)
+    recalcular_orden(orden)
+    db.commit()
+    flash(request, f"Se quitó '{nombre_servicio}' de la orden.", "success")
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 

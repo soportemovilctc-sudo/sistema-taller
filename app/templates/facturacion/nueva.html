@@ -56,7 +56,28 @@
       <div class="help">Si el equipo llevó un repuesto y todavía no lo has registrado en la orden, selecciónalo aquí: se descuenta del inventario y se suma al total antes de generar la factura. Si el equipo solo se dejó para diagnóstico (sin repuesto), deja esto en blanco.</div>
     </div>
 
-    <p class="help">El monto total que paga el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda (más el repuesto de arriba, si agregas uno).</p>
+    <div class="field">
+      <label>Servicio adicional (opcional)</label>
+      <div class="form-row">
+        <div class="field" style="flex:3; margin-bottom:0;">
+          <select name="servicio_id" id="facturaServicio" class="js-buscar-select" data-placeholder="Escribe el nombre del servicio...">
+            <option value="">Ninguno</option>
+            {% for s in servicios_disponibles %}
+            <option value="{{ s.id }}" data-precio="{{ s.precio_venta }}">{% if s.categoria %}[{{ s.categoria }}] {% endif %}{{ s.nombre }} - {{ s.precio_venta|moneda(config_taller().moneda) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field" style="flex:1; margin-bottom:0;">
+          <input type="number" step="1" min="1" name="servicio_cantidad" value="1" placeholder="Cantidad">
+        </div>
+        <div class="field" style="flex:1; margin-bottom:0;">
+          <input type="number" step="0.01" min="0" name="servicio_precio" id="facturaServicioPrecio" placeholder="Precio unitario">
+        </div>
+      </div>
+      <div class="help">Si el trabajo llevó un servicio del <a href="/servicios">catálogo</a> que todavía no has registrado en la orden (ej. formateo, diagnóstico), selecciónalo aquí: se suma al total antes de generar la factura.</div>
+    </div>
+
+    <p class="help">El monto total que paga el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda (más el repuesto y/o el servicio de arriba, si agregas alguno).</p>
     <button type="submit" class="btn btn-primary">Generar factura</button>
     <a href="/ordenes/{{ orden.id }}" class="btn btn-outline">Cancelar</a>
   </form>
@@ -72,6 +93,16 @@
       var opcion = selectProducto.options[selectProducto.selectedIndex];
       var precio = opcion ? opcion.getAttribute("data-precio") : "";
       campoPrecio.value = precio || "";
+    });
+  })();
+  (function () {
+    var selectServicio = document.getElementById("facturaServicio");
+    var campoPrecioServicio = document.getElementById("facturaServicioPrecio");
+    if (!selectServicio || !campoPrecioServicio) return;
+    selectServicio.addEventListener("change", function () {
+      var opcion = selectServicio.options[selectServicio.selectedIndex];
+      var precio = opcion ? opcion.getAttribute("data-precio") : "";
+      campoPrecioServicio.value = precio || "";
     });
   })();
 </script>

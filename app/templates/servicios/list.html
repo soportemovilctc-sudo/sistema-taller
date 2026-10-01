@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Servicios{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">
+    Servicios
+    <span class="actions">
+      <a href="/servicios/nuevo" class="btn btn-primary btn-sm">+ Nuevo servicio</a>
+    </span>
+  </div>
+  <p class="help" style="margin-top:-4px;">Catálogo de trabajos con nombre propio (cambio de pantalla, formateo, diagnóstico, etc.) con su precio de venta y, si aplica, su costo. Desde una orden puedes agregar cualquiera de estos servicios; Reportes calcula la utilidad de cada uno (venta menos costo).</p>
+  <form method="get" class="form-row" style="margin-bottom:14px;">
+    <div class="field" style="flex:2;"><input type="text" name="q" value="{{ q }}" placeholder="Buscar servicio por nombre..."></div>
+    <div class="field" style="flex:0 0 auto;">
+      <button type="submit" class="btn btn-info">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        Filtrar
+      </button>
+    </div>
+  </form>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Nombre</th><th>Categoría</th><th>Precio de venta</th><th>Costo</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+      {% for s in servicios %}
+      <tr>
+        <td>{{ s.nombre }}</td>
+        <td>{{ s.categoria or '-' }}</td>
+        <td>{{ s.precio_venta|moneda(config_taller().moneda) }}</td>
+        <td>{% if s.costo is not none %}{{ s.costo|moneda(config_taller().moneda) }}{% else %}<span class="text-muted">Sin costo</span>{% endif %}</td>
+        <td>{% if s.activo %}<span class="badge badge-listo-para-entregar">Activo</span>{% else %}<span class="badge badge-cancelado">Inactivo</span>{% endif %}</td>
+        <td style="white-space:nowrap;">
+          <a href="/servicios/{{ s.id }}/editar" class="btn btn-outline btn-sm">Editar</a>
+          <form method="post" action="/servicios/{{ s.id }}/activar" style="display:inline;">
+            <button type="submit" class="btn btn-outline btn-sm">{{ 'Desactivar' if s.activo else 'Activar' }}</button>
+          </form>
+          {% if usuario.rol == 'admin' %}
+          <form method="post" action="/servicios/{{ s.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar definitivamente el servicio \'{{ s.nombre }}\'? Solo se puede si nunca se usó en ninguna orden.');">
+            <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-state">No hay servicios registrados todavía.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

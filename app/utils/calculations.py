@@ -28,11 +28,12 @@ def calcular_recargo(cotizacion, porcentaje) -> Decimal:
     return recargo.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def calcular_total(cotizacion, recargo, repuestos_subtotal=0) -> Decimal:
+def calcular_total(cotizacion, recargo, repuestos_subtotal=0, servicios_subtotal=0) -> Decimal:
     cotizacion = to_decimal(cotizacion)
     recargo = to_decimal(recargo)
     repuestos_subtotal = to_decimal(repuestos_subtotal)
-    total = cotizacion + recargo + repuestos_subtotal
+    servicios_subtotal = to_decimal(servicios_subtotal)
+    total = cotizacion + recargo + repuestos_subtotal + servicios_subtotal
     if total < 0:
         raise ValueError("El total no puede ser negativo")
     return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -74,12 +75,14 @@ def recalcular_orden(orden):
     """
     recargo = calcular_recargo(orden.cotizacion, orden.recargo_pct)
     repuestos_subtotal = sum((to_decimal(r.subtotal) for r in orden.repuestos), Decimal("0.00"))
-    total = calcular_total(orden.cotizacion, recargo, repuestos_subtotal)
+    servicios_subtotal = sum((to_decimal(s.subtotal) for s in orden.servicios_extra), Decimal("0.00"))
+    total = calcular_total(orden.cotizacion, recargo, repuestos_subtotal, servicios_subtotal)
     abonado = sum((to_decimal(p.monto) for p in orden.pagos), Decimal("0.00"))
     saldo = calcular_saldo(total, abonado)
 
     orden.recargo_monto = recargo
     orden.repuestos_subtotal = repuestos_subtotal
+    orden.servicios_subtotal = servicios_subtotal
     orden.total = total
     orden.abonado = abonado
     orden.saldo = saldo

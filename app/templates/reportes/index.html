@@ -10,6 +10,7 @@
   <a href="/reportes?tipo=inventario" class="{{ 'active' if tipo == 'inventario' else '' }}">Inventario</a>
   <a href="/reportes?tipo=saldos" class="{{ 'active' if tipo == 'saldos' else '' }}">Saldos pendientes</a>
   <a href="/reportes?tipo=utilidades" class="{{ 'active' if tipo == 'utilidades' else '' }}">Utilidades</a>
+  <a href="/reportes?tipo=utilidad_servicios" class="{{ 'active' if tipo == 'utilidad_servicios' else '' }}">Utilidad de servicios</a>
 </div>
 
 <div class="card">
@@ -146,6 +147,22 @@
           <td>{{ u.margen_pct }}%</td>
         </tr>
         {% else %}<tr><td colspan="9" class="empty-state">Aún no hay ventas de productos en este rango.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  {% elif tipo == 'utilidad_servicios' %}
+    <p class="help" style="margin-top:-4px;">La utilidad se calcula con el costo que se guardó al agregar cada servicio a una orden (no el costo actual del catálogo, por si cambió después). Un servicio sin costo asociado cuenta como costo cero.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Servicio</th><th>Categoría</th><th>Unidades agregadas</th><th>Ingresos</th><th>Costo total</th><th>Utilidad</th><th>Margen</th></tr></thead>
+      <tbody>
+        {% for u in utilidad_servicios %}
+        <tr>
+          <td>{{ u.nombre }}</td><td>{{ u.categoria }}</td><td>{{ u.unidades }}</td>
+          <td>{{ u.ingresos|moneda(config_taller().moneda) }}</td>
+          <td>{{ u.costo_total|moneda(config_taller().moneda) }}</td>
+          <td><b class="{{ 'money-negative' if u.utilidad < 0 else '' }}">{{ u.utilidad|moneda(config_taller().moneda) }}</b></td>
+          <td>{{ u.margen_pct }}%</td>
+        </tr>
+        {% else %}<tr><td colspan="7" class="empty-state">Aún no hay servicios agregados a ninguna orden en este rango.</td></tr>{% endfor %}
       </tbody>
     </table></div>
   {% endif %}

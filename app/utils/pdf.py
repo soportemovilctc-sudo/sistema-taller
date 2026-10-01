@@ -152,6 +152,8 @@ def generar_pdf_orden(data: dict) -> bytes:
                  [f"Recargo ({fin.get('recargo_pct', 0)}%)", _moneda(fin.get("recargo_monto", 0), moneda)]]
     if float(fin.get("repuestos_subtotal", 0) or 0) > 0:
         filas_fin.append(["Repuestos utilizados", _moneda(fin.get("repuestos_subtotal", 0), moneda)])
+    if float(fin.get("servicios_subtotal", 0) or 0) > 0:
+        filas_fin.append(["Servicios adicionales", _moneda(fin.get("servicios_subtotal", 0), moneda)])
     fila_total_idx = len(filas_fin)
     filas_fin.append(["TOTAL DEL SERVICIO", _moneda(fin.get("total", 0), moneda)])
     filas_fin.append(["Total abonado", _moneda(fin.get("abonado", 0), moneda)])
@@ -186,6 +188,24 @@ def generar_pdf_orden(data: dict) -> bytes:
             ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
         ]))
         story.append(rep_tbl)
+
+    servicios_extra = data.get("servicios_extra") or []
+    if servicios_extra:
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("SERVICIOS ADICIONALES", styles["Seccion"]))
+        filas = [["Servicio", "Cant.", "P. unitario", "Subtotal"]]
+        for s in servicios_extra:
+            filas.append([s.get("servicio", ""), str(s.get("cantidad", "")),
+                          _moneda(s.get("precio_unitario", 0), moneda), _moneda(s.get("subtotal", 0), moneda)])
+        serv_tbl = Table(filas, colWidths=[7.6 * cm, 2 * cm, 3.5 * cm, 4.5 * cm])
+        serv_tbl.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ]))
+        story.append(serv_tbl)
 
     pagos = data.get("pagos") or []
     if pagos:
@@ -271,6 +291,7 @@ def construir_contexto_pdf(orden, config) -> dict:
             "recargo_pct": orden.recargo_pct,
             "recargo_monto": orden.recargo_monto,
             "repuestos_subtotal": orden.repuestos_subtotal,
+            "servicios_subtotal": orden.servicios_subtotal,
             "total": orden.total,
             "abonado": orden.abonado,
             "saldo": orden.saldo,
@@ -288,6 +309,15 @@ def construir_contexto_pdf(orden, config) -> dict:
                 "subtotal": r.subtotal,
             }
             for r in orden.repuestos
+        ],
+        "servicios_extra": [
+            {
+                "servicio": s.servicio.nombre if s.servicio else "",
+                "cantidad": s.cantidad,
+                "precio_unitario": s.precio_unitario,
+                "subtotal": s.subtotal,
+            }
+            for s in orden.servicios_extra
         ],
     }
 
@@ -441,6 +471,14 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
             )
             if items_repuestos:
                 partes.append(f"Repuestos utilizados: {items_repuestos}")
+        if getattr(orden, "servicios_extra", None):
+            moneda_factura = config_general.moneda if config_general else "L"
+            items_servicios = ", ".join(
+                f"{s.servicio.nombre if s.servicio else 'Servicio'} x{s.cantidad} ({_moneda(s.subtotal, moneda_factura)})"
+                for s in orden.servicios_extra
+            )
+            if items_servicios:
+                partes.append(f"Servicios adicionales: {items_servicios}")
         if getattr(orden, "mostrar_seguridad_en_pdf", False):
             if orden.pin:
                 partes.append(f"PIN: {orden.pin}")

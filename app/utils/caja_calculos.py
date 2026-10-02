@@ -10,7 +10,7 @@ Reglas (ver especificación del proyecto):
     (la Utilidad Neta se calcula totalmente independiente de los saldos
     iniciales: es rentabilidad, no efectivo disponible).
 """
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -193,3 +193,54 @@ def calcular_cierre_dia(db: Session, dia: date | None = None) -> dict:
         "total_pos": total_pos,
         "total_dia": (total_ingresos + total_transferencia + total_pos).quantize(Decimal("0.01")),
     }
+
+
+def calcular_saldo_caja_chica_a_fecha(db: Session, fecha: date) -> dict:
+    """Saldo de Caja Chica (efectivo físico) al CIERRE de un día cualquiera,
+    no solo hoy: el saldo inicial configurado para el mes de esa fecha, más
+    todo lo que entró y salió de caja chica desde el día 1 de ese mes hasta
+    el final de ese día (inclusive).
+
+    Esto es lo que permite "apertura y cierre con fechas personalizadas"
+    sin guardar una apertura/cierre distinta por cada día: en vez de un
+    registro aparte, el saldo de cualquier fecha pasada se calcula al
+    momento a partir del mismo libro de movimientos."""
+    anio, mes = fecha.year, fecha.month
+    desde = datetime(anio, mes, 1)
+    hasta = datetime.combine(fecha, datetime.max.time())
+
+    fila_saldo = obtener_saldo_inicial(db, anio, mes)
+    saldo_inicial = to_decimal(fila_saldo.saldo_inicial_caja_chica) if fila_saldo else Decimal("0.00")
+
+    ingresos = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
+        MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA,
+        MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+    ).scalar()
+    egresos = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
+        MovimientoFinanciero.tipo == "gasto", MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA,
+        MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+    ).scalar()
+    ingresos = to_decimal(ingresos)
+    egresos = to_decimal(egresos)
+    saldo_en_caja = (saldo_inicial + ingresos - egresos).quantize(Decimal("0.01"))
+
+    return {
+        "fecha": fecha,
+        "saldo_inicial_mes": saldo_inicial,
+        "ingresos_acumulados_mes": ingresos,
+        "egresos_acumulados_mes": egresos,
+        "saldo_en_caja": saldo_en_caja,
+    }
+
+
+def calcular_saldo_anterior(db: Session, fecha: date) -> Decimal:
+    """Saldo en Caja Chica al cierre del día ANTERIOR a `fecha` — el "Saldo
+    Anterior" de la hoja de cálculo original que se arrastra día a día. Si
+    `fecha` es el día 1 de un mes, no hay un día anterior dentro del mismo
+    mes que calcular: se usa directamente el saldo inicial configurado para
+    ese mes."""
+    if fecha.day == 1:
+        fila_saldo = obtener_saldo_inicial(db, fecha.year, fecha.month)
+        return to_decimal(fila_saldo.saldo_inicial_caja_chica) if fila_saldo else Decimal("0.00")
+    dia_anterior = fecha - timedelta(days=1)
+    return calcular_saldo_caja_chica_a_fecha(db, dia_anterior)["saldo_en_caja"]

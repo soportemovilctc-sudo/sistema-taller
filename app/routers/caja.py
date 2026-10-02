@@ -33,6 +33,7 @@ from app.models import (
 from app.utils.calculations import to_decimal
 from app.utils.caja_calculos import (
     calcular_liquidez, calcular_utilidad_neta, calcular_cierre_dia,
+    calcular_saldo_caja_chica_a_fecha, calcular_saldo_anterior,
     guardar_saldo_inicial, mes_actual, CUENTA_CAJA_CHICA, CUENTA_BANCO,
 )
 from app.utils.flash import flash
@@ -53,6 +54,26 @@ def _saldo_caja_chica_para_cajera(db: Session) -> dict:
         "egresos_caja_chica_mes": liq["egresos_caja_chica"],
         "caja_chica_actual": liq["caja_chica_actual"],
     }
+
+
+def _resolver_fecha_mov(fecha_str: str) -> datetime | None:
+    """Convierte un 'YYYY-MM-DD' opcional del formulario (apertura/cierre con
+    fecha personalizada) en un datetime para MovimientoFinanciero.fecha,
+    combinado con la hora actual para conservar el orden cronológico entre
+    varios movimientos del mismo día. Devuelve None si no se escribió nada
+    (en ese caso se usa "ahora", el comportamiento de siempre). Lanza
+    ValueError con un mensaje para el usuario si la fecha no es válida o es
+    una fecha futura."""
+    fecha_str = (fecha_str or "").strip()
+    if not fecha_str:
+        return None
+    try:
+        fecha_date = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValueError("La fecha no es válida.")
+    if fecha_date > date.today():
+        raise ValueError("La fecha no puede ser una fecha futura.")
+    return datetime.combine(fecha_date, datetime.now().time())
 
 
 def _rango_fechas(periodo: str, desde: str, hasta: str):
@@ -100,6 +121,7 @@ def caja_registrar_form(request: Request, db: Session = Depends(get_db), usuario
         "categoria_otro_ingreso": CATEGORIA_OTRO_INGRESO_CAJA,
         "transacciones_hoy": transacciones_hoy,
         "saldo": _saldo_caja_chica_para_cajera(db),
+        "hoy_iso": date.today().isoformat(),
     })
 
 
@@ -108,6 +130,7 @@ def caja_registrar_crear(
     request: Request,
     monto: str = Form(...), cliente_nombre: str = Form(""), metodo_pago: str = Form(...),
     num_referencia: str = Form(""), comprobante: UploadFile | None = File(None),
+    fecha: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     if metodo_pago not in METODOS_PAGO_CAJA:
@@ -118,6 +141,7 @@ def caja_registrar_crear(
         monto_dec = to_decimal(monto)
         if monto_dec <= 0:
             raise ValueError("El monto debe ser mayor a cero.")
+        fecha_mov = _resolver_fecha_mov(fecha)
     except ValueError as e:
         flash(request, str(e), "error")
         return RedirectResponse("/caja/registrar", status_code=303)
@@ -147,6 +171,7 @@ def caja_registrar_crear(
         num_referencia=num_referencia.strip() or None,
         comprobante_data=comprobante_data, comprobante_mime=comprobante_mime,
         estado_conciliacion="pendiente" if metodo_pago == "Transferencia" else None,
+        fecha=fecha_mov or datetime.utcnow(),
     )
     db.add(mov)
     db.commit()
@@ -156,7 +181,7 @@ def caja_registrar_crear(
 
 @router.post("/caja/ingreso-otro")
 def caja_ingreso_otro_crear(
-    request: Request, monto: str = Form(...), descripcion: str = Form(""),
+    request: Request, monto: str = Form(...), descripcion: str = Form(""), fecha: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     """Otros ingresos de caja chica que no vienen de un cobro con método de
@@ -166,6 +191,7 @@ def caja_ingreso_otro_crear(
         monto_dec = to_decimal(monto)
         if monto_dec <= 0:
             raise ValueError("El monto debe ser mayor a cero.")
+        fecha_mov = _resolver_fecha_mov(fecha)
     except ValueError as e:
         flash(request, str(e), "error")
         return RedirectResponse("/caja/registrar", status_code=303)
@@ -174,6 +200,7 @@ def caja_ingreso_otro_crear(
         tipo="ingreso", categoria=CATEGORIA_OTRO_INGRESO_CAJA, monto=monto_dec.quantize(Decimal("0.01")),
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
         referencia="Caja", cuenta=CUENTA_CAJA_CHICA,
+        fecha=fecha_mov or datetime.utcnow(),
     ))
     db.commit()
     flash(request, "Ingreso registrado correctamente.", "success")
@@ -183,6 +210,7 @@ def caja_ingreso_otro_crear(
 @router.post("/caja/salida")
 def caja_salida_crear(
     request: Request, categoria: str = Form(...), monto: str = Form(...), descripcion: str = Form(""),
+    fecha: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     """Salida de Caja / Crédito por Garantía: egresos de efectivo del día a
@@ -196,6 +224,7 @@ def caja_salida_crear(
         monto_dec = to_decimal(monto)
         if monto_dec <= 0:
             raise ValueError("El monto debe ser mayor a cero.")
+        fecha_mov = _resolver_fecha_mov(fecha)
     except ValueError as e:
         flash(request, str(e), "error")
         return RedirectResponse("/caja/registrar", status_code=303)
@@ -204,6 +233,7 @@ def caja_salida_crear(
         tipo="gasto", categoria=categoria, monto=monto_dec.quantize(Decimal("0.01")),
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
         referencia="Caja", cuenta=CUENTA_CAJA_CHICA,
+        fecha=fecha_mov or datetime.utcnow(),
     ))
     db.commit()
     flash(request, "Salida de caja registrada correctamente.", "success")
@@ -222,11 +252,32 @@ def caja_ver_comprobante(mov_id: int, db: Session = Depends(get_db), usuario=Dep
 # Vista Cajera: cierre / arqueo diario (solo lectura, se calcula al vuelo)
 # ---------------------------------------------------------------------------
 @router.get("/caja/cierre")
-def caja_cierre(request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor"))):
-    cierre = calcular_cierre_dia(db)
+def caja_cierre(
+    request: Request, fecha: str = "",
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
+):
+    # Cierre/arqueo de cualquier día (no solo hoy): se elige la fecha con un
+    # selector y todo se recalcula al momento a partir del mismo libro de
+    # movimientos — no existe una apertura/cierre guardada aparte por día.
+    hoy = date.today()
+    if fecha.strip():
+        try:
+            dia = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            dia = hoy
+        if dia > hoy:
+            dia = hoy
+    else:
+        dia = hoy
+
+    cierre = calcular_cierre_dia(db, dia)
+    saldo_a_fecha = calcular_saldo_caja_chica_a_fecha(db, dia)
+    saldo_anterior = calcular_saldo_anterior(db, dia)
     return templates.TemplateResponse("caja/cierre.html", {
         "request": request, "usuario": usuario, "cierre": cierre,
         "saldo": _saldo_caja_chica_para_cajera(db),
+        "saldo_a_fecha": saldo_a_fecha, "saldo_anterior": saldo_anterior,
+        "fecha_seleccionada": dia.isoformat(), "hoy_iso": hoy.isoformat(),
     })
 
 

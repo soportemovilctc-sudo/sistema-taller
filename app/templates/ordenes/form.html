@@ -156,6 +156,13 @@
         {% endif %}
         <div class="field"><label>Fecha estimada de entrega</label><input type="date" name="fecha_entrega" value="{{ orden.fecha_entrega if orden and orden.fecha_entrega else '' }}"></div>
       </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Fecha de la orden</label>
+          <input type="date" name="fecha_orden" max="{{ hoy_iso }}" value="{{ orden.fecha.strftime('%Y-%m-%d') if orden and orden.fecha else hoy_iso }}">
+          <div class="help">Por defecto es hoy. Cámbiala solo si estás cargando una orden de un día anterior.</div>
+        </div>
+      </div>
     </div>
   </div>
 

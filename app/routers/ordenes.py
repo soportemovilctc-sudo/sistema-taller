@@ -148,6 +148,7 @@ def ordenes_nueva_form(request: Request, db: Session = Depends(get_db), usuario=
         "recargo_default": cfg.recargo_default_pct if cfg else 0,
         "productos_disponibles": productos_disponibles, "tasa_isv": tasa,
         "servicios_disponibles": _servicios_disponibles(db),
+        "hoy_iso": date.today().isoformat(),
         **_opciones_formulario(db),
     })
 
@@ -177,6 +178,7 @@ def ordenes_crear(
     cotizacion: str = Form("0"),
     recargo_pct: str = Form("0"),
     forma_pago: str = Form("Efectivo"),
+    fecha_orden: str = Form(""),
     fecha_entrega: str = Form(""),
     repuesto_producto_id: list[str] = Form([]),
     repuesto_cantidad: list[str] = Form([]),
@@ -213,6 +215,24 @@ def ordenes_crear(
         flash(request, str(e), "error")
         return RedirectResponse("/ordenes/nueva", status_code=303)
 
+    # Fecha de la orden: por defecto "ahora", pero se puede elegir una fecha
+    # pasada (por ejemplo para registrar una orden de ayer que no se alcanzó
+    # a cargar el mismo día). No se permite una fecha futura. La hora se
+    # toma del momento real en que se guarda, para conservar el orden
+    # cronológico entre varias órdenes del mismo día.
+    if fecha_orden.strip():
+        try:
+            fecha_orden_date = datetime.strptime(fecha_orden.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            flash(request, "La fecha de la orden no es válida.", "error")
+            return RedirectResponse("/ordenes/nueva", status_code=303)
+        if fecha_orden_date > date.today():
+            flash(request, "La fecha de la orden no puede ser una fecha futura.", "error")
+            return RedirectResponse("/ordenes/nueva", status_code=303)
+    else:
+        fecha_orden_date = date.today()
+    fecha_dt = datetime.combine(fecha_orden_date, datetime.now().time())
+
     orden = OrdenServicio(
         numero_orden=generar_numero_orden(db),
         cliente_id=cliente_id,
@@ -225,7 +245,8 @@ def ordenes_crear(
         pin=pin or None, patron=patron or None, mostrar_seguridad_en_pdf=mostrar_seguridad_en_pdf,
         cotizacion=cot, recargo_pct=pct, recargo_monto=recargo, total=total, abonado=Decimal("0"), saldo=total,
         forma_pago=forma_pago,
-        fecha_entrada=date.today(),
+        fecha=fecha_dt,
+        fecha_entrada=fecha_orden_date,
         fecha_entrega=datetime.strptime(fecha_entrega, "%Y-%m-%d").date() if fecha_entrega else None,
         fecha_cierre=datetime.utcnow() if estado in ("ENTREGADO", "CANCELADO") else None,
     )
@@ -233,7 +254,8 @@ def ordenes_crear(
     db.flush()
 
     historial = HistorialEstado(orden_id=orden.id, estado_anterior=None, estado_nuevo=estado,
-                                 usuario_nombre=usuario["nombre_completo"], observacion="Orden creada")
+                                 usuario_nombre=usuario["nombre_completo"], observacion="Orden creada",
+                                 fecha=fecha_dt)
     db.add(historial)
 
     repuestos_agregados = []
@@ -355,6 +377,7 @@ def ordenes_editar_form(orden_id: int, request: Request, db: Session = Depends(g
     return templates.TemplateResponse("ordenes/form.html", {
         "request": request, "orden": orden, "usuario": usuario,
         "recargo_default": orden.recargo_pct,
+        "hoy_iso": date.today().isoformat(),
         **_opciones_formulario(db),
     })
 
@@ -384,6 +407,7 @@ def ordenes_actualizar(
     cotizacion: str = Form("0"),
     recargo_pct: str = Form("0"),
     forma_pago: str = Form("Efectivo"),
+    fecha_orden: str = Form(""),
     fecha_entrega: str = Form(""),
     db: Session = Depends(get_db),
     usuario=Depends(login_required),
@@ -402,6 +426,22 @@ def ordenes_actualizar(
     if faltantes:
         flash(request, "Antes de guardar, completa: " + ", ".join(faltantes) + ".", "error")
         return RedirectResponse(f"/ordenes/{orden_id}/editar", status_code=303)
+
+    # Fecha de la orden: se puede corregir a una fecha pasada (por ejemplo si
+    # se cargó tarde una orden de ayer). Se conserva la hora que ya tenía la
+    # orden para no alterar su posición cronológica entre otras del mismo día.
+    if fecha_orden.strip():
+        try:
+            fecha_orden_date = datetime.strptime(fecha_orden.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            flash(request, "La fecha de la orden no es válida.", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}/editar", status_code=303)
+        if fecha_orden_date > date.today():
+            flash(request, "La fecha de la orden no puede ser una fecha futura.", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}/editar", status_code=303)
+        hora_actual = orden.fecha.time() if orden.fecha else datetime.now().time()
+        orden.fecha = datetime.combine(fecha_orden_date, hora_actual)
+        orden.fecha_entrada = fecha_orden_date
 
     try:
         orden.cotizacion = to_decimal(cotizacion or 0)

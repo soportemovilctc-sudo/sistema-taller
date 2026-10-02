@@ -6,23 +6,37 @@
   <a href="/caja/cierre" class="active">Cierre de turno</a>
 </div>
 
-<p class="help" style="margin-bottom:14px;">Cierre / arqueo del día <b>{{ cierre.dia.strftime('%d/%m/%Y') }}</b> — se calcula al momento con lo registrado hoy, incluyendo Órdenes y Punto de Venta.</p>
+<p class="help" style="margin-bottom:14px;">Cierre / arqueo del día <b>{{ cierre.dia.strftime('%d/%m/%Y') }}</b> — se calcula al momento con lo registrado ese día, incluyendo Órdenes y Punto de Venta. No existe una apertura/cierre guardada aparte: elige cualquier fecha y se recalcula con el mismo libro de movimientos.</p>
+
+<form method="get" action="/caja/cierre" class="form-row" style="margin-bottom:16px; align-items:flex-end;">
+  <div class="field" style="flex:0 0 auto;"><label>Ver cierre del día</label><input type="date" name="fecha" max="{{ hoy_iso }}" value="{{ fecha_seleccionada }}"></div>
+  <div class="field" style="flex:0 0 auto;"><button type="submit" class="btn btn-outline">Ver</button></div>
+  {% if fecha_seleccionada != hoy_iso %}
+  <div class="field" style="flex:0 0 auto;"><a href="/caja/cierre" class="btn btn-outline btn-sm">Volver a hoy</a></div>
+  {% endif %}
+</form>
 
 <div class="grid cols-3" style="margin-bottom:18px;">
-  <div class="kpi accent-green"><div class="kpi-label">Total Efectivo (cuadre de caja física)</div><div class="kpi-value">{{ cierre.total_efectivo|moneda(config_taller().moneda) }}</div></div>
-  <div class="kpi accent-red"><div class="kpi-label">Salidas de caja (egresos de hoy)</div><div class="kpi-value">{{ cierre.total_egresos|moneda(config_taller().moneda) }}</div></div>
-  <div class="kpi {{ 'accent-green' if cierre.saldo_neto_dia >= 0 else 'accent-red' }}"><div class="kpi-label">Neto de caja chica de hoy</div><div class="kpi-value">{{ cierre.saldo_neto_dia|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Saldo Anterior</div><div class="kpi-value">{{ saldo_anterior|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi {{ 'accent-green' if cierre.saldo_neto_dia >= 0 else 'accent-red' }}"><div class="kpi-label">Movimiento neto del día</div><div class="kpi-value">{{ cierre.saldo_neto_dia|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Saldo en Caja al cierre de ese día</div><div class="kpi-value">{{ saldo_a_fecha.saldo_en_caja|moneda(config_taller().moneda) }}</div></div>
 </div>
 
 <div class="grid cols-3" style="margin-bottom:18px;">
-  <div class="kpi accent-blue"><div class="kpi-label">Saldo en Caja (acumulado del mes)</div><div class="kpi-value">{{ saldo.caja_chica_actual|moneda(config_taller().moneda) }}</div></div>
-  <div class="kpi accent-blue"><div class="kpi-label">Total Transferencias de hoy</div><div class="kpi-value">{{ cierre.total_transferencia|moneda(config_taller().moneda) }}</div></div>
-  <div class="kpi accent-blue"><div class="kpi-label">Total Tarjeta (POS) de hoy</div><div class="kpi-value">{{ cierre.total_pos|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Total Efectivo (cuadre de caja física)</div><div class="kpi-value">{{ cierre.total_efectivo|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Salidas de caja (egresos del día)</div><div class="kpi-value">{{ cierre.total_egresos|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Saldo en Caja (acumulado del mes, a hoy)</div><div class="kpi-value">{{ saldo.caja_chica_actual|moneda(config_taller().moneda) }}</div></div>
+</div>
+
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-blue"><div class="kpi-label">Total Transferencias del día</div><div class="kpi-value">{{ cierre.total_transferencia|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Total Tarjeta (POS) del día</div><div class="kpi-value">{{ cierre.total_pos|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Total general del día</div><div class="kpi-value">{{ cierre.total_dia|moneda(config_taller().moneda) }}</div></div>
 </div>
 
 <div class="grid cols-2" style="align-items:start; margin-bottom:18px;">
   <div class="card">
-    <div class="card-title">Ingresos de hoy por categoría</div>
+    <div class="card-title">Ingresos del día por categoría</div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Categoría</th><th>Monto</th></tr></thead>
@@ -30,7 +44,7 @@
           {% for categoria, monto in cierre.ingresos_por_categoria %}
           <tr><td>{{ categoria }}</td><td>{{ monto|moneda(config_taller().moneda) }}</td></tr>
           {% else %}
-          <tr><td colspan="2" class="empty-state">Sin ingresos hoy.</td></tr>
+          <tr><td colspan="2" class="empty-state">Sin ingresos ese día.</td></tr>
           {% endfor %}
         </tbody>
         {% if cierre.ingresos_por_categoria %}
@@ -41,7 +55,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title">Salidas de caja de hoy por categoría</div>
+    <div class="card-title">Salidas de caja del día por categoría</div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Categoría</th><th>Monto</th></tr></thead>
@@ -49,7 +63,7 @@
           {% for categoria, monto in cierre.egresos_por_categoria %}
           <tr><td>{{ categoria }}</td><td>{{ monto|moneda(config_taller().moneda) }}</td></tr>
           {% else %}
-          <tr><td colspan="2" class="empty-state">Sin salidas de caja hoy.</td></tr>
+          <tr><td colspan="2" class="empty-state">Sin salidas de caja ese día.</td></tr>
           {% endfor %}
         </tbody>
         {% if cierre.egresos_por_categoria %}
@@ -61,7 +75,7 @@
 </div>
 
 <div class="card">
-  <div class="card-title">Transferencias registradas hoy</div>
+  <div class="card-title">Transferencias registradas ese día</div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Hora</th><th>Cliente</th><th>Referencia</th><th>Monto</th><th>Comprobante</th><th>Estado</th></tr></thead>
@@ -76,7 +90,7 @@
           <td>{% if t.estado_conciliacion == 'conciliado' %}<span class="badge badge-listo-para-entregar">Conciliada</span>{% else %}<span class="badge badge-aviso-pendiente">Pendiente</span>{% endif %}</td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="empty-state">Sin transferencias registradas hoy.</td></tr>
+        <tr><td colspan="6" class="empty-state">Sin transferencias registradas ese día.</td></tr>
         {% endfor %}
       </tbody>
     </table>

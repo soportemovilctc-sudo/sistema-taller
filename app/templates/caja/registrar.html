@@ -29,6 +29,8 @@
         <div class="field"><label>Comprobante adjunto (opcional)</label><input type="file" name="comprobante" accept="image/*,application/pdf"></div>
         <div class="help">Esta transferencia quedará como <b>Pendiente de verificación</b> hasta que el Administrador la concilie contra el banco.</div>
       </div>
+      <div class="field"><label>Fecha</label><input type="date" name="fecha" max="{{ hoy_iso }}" placeholder="Hoy"></div>
+      <div class="help" style="margin-bottom:10px;">Déjalo vacío para hoy. Cámbialo solo si estás registrando un cobro de un día anterior.</div>
       <button type="submit" class="btn btn-primary">Registrar cobro</button>
     </form>
   </div>
@@ -39,6 +41,8 @@
     <form method="post" action="/caja/ingreso-otro">
       <div class="field"><label>Monto *</label><input type="number" step="0.01" min="0.01" name="monto" required></div>
       <div class="field"><label>Descripción</label><input type="text" name="descripcion" placeholder="Opcional"></div>
+      <div class="field"><label>Fecha</label><input type="date" name="fecha" max="{{ hoy_iso }}" placeholder="Hoy"></div>
+      <div class="help" style="margin-bottom:10px;">Déjalo vacío para hoy.</div>
       <button type="submit" class="btn btn-outline">Registrar ingreso</button>
     </form>
   </div>
@@ -53,6 +57,8 @@
       </div>
       <div class="field"><label>Monto *</label><input type="number" step="0.01" min="0.01" name="monto" required></div>
       <div class="field"><label>Descripción</label><input type="text" name="descripcion" placeholder="Opcional"></div>
+      <div class="field"><label>Fecha</label><input type="date" name="fecha" max="{{ hoy_iso }}" placeholder="Hoy"></div>
+      <div class="help" style="margin-bottom:10px;">Déjalo vacío para hoy.</div>
       <button type="submit" class="btn btn-outline">Registrar salida</button>
     </form>
   </div>

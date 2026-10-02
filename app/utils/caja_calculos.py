@@ -132,30 +132,64 @@ def calcular_utilidad_neta(db: Session, fecha_desde: datetime, fecha_hasta: date
 
 
 def calcular_cierre_dia(db: Session, dia: date | None = None) -> dict:
-    """Reporte de cierre/arqueo diario de la Vista Cajera: desglosa lo
-    cobrado hoy por método de pago. Solo incluye movimientos que vinieron
-    del flujo "Registrar cobro" (metodo_pago IS NOT NULL)."""
+    """Reporte de cierre/arqueo diario de la Vista Cajera.
+
+    Incluye TODO lo que afecta la Caja Chica (efectivo físico) de hoy, venga
+    de donde venga: los cobros que registra la Cajera, pero también los
+    abonos y ventas de servicios/repuestos de las Órdenes, las ventas del
+    Punto de Venta, y las Salidas de Caja / Crédito por Garantía — todo lo
+    que ya trae `cuenta="caja_chica"` (ver MovimientoFinanciero). Las
+    Transferencias y cobros con Tarjeta (POS) se muestran aparte, como
+    referencia, porque esos van a Banco y no al efectivo físico que se
+    cuadra aquí."""
     if dia is None:
         dia = date.today()
     desde = datetime(dia.year, dia.month, dia.day)
     hasta = datetime.combine(dia, datetime.max.time())
 
-    movimientos = db.query(MovimientoFinanciero).filter(
-        MovimientoFinanciero.metodo_pago.isnot(None),
+    ingresos_caja_chica = db.query(MovimientoFinanciero).filter(
+        MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA, MovimientoFinanciero.tipo == "ingreso",
+        MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+    ).order_by(MovimientoFinanciero.fecha.asc()).all()
+    egresos_caja_chica = db.query(MovimientoFinanciero).filter(
+        MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA, MovimientoFinanciero.tipo == "gasto",
         MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
     ).order_by(MovimientoFinanciero.fecha.asc()).all()
 
-    total_efectivo = sum((to_decimal(m.monto) for m in movimientos if m.metodo_pago == "Efectivo"), Decimal("0.00"))
-    total_transferencia = sum((to_decimal(m.monto) for m in movimientos if m.metodo_pago == "Transferencia"), Decimal("0.00"))
-    total_pos = sum((to_decimal(m.monto) for m in movimientos if m.metodo_pago == "Tarjeta (POS)"), Decimal("0.00"))
-    transferencias = [m for m in movimientos if m.metodo_pago == "Transferencia"]
+    transferencias = db.query(MovimientoFinanciero).filter(
+        MovimientoFinanciero.metodo_pago == "Transferencia",
+        MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+    ).order_by(MovimientoFinanciero.fecha.asc()).all()
+    cobros_pos = db.query(MovimientoFinanciero).filter(
+        MovimientoFinanciero.metodo_pago == "Tarjeta (POS)",
+        MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+    ).order_by(MovimientoFinanciero.fecha.asc()).all()
+
+    def _agrupar_por_categoria(movs):
+        agrupado = {}
+        for m in movs:
+            agrupado[m.categoria] = agrupado.get(m.categoria, Decimal("0.00")) + to_decimal(m.monto)
+        # de mayor a menor monto, para que lo más relevante salga primero
+        return sorted(agrupado.items(), key=lambda par: par[1], reverse=True)
+
+    total_ingresos = sum((to_decimal(m.monto) for m in ingresos_caja_chica), Decimal("0.00"))
+    total_egresos = sum((to_decimal(m.monto) for m in egresos_caja_chica), Decimal("0.00"))
+    total_transferencia = sum((to_decimal(m.monto) for m in transferencias), Decimal("0.00"))
+    total_pos = sum((to_decimal(m.monto) for m in cobros_pos), Decimal("0.00"))
 
     return {
         "dia": dia,
-        "movimientos": movimientos,
-        "total_efectivo": total_efectivo,
+        "ingresos_caja_chica": ingresos_caja_chica,
+        "egresos_caja_chica": egresos_caja_chica,
+        "ingresos_por_categoria": _agrupar_por_categoria(ingresos_caja_chica),
+        "egresos_por_categoria": _agrupar_por_categoria(egresos_caja_chica),
+        "total_ingresos": total_ingresos,
+        "total_egresos": total_egresos,
+        "total_efectivo": total_ingresos,  # alias: todo ingreso de caja chica ES efectivo físico
+        "saldo_neto_dia": (total_ingresos - total_egresos).quantize(Decimal("0.01")),
+        "transferencias": transferencias,
+        "cobros_pos": cobros_pos,
         "total_transferencia": total_transferencia,
         "total_pos": total_pos,
-        "total_dia": (total_efectivo + total_transferencia + total_pos).quantize(Decimal("0.01")),
-        "transferencias": transferencias,
+        "total_dia": (total_ingresos + total_transferencia + total_pos).quantize(Decimal("0.01")),
     }

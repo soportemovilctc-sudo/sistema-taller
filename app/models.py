@@ -42,6 +42,18 @@ METODOS_PAGO_CAJA = ["Efectivo", "Transferencia", "Tarjeta (POS)"]
 # chica que ya existían en Contabilidad.
 CATEGORIAS_EGRESO_MAYOR = ["Proveedores", "Planillas", "Servicios", "Compras", "Otros"]
 
+# Categoría de ingresos de caja chica que la Cajera puede registrar sin que
+# vengan de un cobro con método de pago (ej. dinero encontrado, un reembolso
+# recibido en efectivo, un ingreso que no corresponde a una orden).
+CATEGORIA_OTRO_INGRESO_CAJA = "Otros ingresos"
+
+# Categorías de "Salida de caja" (vista Cajera): egresos de efectivo del día
+# a día, detallados uno por uno — equivalente a las columnas "Salidas de
+# caja" y "Crédito por Garantía" de la hoja de cálculo original. Son egresos
+# de caja chica (efectivo físico), distintos de los Egresos Mayores del
+# Administrador (que siempre son contra la cuenta bancaria).
+CATEGORIAS_SALIDA_CAJA = ["Salida de caja", "Crédito por garantía", "Compra menor", "Otro gasto de caja"]
+
 ACCESORIOS_DISPONIBLES = [
     "Cobertor", "Vidrio", "Micro SD", "S Pen", "SIM tipo", "SIM Claro",
 ]

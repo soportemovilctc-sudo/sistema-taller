@@ -26,7 +26,10 @@ from openpyxl.utils import get_column_letter
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import MovimientoFinanciero, Configuracion, METODOS_PAGO_CAJA, CATEGORIAS_EGRESO_MAYOR
+from app.models import (
+    MovimientoFinanciero, Configuracion, METODOS_PAGO_CAJA, CATEGORIAS_EGRESO_MAYOR,
+    CATEGORIA_OTRO_INGRESO_CAJA, CATEGORIAS_SALIDA_CAJA,
+)
 from app.utils.calculations import to_decimal
 from app.utils.caja_calculos import (
     calcular_liquidez, calcular_utilidad_neta, calcular_cierre_dia,
@@ -37,6 +40,19 @@ from app.utils.pdf import generar_pdf_informe_caja
 from app.deps import roles_required
 
 router = APIRouter()
+
+
+def _saldo_caja_chica_para_cajera(db: Session) -> dict:
+    """Subconjunto SEGURO de calcular_liquidez() para mostrarle a la Cajera
+    su saldo de Caja Chica acumulado del mes — sin incluir banco, ingresos de
+    banco ni liquidez total (restricción absoluta de la Vista Cajera)."""
+    liq = calcular_liquidez(db)
+    return {
+        "saldo_inicial_caja_chica": liq["saldo_inicial_caja_chica"],
+        "ingresos_caja_chica_mes": liq["ingresos_caja_chica"],
+        "egresos_caja_chica_mes": liq["egresos_caja_chica"],
+        "caja_chica_actual": liq["caja_chica_actual"],
+    }
 
 
 def _rango_fechas(periodo: str, desde: str, hasta: str):
@@ -69,18 +85,21 @@ def caja_index(usuario=Depends(roles_required("vendedor"))):
 # ---------------------------------------------------------------------------
 @router.get("/caja/registrar")
 def caja_registrar_form(request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor"))):
-    hoy = date.today()
-    desde = datetime.combine(hoy, datetime.min.time())
-    hasta = datetime.combine(hoy, datetime.max.time())
-    transacciones_hoy = db.query(MovimientoFinanciero).filter(
-        MovimientoFinanciero.metodo_pago.isnot(None),
-        MovimientoFinanciero.fecha.between(desde, hasta),
-    ).order_by(MovimientoFinanciero.fecha.desc()).all()
+    cierre = calcular_cierre_dia(db)
+    # Todo lo que movió la caja chica hoy, venga de Caja, de una Orden o del
+    # Punto de Venta, en una sola lista ordenada por hora (más reciente primero).
+    transacciones_hoy = sorted(
+        cierre["ingresos_caja_chica"] + cierre["egresos_caja_chica"] + cierre["transferencias"] + cierre["cobros_pos"],
+        key=lambda m: m.fecha, reverse=True,
+    )
 
     return templates.TemplateResponse("caja/registrar.html", {
         "request": request, "usuario": usuario,
         "metodos_pago": METODOS_PAGO_CAJA,
+        "categorias_salida": CATEGORIAS_SALIDA_CAJA,
+        "categoria_otro_ingreso": CATEGORIA_OTRO_INGRESO_CAJA,
         "transacciones_hoy": transacciones_hoy,
+        "saldo": _saldo_caja_chica_para_cajera(db),
     })
 
 
@@ -135,6 +154,62 @@ def caja_registrar_crear(
     return RedirectResponse("/caja/registrar", status_code=303)
 
 
+@router.post("/caja/ingreso-otro")
+def caja_ingreso_otro_crear(
+    request: Request, monto: str = Form(...), descripcion: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
+):
+    """Otros ingresos de caja chica que no vienen de un cobro con método de
+    pago (por ejemplo, dinero que no corresponde a una orden). Accesible
+    también a la Cajera, no solo al Administrador."""
+    try:
+        monto_dec = to_decimal(monto)
+        if monto_dec <= 0:
+            raise ValueError("El monto debe ser mayor a cero.")
+    except ValueError as e:
+        flash(request, str(e), "error")
+        return RedirectResponse("/caja/registrar", status_code=303)
+
+    db.add(MovimientoFinanciero(
+        tipo="ingreso", categoria=CATEGORIA_OTRO_INGRESO_CAJA, monto=monto_dec.quantize(Decimal("0.01")),
+        descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
+        referencia="Caja", cuenta=CUENTA_CAJA_CHICA,
+    ))
+    db.commit()
+    flash(request, "Ingreso registrado correctamente.", "success")
+    return RedirectResponse("/caja/registrar", status_code=303)
+
+
+@router.post("/caja/salida")
+def caja_salida_crear(
+    request: Request, categoria: str = Form(...), monto: str = Form(...), descripcion: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
+):
+    """Salida de Caja / Crédito por Garantía: egresos de efectivo del día a
+    día que registra la propia Cajera (no requieren ser Administrador),
+    distintos de los Egresos Mayores (que siempre van contra el banco)."""
+    if categoria not in CATEGORIAS_SALIDA_CAJA:
+        flash(request, "Categoría no válida.", "error")
+        return RedirectResponse("/caja/registrar", status_code=303)
+
+    try:
+        monto_dec = to_decimal(monto)
+        if monto_dec <= 0:
+            raise ValueError("El monto debe ser mayor a cero.")
+    except ValueError as e:
+        flash(request, str(e), "error")
+        return RedirectResponse("/caja/registrar", status_code=303)
+
+    db.add(MovimientoFinanciero(
+        tipo="gasto", categoria=categoria, monto=monto_dec.quantize(Decimal("0.01")),
+        descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
+        referencia="Caja", cuenta=CUENTA_CAJA_CHICA,
+    ))
+    db.commit()
+    flash(request, "Salida de caja registrada correctamente.", "success")
+    return RedirectResponse("/caja/registrar", status_code=303)
+
+
 @router.get("/caja/comprobante/{mov_id}")
 def caja_ver_comprobante(mov_id: int, db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor"))):
     mov = db.get(MovimientoFinanciero, mov_id)
@@ -151,6 +226,7 @@ def caja_cierre(request: Request, db: Session = Depends(get_db), usuario=Depends
     cierre = calcular_cierre_dia(db)
     return templates.TemplateResponse("caja/cierre.html", {
         "request": request, "usuario": usuario, "cierre": cierre,
+        "saldo": _saldo_caja_chica_para_cajera(db),
     })
 
 
@@ -166,10 +242,11 @@ def caja_panel(
     liquidez = calcular_liquidez(db, anio, mes)
     ini, fin = _rango_fechas(periodo, desde, hasta)
     utilidad = calcular_utilidad_neta(db, ini, fin)
+    cierre_hoy = calcular_cierre_dia(db)  # detalle de caja chica de hoy, para supervisar a la Cajera
 
     return templates.TemplateResponse("caja/panel.html", {
         "request": request, "usuario": usuario,
-        "liquidez": liquidez, "utilidad": utilidad,
+        "liquidez": liquidez, "utilidad": utilidad, "cierre_hoy": cierre_hoy,
         "periodo": periodo, "desde": desde, "hasta": hasta,
         "anio": anio, "mes": mes,
     })

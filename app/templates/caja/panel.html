@@ -69,4 +69,54 @@
   </div>
   <div class="help" style="margin-top:10px;">La Utilidad Neta se calcula de forma independiente a los saldos iniciales: es la rentabilidad del período (ingresos menos egresos), no el efectivo disponible.</div>
 </div>
+
+<div class="card" style="margin-top:18px;">
+  <div class="card-title">
+    <span>Caja chica de hoy (detalle) — {{ cierre_hoy.dia.strftime('%d/%m/%Y') }}</span>
+  </div>
+  <p class="help" style="margin-bottom:14px;">Todo lo que movió la Cajera hoy: sus cobros, y también lo que entra automáticamente por Órdenes y Punto de Venta.</p>
+  <div class="grid cols-2" style="align-items:start;">
+    <div>
+      <div class="section-label" style="font-weight:700; margin-bottom:6px;">Ingresos por categoría</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Categoría</th><th>Monto</th></tr></thead>
+          <tbody>
+            {% for categoria, monto in cierre_hoy.ingresos_por_categoria %}
+            <tr><td>{{ categoria }}</td><td>{{ monto|moneda(config_taller().moneda) }}</td></tr>
+            {% else %}
+            <tr><td colspan="2" class="empty-state">Sin ingresos hoy.</td></tr>
+            {% endfor %}
+          </tbody>
+          {% if cierre_hoy.ingresos_por_categoria %}
+          <tfoot><tr><td style="font-weight:700;">Total</td><td style="font-weight:700;">{{ cierre_hoy.total_ingresos|moneda(config_taller().moneda) }}</td></tr></tfoot>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="section-label" style="font-weight:700; margin-bottom:6px;">Salidas de caja por categoría</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Categoría</th><th>Monto</th></tr></thead>
+          <tbody>
+            {% for categoria, monto in cierre_hoy.egresos_por_categoria %}
+            <tr><td>{{ categoria }}</td><td>{{ monto|moneda(config_taller().moneda) }}</td></tr>
+            {% else %}
+            <tr><td colspan="2" class="empty-state">Sin salidas de caja hoy.</td></tr>
+            {% endfor %}
+          </tbody>
+          {% if cierre_hoy.egresos_por_categoria %}
+          <tfoot><tr><td style="font-weight:700;">Total</td><td style="font-weight:700;">{{ cierre_hoy.total_egresos|moneda(config_taller().moneda) }}</td></tr></tfoot>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="grid cols-3" style="margin-top:14px;">
+    <div class="kpi accent-blue"><div class="kpi-label">Transferencias de hoy</div><div class="kpi-value">{{ cierre_hoy.total_transferencia|moneda(config_taller().moneda) }}</div></div>
+    <div class="kpi accent-blue"><div class="kpi-label">Tarjeta (POS) de hoy</div><div class="kpi-value">{{ cierre_hoy.total_pos|moneda(config_taller().moneda) }}</div></div>
+    <div class="kpi {{ 'accent-green' if cierre_hoy.saldo_neto_dia >= 0 else 'accent-red' }}"><div class="kpi-label">Neto de caja chica de hoy</div><div class="kpi-value">{{ cierre_hoy.saldo_neto_dia|moneda(config_taller().moneda) }}</div></div>
+  </div>
+</div>
 {% endblock %}

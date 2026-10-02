@@ -248,7 +248,7 @@ def ordenes_crear(
         fecha=fecha_dt,
         fecha_entrada=fecha_orden_date,
         fecha_entrega=datetime.strptime(fecha_entrega, "%Y-%m-%d").date() if fecha_entrega else None,
-        fecha_cierre=datetime.utcnow() if estado in ("ENTREGADO", "CANCELADO") else None,
+        fecha_cierre=fecha_dt if estado in ("ENTREGADO", "CANCELADO") else None,
     )
     db.add(orden)
     db.flush()
@@ -283,7 +283,7 @@ def ordenes_crear(
             precio_val = to_decimal(precio_raw)
             if precio_val > 0:
                 precio_override = precio_val.quantize(Decimal("0.01"))
-        _agregar_repuesto_a_orden(db, orden, producto, cantidad_val, usuario["nombre_completo"], precio_override)
+        _agregar_repuesto_a_orden(db, orden, producto, cantidad_val, usuario["nombre_completo"], precio_override, fecha=fecha_dt)
         repuestos_agregados.append(producto.nombre)
 
     # Servicios adicionales (opcional): igual que los repuestos, pero cada
@@ -323,7 +323,7 @@ def ordenes_crear(
             )
             db.add(servicio)
             db.flush()
-        _agregar_servicio_a_orden(db, orden, servicio, cantidad_val, usuario["nombre_completo"], precio_override=precio_dec)
+        _agregar_servicio_a_orden(db, orden, servicio, cantidad_val, usuario["nombre_completo"], precio_override=precio_dec, fecha=fecha_dt)
         servicios_agregados.append(servicio.nombre)
 
     if repuestos_agregados or servicios_agregados:
@@ -608,7 +608,7 @@ def ordenes_registrar_abono(
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
-def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Producto, cantidad: int, usuario_nombre: str, precio_override: Optional[Decimal] = None) -> OrdenRepuesto:
+def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Producto, cantidad: int, usuario_nombre: str, precio_override: Optional[Decimal] = None, fecha: Optional[datetime] = None) -> OrdenRepuesto:
     """Descuenta `cantidad` unidades de `producto` y las agrega a `orden`:
     crea la Venta/DetalleVenta (igual que en POS, enlazada a la orden),
     el MovimientoInventario de salida, el MovimientoFinanciero de ingreso
@@ -619,15 +619,19 @@ def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Produ
     agregar el repuesto a la orden). Si no se pasa, el precio por defecto
     es el precio de venta del producto CON el impuesto (ISV) incluido,
     porque el total de la orden/factura se trata como un monto que ya
-    incluye impuesto (ver facturación)."""
+    incluye impuesto (ver facturación). Si se pasa `fecha`, la Venta, el
+    movimiento de inventario y el ingreso financiero quedan con esa fecha
+    en vez de "ahora" — para que un repuesto agregado al crear una orden
+    con fecha pasada no se mezcle con las ventas de hoy en Caja/Reportes."""
     precio = precio_override if precio_override is not None else aplicar_impuesto(producto.precio_venta, _isv_tasa(db))
     subtotal = (precio * cantidad).quantize(Decimal("0.01"))
+    fecha_mov = fecha or datetime.utcnow()
 
     venta = Venta(
         numero_venta=generar_numero_venta(db), cliente_id=orden.cliente_id, orden_id=orden.id,
         subtotal=subtotal, descuento=Decimal("0.00"), total=subtotal,
         forma_pago=orden.forma_pago or "Efectivo", monto_recibido=subtotal, cambio=Decimal("0.00"),
-        usuario_nombre=usuario_nombre,
+        usuario_nombre=usuario_nombre, fecha=fecha_mov,
     )
     db.add(venta)
     db.flush()
@@ -639,13 +643,13 @@ def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Produ
     db.add(MovimientoInventario(
         producto_id=producto.id, tipo="salida", cantidad=cantidad,
         existencia_resultante=producto.existencia, usuario_nombre=usuario_nombre,
-        motivo=f"Orden {orden.numero_orden}",
+        motivo=f"Orden {orden.numero_orden}", fecha=fecha_mov,
     ))
 
     db.add(MovimientoFinanciero(
         tipo="ingreso", categoria="Venta de repuesto (orden)", monto=subtotal,
         descripcion=f"{producto.nombre} x{cantidad} - Orden {orden.numero_orden}",
-        usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
+        usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=fecha_mov,
     ))
 
     orden_repuesto = OrdenRepuesto(
@@ -657,7 +661,7 @@ def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Produ
     return orden_repuesto
 
 
-def _agregar_servicio_a_orden(db: Session, orden: OrdenServicio, servicio: Servicio, cantidad: int, usuario_nombre: str, precio_override: Optional[Decimal] = None) -> OrdenServicioExtra:
+def _agregar_servicio_a_orden(db: Session, orden: OrdenServicio, servicio: Servicio, cantidad: int, usuario_nombre: str, precio_override: Optional[Decimal] = None, fecha: Optional[datetime] = None) -> OrdenServicioExtra:
     """Agrega un servicio del catálogo (ver app/routers/servicios.py) a la
     orden: registra el ingreso en Reportes/Contabilidad y guarda una copia
     del precio y costo del servicio al momento de agregarlo (igual que con
@@ -666,7 +670,9 @@ def _agregar_servicio_a_orden(db: Session, orden: OrdenServicio, servicio: Servi
     quien llama decide cuándo hacerlo. Si se pasa `precio_override`, se usa
     ese precio en vez del precio de venta del catálogo. A diferencia de los
     repuestos, el precio del servicio NO lleva el ajuste de impuesto (se
-    trata igual que la cotización: un monto final que ya cobra el taller)."""
+    trata igual que la cotización: un monto final que ya cobra el taller).
+    Si se pasa `fecha`, el ingreso financiero queda con esa fecha en vez de
+    "ahora" (ver _agregar_repuesto_a_orden)."""
     precio = precio_override if precio_override is not None else to_decimal(servicio.precio_venta)
     subtotal = (precio * cantidad).quantize(Decimal("0.01"))
     costo_unitario = to_decimal(servicio.costo) if servicio.costo is not None else None
@@ -674,7 +680,7 @@ def _agregar_servicio_a_orden(db: Session, orden: OrdenServicio, servicio: Servi
     db.add(MovimientoFinanciero(
         tipo="ingreso", categoria="Venta de servicio (orden)", monto=subtotal,
         descripcion=f"{servicio.nombre} x{cantidad} - Orden {orden.numero_orden}",
-        usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
+        usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=fecha or datetime.utcnow(),
     ))
 
     orden_servicio_extra = OrdenServicioExtra(

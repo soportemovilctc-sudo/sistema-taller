@@ -48,6 +48,22 @@ def guardar_saldo_inicial(db: Session, anio: int, mes: int, saldo_caja_chica, sa
     return fila
 
 
+def guardar_saldo_inicial_caja_chica(db: Session, anio: int, mes: int, saldo_caja_chica, usuario_nombre: str) -> SaldoInicialMensual:
+    """Igual que guardar_saldo_inicial(), pero solo toca el saldo de Caja
+    Chica — el saldo de Banco queda exactamente como estaba (o en 0 si el
+    mes no tenía fila todavía). La usa la Cajera desde /caja/registrar, que
+    no puede ver ni tocar el saldo de Banco (eso sigue siendo solo del
+    Administrador, desde /caja/panel). No hace commit."""
+    fila = obtener_saldo_inicial(db, anio, mes)
+    if not fila:
+        fila = SaldoInicialMensual(anio=anio, mes=mes, saldo_inicial_banco=Decimal("0.00"))
+        db.add(fila)
+    fila.saldo_inicial_caja_chica = to_decimal(saldo_caja_chica).quantize(Decimal("0.01"))
+    fila.usuario_nombre = usuario_nombre
+    fila.actualizado_en = datetime.utcnow()
+    return fila
+
+
 def _rango_mes(anio: int, mes: int, hasta: datetime | None = None):
     """Del 1 del mes a `hasta` (por defecto, ahora mismo si es el mes en
     curso, o el final de ese mes si es un mes pasado)."""

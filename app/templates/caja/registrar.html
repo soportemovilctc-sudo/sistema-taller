@@ -7,6 +7,17 @@
   <a href="/caja/reporte">Reportes</a>
 </div>
 
+<details class="card" style="max-width:420px; margin-bottom:18px;">
+  <summary class="card-title" style="cursor:pointer;">⚙ Saldo inicial — {{ ("%02d"|format(mes)) }}/{{ anio }} <span class="help" style="font-weight:400;">— toca para ajustar</span></summary>
+  <form method="post" action="/caja/registrar/saldo-inicial" style="margin-top:10px;">
+    <input type="hidden" name="anio" value="{{ anio }}">
+    <input type="hidden" name="mes" value="{{ mes }}">
+    <div class="field"><label>Saldo inicial Caja Chica</label><input type="number" step="0.01" name="saldo_inicial_caja_chica" value="{{ saldo_inicial_caja_chica }}"></div>
+    <div class="help" style="margin-bottom:10px;">Se registra al 1 de cada mes; ajústalo aquí si el saldo arrastrado del mes anterior no quedó correcto. El saldo de Banco no se muestra aquí — eso lo configura el Administrador.</div>
+    <button type="submit" class="btn btn-primary btn-sm">Guardar saldo inicial</button>
+  </form>
+</details>
+
 <div class="grid cols-3" style="margin-bottom:18px;">
   <div class="kpi accent-green"><div class="kpi-label">Saldo en Caja (acumulado del mes)</div><div class="kpi-value">{{ saldo.caja_chica_actual|moneda(config_taller().moneda) }}</div></div>
   <div class="kpi accent-blue"><div class="kpi-label">Ingresos del mes en Caja Chica</div><div class="kpi-value">{{ saldo.ingresos_caja_chica_mes|moneda(config_taller().moneda) }}</div></div>

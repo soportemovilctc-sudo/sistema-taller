@@ -43,7 +43,8 @@ from app.utils.calculations import to_decimal
 from app.utils.caja_calculos import (
     calcular_liquidez, calcular_utilidad_neta, calcular_cierre_dia,
     calcular_saldo_caja_chica_a_fecha, calcular_saldo_anterior, calcular_resumen_caja_chica,
-    guardar_saldo_inicial, mes_actual, CUENTA_CAJA_CHICA, CUENTA_BANCO,
+    guardar_saldo_inicial, guardar_saldo_inicial_caja_chica, obtener_saldo_inicial,
+    mes_actual, CUENTA_CAJA_CHICA, CUENTA_BANCO,
 )
 from app.utils.libro_diario import registrar_asiento_para_movimiento, eliminar_asiento_de_movimiento
 from app.utils.flash import flash
@@ -142,6 +143,9 @@ def caja_registrar_form(request: Request, db: Session = Depends(get_db), usuario
         key=lambda m: m.fecha, reverse=True,
     )
 
+    anio, mes = mes_actual()
+    saldo_inicial = obtener_saldo_inicial(db, anio, mes)
+
     return templates.TemplateResponse("caja/registrar.html", {
         "request": request, "usuario": usuario,
         "metodos_pago": METODOS_PAGO_CAJA,
@@ -150,7 +154,25 @@ def caja_registrar_form(request: Request, db: Session = Depends(get_db), usuario
         "transacciones_hoy": transacciones_hoy,
         "saldo": _saldo_caja_chica_para_cajera(db),
         "hoy_iso": date.today().isoformat(),
+        "anio": anio, "mes": mes,
+        "saldo_inicial_caja_chica": saldo_inicial.saldo_inicial_caja_chica if saldo_inicial else Decimal("0.00"),
     })
+
+
+@router.post("/caja/registrar/saldo-inicial")
+def caja_registrar_guardar_saldo_inicial(
+    request: Request, anio: int = Form(...), mes: int = Form(...),
+    saldo_inicial_caja_chica: str = Form("0"),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
+):
+    """La Cajera ajusta aquí el saldo inicial del mes de su Caja Chica — el
+    equivalente a "Configuración de saldos" que ya tenía el Administrador en
+    /caja/panel, pero SOLO con el campo de Caja Chica: el saldo de Banco no
+    se toca ni se muestra aquí, sigue siendo exclusivo del Administrador."""
+    guardar_saldo_inicial_caja_chica(db, anio, mes, saldo_inicial_caja_chica, usuario["nombre_completo"])
+    db.commit()
+    flash(request, "Saldo inicial de Caja Chica guardado correctamente.", "success")
+    return RedirectResponse("/caja/registrar", status_code=303)
 
 
 @router.post("/caja/registrar")

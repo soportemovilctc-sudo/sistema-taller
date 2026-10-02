@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Caja · Informe mensual{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/caja/panel">Panel gerencial</a>
+  <a href="/caja/conciliacion">Conciliación y egresos</a>
+  <a href="/caja/informe" class="active">Informe mensual</a>
+</div>
+
+<div class="card" style="margin-bottom:14px;">
+  <div class="card-title">
+    Informe de {{ nombre_mes }} {{ anio }}
+    <span class="actions">
+      <a class="btn btn-outline btn-sm" href="/caja/informe/exportar/excel?anio={{ anio }}&mes={{ mes }}">Descargar Excel</a>
+      <a class="btn btn-outline btn-sm" href="/caja/informe/exportar/pdf?anio={{ anio }}&mes={{ mes }}">Descargar PDF</a>
+    </span>
+  </div>
+</div>
+
+<form method="get" class="form-row" style="margin-bottom:16px;">
+  <div class="field">
+    <label>Mes</label>
+    <select name="mes">
+      {% for n in range(1, 13) %}<option value="{{ n }}" {{ 'selected' if n == mes else '' }}>{{ ["", "Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][n] }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field"><label>Año</label><input type="number" name="anio" value="{{ anio }}" style="max-width:120px;"></div>
+  <div class="field" style="flex:0; align-self:flex-end;"><button type="submit" class="btn btn-outline">Ver mes</button></div>
+</form>
+
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-blue"><div class="kpi-label">Liquidez Total</div><div class="kpi-value">{{ liquidez.liquidez_total|moneda(moneda) }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Ingresos del mes</div><div class="kpi-value">{{ utilidad.ingresos|moneda(moneda) }}</div></div>
+  <div class="kpi {{ 'accent-green' if utilidad.utilidad_neta >= 0 else 'accent-red' }}"><div class="kpi-label">Utilidad Neta</div><div class="kpi-value">{{ utilidad.utilidad_neta|moneda(moneda) }}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Transferencias del mes</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Cliente</th><th>Referencia</th><th>Monto</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for t in transferencias %}
+        <tr>
+          <td>{{ t.fecha|fecha('%d/%m/%Y') }}</td>
+          <td>{{ t.cliente_nombre or '-' }}</td>
+          <td>{{ t.num_referencia or '-' }}</td>
+          <td>{{ t.monto|moneda(moneda) }}</td>
+          <td>{% if t.estado_conciliacion == 'conciliado' %}<span class="badge badge-listo-para-entregar">Conciliada</span>{% else %}<span class="badge badge-aviso-pendiente">Pendiente</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">Sin transferencias este mes.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Egresos mayores del mes</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Monto</th><th>Usuario</th></tr></thead>
+      <tbody>
+        {% for e in egresos_mayores %}
+        <tr>
+          <td>{{ e.fecha|fecha('%d/%m/%Y') }}</td>
+          <td>{{ e.descripcion or '-' }}</td>
+          <td>{{ e.categoria }}</td>
+          <td>{{ e.monto|moneda(moneda) }}</td>
+          <td>{{ e.usuario_nombre or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">Sin egresos mayores este mes.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

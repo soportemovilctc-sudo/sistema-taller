@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Caja · Panel gerencial{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/caja/panel" class="active">Panel gerencial</a>
+  <a href="/caja/conciliacion">Conciliación y egresos</a>
+  <a href="/caja/informe">Informe mensual</a>
+</div>
+
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-green"><div class="kpi-label">Caja Chica actual</div><div class="kpi-value">{{ liquidez.caja_chica_actual|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Banco actual</div><div class="kpi-value">{{ liquidez.banco_actual|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Liquidez Total</div><div class="kpi-value">{{ liquidez.liquidez_total|moneda(config_taller().moneda) }}</div></div>
+</div>
+
+<div class="grid cols-2" style="align-items:start;">
+  <div class="card">
+    <div class="card-title">Configuración de saldos — {{ ("%02d"|format(mes)) }}/{{ anio }}</div>
+    {% if not liquidez.tiene_saldo_configurado %}
+    <div class="help" style="margin-bottom:10px;">Todavía no se ha registrado el saldo inicial de este mes: se está usando L0.00 mientras tanto.</div>
+    {% endif %}
+    <form method="post" action="/caja/panel/saldos">
+      <input type="hidden" name="anio" value="{{ anio }}">
+      <input type="hidden" name="mes" value="{{ mes }}">
+      <div class="form-row">
+        <div class="field"><label>Saldo inicial Caja Chica</label><input type="number" step="0.01" name="saldo_inicial_caja_chica" value="{{ liquidez.saldo_inicial_caja_chica }}"></div>
+        <div class="field"><label>Saldo inicial Banco</label><input type="number" step="0.01" name="saldo_inicial_banco" value="{{ liquidez.saldo_inicial_banco }}"></div>
+      </div>
+      <div class="help" style="margin-bottom:10px;">Se registra al 1 de cada mes; ajústalo aquí si el saldo arrastrado del mes anterior no quedó correcto.</div>
+      <button type="submit" class="btn btn-primary">Guardar saldos del mes</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Cálculo de Liquidez Total</div>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr><td>Saldo inicial Caja Chica</td><td>{{ liquidez.saldo_inicial_caja_chica|moneda(config_taller().moneda) }}</td></tr>
+          <tr><td>Saldo inicial Banco</td><td>{{ liquidez.saldo_inicial_banco|moneda(config_taller().moneda) }}</td></tr>
+          <tr><td>(+) Ingresos Caja Chica</td><td>{{ liquidez.ingresos_caja_chica|moneda(config_taller().moneda) }}</td></tr>
+          <tr><td>(-) Egresos Caja Chica</td><td>{{ liquidez.egresos_caja_chica|moneda(config_taller().moneda) }}</td></tr>
+          <tr><td>(+) Ingresos Banco</td><td>{{ liquidez.ingresos_banco|moneda(config_taller().moneda) }}</td></tr>
+          <tr><td>(-) Egresos Banco</td><td>{{ liquidez.egresos_banco|moneda(config_taller().moneda) }}</td></tr>
+          <tr><td style="font-weight:700;">LIQUIDEZ TOTAL</td><td style="font-weight:700;">{{ liquidez.liquidez_total|moneda(config_taller().moneda) }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px;">
+  <div class="card-title">Estado de resultados (rentabilidad)</div>
+  <div class="pill-tabs">
+    <a href="/caja/panel?periodo=dia" class="{{ 'active' if periodo == 'dia' else '' }}">Hoy</a>
+    <a href="/caja/panel?periodo=semana" class="{{ 'active' if periodo == 'semana' else '' }}">Esta semana</a>
+    <a href="/caja/panel?periodo=mes" class="{{ 'active' if periodo == 'mes' else '' }}">Este mes</a>
+  </div>
+  <form method="get" class="form-row" style="margin-bottom:16px;">
+    <input type="hidden" name="periodo" value="rango">
+    <div class="field"><label>Desde</label><input type="date" name="desde" value="{{ desde }}"></div>
+    <div class="field"><label>Hasta</label><input type="date" name="hasta" value="{{ hasta }}"></div>
+    <div class="field" style="flex:0; align-self:flex-end;"><button type="submit" class="btn btn-outline">Ver rango</button></div>
+  </form>
+  <div class="grid cols-3">
+    <div class="kpi accent-green"><div class="kpi-label">Ingresos del período</div><div class="kpi-value">{{ utilidad.ingresos|moneda(config_taller().moneda) }}</div></div>
+    <div class="kpi accent-red"><div class="kpi-label">Egresos del período</div><div class="kpi-value">{{ utilidad.egresos|moneda(config_taller().moneda) }}</div></div>
+    <div class="kpi {{ 'accent-green' if utilidad.utilidad_neta >= 0 else 'accent-red' }}"><div class="kpi-label">Utilidad Neta ({{ utilidad.margen_pct }}%)</div><div class="kpi-value">{{ utilidad.utilidad_neta|moneda(config_taller().moneda) }}</div></div>
+  </div>
+  <div class="help" style="margin-top:10px;">La Utilidad Neta se calcula de forma independiente a los saldos iniciales: es la rentabilidad del período (ingresos menos egresos), no el efectivo disponible.</div>
+</div>
+{% endblock %}

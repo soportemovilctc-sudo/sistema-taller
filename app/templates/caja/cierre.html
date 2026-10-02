@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Caja · Cierre de turno{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/caja/registrar">Registrar cobro</a>
+  <a href="/caja/cierre" class="active">Cierre de turno</a>
+</div>
+
+<p class="help" style="margin-bottom:14px;">Cierre / arqueo del día <b>{{ cierre.dia.strftime('%d/%m/%Y') }}</b> — se calcula al momento con lo registrado hoy en Caja.</p>
+
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-green"><div class="kpi-label">Total Efectivo (cuadre de caja física)</div><div class="kpi-value">{{ cierre.total_efectivo|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Total Transferencias</div><div class="kpi-value">{{ cierre.total_transferencia|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Total Tarjeta (POS)</div><div class="kpi-value">{{ cierre.total_pos|moneda(config_taller().moneda) }}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Transferencias registradas hoy</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Hora</th><th>Cliente</th><th>Referencia</th><th>Monto</th><th>Comprobante</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for t in cierre.transferencias %}
+        <tr>
+          <td>{{ t.fecha|fecha('%H:%M') }}</td>
+          <td>{{ t.cliente_nombre or '-' }}</td>
+          <td>{{ t.num_referencia or '-' }}</td>
+          <td>{{ t.monto|moneda(config_taller().moneda) }}</td>
+          <td>{% if t.comprobante_data %}<a href="/caja/comprobante/{{ t.id }}" target="_blank">Ver</a>{% else %}<span class="text-muted">Sin adjunto</span>{% endif %}</td>
+          <td>{% if t.estado_conciliacion == 'conciliado' %}<span class="badge badge-listo-para-entregar">Conciliada</span>{% else %}<span class="badge badge-aviso-pendiente">Pendiente</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">Sin transferencias registradas hoy.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Todos los movimientos de hoy</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Hora</th><th>Cliente</th><th>Método</th><th>Monto</th><th>Usuario</th></tr></thead>
+      <tbody>
+        {% for m in cierre.movimientos %}
+        <tr>
+          <td>{{ m.fecha|fecha('%H:%M') }}</td>
+          <td>{{ m.cliente_nombre or '-' }}</td>
+          <td>{{ m.metodo_pago }}</td>
+          <td>{{ m.monto|moneda(config_taller().moneda) }}</td>
+          <td>{{ m.usuario_nombre or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">Sin movimientos hoy.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if cierre.movimientos %}
+      <tfoot><tr><td colspan="3" style="font-weight:700;">Total del día</td><td colspan="2" style="font-weight:700;">{{ cierre.total_dia|moneda(config_taller().moneda) }}</td></tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Caja · Registrar cobro{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/caja/registrar" class="active">Registrar cobro</a>
+  <a href="/caja/cierre">Cierre de turno</a>
+</div>
+
+<div class="grid cols-2" style="align-items:start;">
+  <div class="card">
+    <div class="card-title">Registrar cobro</div>
+    <form method="post" action="/caja/registrar" enctype="multipart/form-data" id="formCobro">
+      <div class="form-row">
+        <div class="field"><label>Monto *</label><input type="number" step="0.01" min="0.01" name="monto" required></div>
+        <div class="field"><label>Cliente</label><input type="text" name="cliente_nombre" placeholder="Opcional"></div>
+      </div>
+      <div class="field">
+        <label>Método de pago *</label>
+        <select name="metodo_pago" id="metodoPago" onchange="document.getElementById('campoTransferencia').style.display = this.value === 'Transferencia' ? 'block' : 'none';">
+          {% for m in metodos_pago %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+        </select>
+      </div>
+      <div id="campoTransferencia" style="display:none;">
+        <div class="form-row">
+          <div class="field"><label>N. de comprobante / referencia *</label><input type="text" name="num_referencia"></div>
+          <div class="field"><label>Comprobante adjunto (opcional)</label><input type="file" name="comprobante" accept="image/*,application/pdf"></div>
+        </div>
+        <div class="help">Esta transferencia quedará como <b>Pendiente de verificación</b> hasta que el Administrador la concilie contra el banco.</div>
+      </div>
+      <button type="submit" class="btn btn-primary">Registrar cobro</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Transacciones de hoy</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Hora</th><th>Cliente</th><th>Método</th><th>Monto</th><th>Estado</th></tr></thead>
+        <tbody>
+          {% for m in transacciones_hoy %}
+          <tr>
+            <td>{{ m.fecha|fecha('%H:%M') }}</td>
+            <td>{{ m.cliente_nombre or '-' }}</td>
+            <td>{{ m.metodo_pago }}{% if m.num_referencia %} <span class="text-muted">({{ m.num_referencia }})</span>{% endif %}</td>
+            <td>{{ m.monto|moneda(config_taller().moneda) }}</td>
+            <td>
+              {% if m.metodo_pago == 'Transferencia' %}
+                {% if m.estado_conciliacion == 'conciliado' %}<span class="badge badge-listo-para-entregar">Conciliada</span>
+                {% else %}<span class="badge badge-aviso-pendiente">Pendiente de verificación</span>{% endif %}
+              {% else %}<span class="text-muted">-</span>{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="empty-state">Aún no hay cobros registrados hoy.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

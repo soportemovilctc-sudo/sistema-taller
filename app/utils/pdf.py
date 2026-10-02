@@ -537,3 +537,112 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
         "anulada": factura.anulada,
         "texto_legal": texto_legal,
     }
+
+
+def generar_pdf_informe_caja(data: dict) -> bytes:
+    """Genera el informe mensual de Caja (Vista Administrador): saldos
+    iniciales, Liquidez Total, Estado de Resultados (Utilidad Neta),
+    transferencias conciliadas/pendientes y egresos mayores del período.
+    Ver app/routers/caja.py -> caja_informe_contexto() para el formato
+    esperado de `data`."""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=letter,
+        topMargin=1.2 * cm, bottomMargin=1.2 * cm,
+        leftMargin=1.4 * cm, rightMargin=1.4 * cm,
+    )
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="Sub", fontSize=9, textColor=colors.HexColor("#475569")))
+    styles.add(ParagraphStyle(name="Seccion", fontSize=11, fontName="Helvetica-Bold", textColor=colors.white,
+                               backColor=colors.HexColor("#1d4ed8"), leftIndent=4, spaceBefore=6, spaceAfter=4,
+                               borderPadding=(3, 3, 3, 3)))
+    styles.add(ParagraphStyle(name="TituloDoc", fontSize=15, fontName="Helvetica-Bold"))
+
+    moneda = data.get("moneda", "L")
+    story = []
+
+    story.append(Paragraph(data.get("nombre_taller", "Mi Taller"), styles["TituloDoc"]))
+    story.append(Paragraph("Informe mensual de Caja", styles["Sub"]))
+    story.append(Paragraph(data.get("subtitulo", ""), styles["Sub"]))
+    story.append(Spacer(1, 6))
+    story.append(HRFlowable(width="100%", color=colors.HexColor("#1d4ed8"), thickness=1.5))
+    story.append(Spacer(1, 10))
+
+    liq = data.get("liquidez", {}) or {}
+    story.append(Paragraph("LIQUIDEZ TOTAL (saldo consolidado del mes)", styles["Seccion"]))
+    filas_liq = [
+        ["Saldo inicial Caja Chica", _moneda(liq.get("saldo_inicial_caja_chica", 0), moneda)],
+        ["Saldo inicial Banco", _moneda(liq.get("saldo_inicial_banco", 0), moneda)],
+        ["(+) Ingresos Caja Chica", _moneda(liq.get("ingresos_caja_chica", 0), moneda)],
+        ["(-) Egresos Caja Chica", _moneda(liq.get("egresos_caja_chica", 0), moneda)],
+        ["(+) Ingresos Banco", _moneda(liq.get("ingresos_banco", 0), moneda)],
+        ["(-) Egresos Banco", _moneda(liq.get("egresos_banco", 0), moneda)],
+        ["Caja Chica actual", _moneda(liq.get("caja_chica_actual", 0), moneda)],
+        ["Banco actual", _moneda(liq.get("banco_actual", 0), moneda)],
+        ["LIQUIDEZ TOTAL", _moneda(liq.get("liquidez_total", 0), moneda)],
+    ]
+    liq_tbl = Table(filas_liq, colWidths=[9 * cm, 8.6 * cm])
+    liq_tbl.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#e0e7ff")),
+    ]))
+    story.append(liq_tbl)
+    story.append(Spacer(1, 10))
+
+    util = data.get("utilidad", {}) or {}
+    story.append(Paragraph("ESTADO DE RESULTADOS (rentabilidad del período)", styles["Seccion"]))
+    filas_util = [
+        ["Ingresos del período", _moneda(util.get("ingresos", 0), moneda)],
+        ["Egresos / gastos del período", _moneda(util.get("egresos", 0), moneda)],
+        ["UTILIDAD NETA", _moneda(util.get("utilidad_neta", 0), moneda)],
+        ["Margen", f"{util.get('margen_pct', 0)}%"],
+    ]
+    util_tbl = Table(filas_util, colWidths=[9 * cm, 8.6 * cm])
+    util_tbl.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("FONTNAME", (0, 2), (-1, 2), "Helvetica-Bold"),
+        ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#dcfce7")),
+    ]))
+    story.append(util_tbl)
+
+    transferencias = data.get("transferencias") or []
+    if transferencias:
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("TRANSFERENCIAS DEL PERÍODO", styles["Seccion"]))
+        filas = [["Fecha", "Cliente", "Referencia", "Monto", "Estado"]]
+        for t in transferencias:
+            filas.append([t.get("fecha", ""), t.get("cliente", "") or "-", t.get("referencia", "") or "-",
+                          _moneda(t.get("monto", 0), moneda), t.get("estado", "")])
+        tbl = Table(filas, colWidths=[2.6 * cm, 5 * cm, 3 * cm, 3.5 * cm, 3.5 * cm])
+        tbl.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (3, 0), (3, -1), "RIGHT"),
+        ]))
+        story.append(tbl)
+
+    egresos = data.get("egresos_mayores") or []
+    if egresos:
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("EGRESOS MAYORES DEL PERÍODO", styles["Seccion"]))
+        filas = [["Fecha", "Concepto", "Categoría", "Monto", "Usuario"]]
+        for e in egresos:
+            filas.append([e.get("fecha", ""), e.get("descripcion", "") or "-", e.get("categoria", ""),
+                          _moneda(e.get("monto", 0), moneda), e.get("usuario", "") or "-"])
+        tbl = Table(filas, colWidths=[2.6 * cm, 5.4 * cm, 3 * cm, 3 * cm, 3.6 * cm])
+        tbl.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (3, 0), (3, -1), "RIGHT"),
+        ]))
+        story.append(tbl)
+
+    doc.build(story)
+    return buffer.getvalue()

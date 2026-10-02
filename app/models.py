@@ -28,6 +28,20 @@ PRIORIDADES = ["Normal", "Alta", "Urgente"]
 
 FORMAS_PAGO = ["Efectivo", "Transferencia", "Tarjeta", "Otro"]
 
+# ---------------------------------------------------------------------------
+# Módulo de Caja (apertura/cierre, conciliación bancaria, egresos mayores).
+# ---------------------------------------------------------------------------
+# Métodos de cobro que puede registrar la vista Cajera. "Tarjeta (POS)" se
+# mantiene como texto distinto de "Tarjeta" (FORMAS_PAGO, usado en Órdenes)
+# porque aquí nunca requiere referencia/comprobante, a diferencia de
+# Transferencia.
+METODOS_PAGO_CAJA = ["Efectivo", "Transferencia", "Tarjeta (POS)"]
+
+# Categorías para "Gestión de Egresos Mayores" (vista Administrador): pagos
+# con cargo directo a la cuenta bancaria, distintos de los gastos de caja
+# chica que ya existían en Contabilidad.
+CATEGORIAS_EGRESO_MAYOR = ["Proveedores", "Planillas", "Servicios", "Compras", "Otros"]
+
 ACCESORIOS_DISPONIBLES = [
     "Cobertor", "Vidrio", "Micro SD", "S Pen", "SIM tipo", "SIM Claro",
 ]
@@ -436,7 +450,11 @@ class DetalleVenta(Base):
 
 
 class MovimientoFinanciero(Base):
-    """Ingresos y gastos generales del taller (contabilidad)."""
+    """Ingresos y gastos generales del taller (contabilidad), y también el
+    libro de donde se arma el módulo de Caja (apertura/cierre, liquidez,
+    conciliación bancaria y egresos mayores) — en vez de llevar una tabla
+    aparte, se reutiliza esta misma para que Contabilidad, Reportes y el
+    Dashboard sigan viendo automáticamente todo lo que pasa por Caja."""
     __tablename__ = "movimientos_financieros"
 
     id = Column(Integer, primary_key=True)
@@ -447,6 +465,45 @@ class MovimientoFinanciero(Base):
     descripcion = Column(Text, default="")
     usuario_nombre = Column(String(150))
     referencia = Column(String(100), default="")  # ej: "Orden OS-000001"
+
+    # --- Módulo de Caja ---
+    # Cuenta a la que afecta el movimiento: "caja_chica" (efectivo físico) o
+    # "banco" (cuenta bancaria del taller). Todo lo que ya existía antes de
+    # este módulo (ventas POS, abonos, pagos automáticos, gastos manuales de
+    # Contabilidad) queda en "caja_chica" por ser el comportamiento histórico
+    # del sistema; lo nuevo que SÍ sabe distinguir cuenta real es lo que pasa
+    # por Caja: el cobro con Tarjeta (POS) o Transferencia se contabiliza en
+    # "banco", y los Egresos Mayores del Administrador siempre son "banco".
+    cuenta = Column(String(20), nullable=False, default="caja_chica")
+    # Método de cobro, solo en movimientos creados desde "Registrar cobro"
+    # (Vista Cajera). Sirve también como marca para identificar qué filas
+    # vienen de ese flujo (las demás rutas del sistema lo dejan vacío).
+    metodo_pago = Column(String(30), nullable=True)  # Efectivo | Transferencia | Tarjeta (POS)
+    cliente_nombre = Column(String(150), nullable=True)
+    num_referencia = Column(String(60), nullable=True)  # N. de comprobante de la transferencia
+    comprobante_data = Column(LargeBinary, nullable=True)
+    comprobante_mime = Column(String(50), nullable=True)
+    # Conciliación bancaria de las transferencias registradas por la Cajera.
+    estado_conciliacion = Column(String(20), nullable=True)  # pendiente | conciliado
+    conciliado_por = Column(String(150), nullable=True)
+    conciliado_en = Column(DateTime, nullable=True)
+
+
+class SaldoInicialMensual(Base):
+    """Saldo con el que arranca cada mes la Caja Chica y la cuenta de Banco,
+    que el Administrador registra/ajusta al 1 de cada mes (Configuración de
+    Saldos). A partir de este saldo se calcula la Liquidez Total, sumando
+    los ingresos y restando los egresos del mes en curso."""
+    __tablename__ = "saldos_iniciales_mensuales"
+    __table_args__ = (UniqueConstraint("anio", "mes", name="uq_saldo_inicial_anio_mes"),)
+
+    id = Column(Integer, primary_key=True)
+    anio = Column(Integer, nullable=False)
+    mes = Column(Integer, nullable=False)  # 1-12
+    saldo_inicial_caja_chica = Column(Numeric(10, 2), nullable=False, default=0)
+    saldo_inicial_banco = Column(Numeric(10, 2), nullable=False, default=0)
+    usuario_nombre = Column(String(150))
+    actualizado_en = Column(DateTime, default=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Caja · Conciliación bancaria{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/caja/panel">Panel gerencial</a>
+  <a href="/caja/conciliacion" class="active">Conciliación y egresos</a>
+  <a href="/caja/informe">Informe mensual</a>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">
+    <span>Transferencias por conciliar</span>
+    {% if pendientes %}<span class="badge badge-aviso-pendiente">{{ pendientes|length }} pendiente{{ 's' if pendientes|length != 1 else '' }}</span>{% endif %}
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Cliente</th><th>Referencia</th><th>Monto</th><th>Comprobante</th><th>Usuario</th><th></th></tr></thead>
+      <tbody>
+        {% for t in pendientes %}
+        <tr>
+          <td>{{ t.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ t.cliente_nombre or '-' }}</td>
+          <td>{{ t.num_referencia or '-' }}</td>
+          <td>{{ t.monto|moneda(config_taller().moneda) }}</td>
+          <td>{% if t.comprobante_data %}<a href="/caja/comprobante/{{ t.id }}" target="_blank">Ver</a>{% else %}<span class="text-muted">Sin adjunto</span>{% endif %}</td>
+          <td>{{ t.usuario_nombre or '-' }}</td>
+          <td>
+            <form method="post" action="/caja/conciliacion/{{ t.id }}/validar">
+              <button type="submit" class="btn btn-success btn-sm">Marcar conciliada</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty-state">No hay transferencias pendientes de conciliar.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Transferencias conciliadas recientemente</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Conciliada por</th><th>Fecha de conciliación</th></tr></thead>
+      <tbody>
+        {% for t in conciliadas_recientes %}
+        <tr>
+          <td>{{ t.fecha|fecha('%d/%m/%Y') }}</td>
+          <td>{{ t.cliente_nombre or '-' }}</td>
+          <td>{{ t.monto|moneda(config_taller().moneda) }}</td>
+          <td>{{ t.conciliado_por or '-' }}</td>
+          <td>{{ t.conciliado_en|fecha('%d/%m/%Y %H:%M') if t.conciliado_en else '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">Sin conciliaciones registradas todavía.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="grid cols-2" style="align-items:start;">
+  <div class="card">
+    <div class="card-title">Registrar egreso mayor</div>
+    <p class="help" style="margin-bottom:10px;">Pagos a proveedores, planillas, servicios o compras con cargo directo a la cuenta bancaria.</p>
+    <form method="post" action="/caja/egresos/nuevo">
+      <div class="field">
+        <label>Categoría</label>
+        <select name="categoria">{% for c in categorias_egreso %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+      </div>
+      <div class="field"><label>Monto</label><input type="number" step="0.01" min="0.01" name="monto" required></div>
+      <div class="field"><label>Concepto / descripción</label><input type="text" name="descripcion"></div>
+      <button type="submit" class="btn btn-primary">Registrar egreso</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <span>Egresos mayores recientes</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Monto</th></tr></thead>
+        <tbody>
+          {% for e in egresos %}
+          <tr>
+            <td>{{ e.fecha|fecha('%d/%m/%Y') }}</td>
+            <td>{{ e.descripcion or '-' }}</td>
+            <td>{{ e.categoria }}</td>
+            <td>{{ e.monto|moneda(config_taller().moneda) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="empty-state">Sin egresos mayores registrados.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if egresos %}
+        <tfoot><tr><td colspan="3" style="font-weight:700;">Total</td><td style="font-weight:700;">{{ total_egresos|moneda(config_taller().moneda) }}</td></tr></tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

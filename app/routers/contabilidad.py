@@ -41,12 +41,19 @@ def _rango_fechas(periodo: str, desde: str, hasta: str):
 @router.get("/contabilidad")
 def contabilidad_index(
     request: Request, periodo: str = "mes", desde: str = "", hasta: str = "",
-    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     ini, fin = _rango_fechas(periodo, desde, hasta)
-    movimientos = db.query(MovimientoFinanciero).filter(
+    query = db.query(MovimientoFinanciero).filter(
         MovimientoFinanciero.fecha.between(ini, fin)
-    ).order_by(MovimientoFinanciero.fecha.desc()).all()
+    )
+    # La Cajera nunca debe ver movimientos de banco (transferencias/tarjeta
+    # conciliadas como banco, egresos mayores) — solo Caja Chica. El Admin
+    # sigue viendo todo, igual que antes.
+    es_admin = usuario.get("rol") == "admin"
+    if not es_admin:
+        query = query.filter(MovimientoFinanciero.cuenta == "caja_chica")
+    movimientos = query.order_by(MovimientoFinanciero.fecha.desc()).all()
 
     ingresos = sum((m.monto for m in movimientos if m.tipo == "ingreso"), Decimal("0"))
     gastos = sum((m.monto for m in movimientos if m.tipo == "gasto"), Decimal("0"))
@@ -57,6 +64,7 @@ def contabilidad_index(
         "periodo": periodo, "desde": desde, "hasta": hasta,
         "ingresos": ingresos, "gastos": gastos, "balance": balance,
         "categorias_gasto": CATEGORIAS_GASTO, "categorias_ingreso": CATEGORIAS_INGRESO,
+        "es_admin": es_admin,
     })
 
 
@@ -64,7 +72,7 @@ def contabilidad_index(
 def contabilidad_crear(
     request: Request,
     tipo: str = Form(...), categoria: str = Form(...), monto: str = Form(...),
-    descripcion: str = Form(""), db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+    descripcion: str = Form(""), db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     try:
         monto_dec = to_decimal(monto)

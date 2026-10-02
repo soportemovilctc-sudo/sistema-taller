@@ -6,6 +6,11 @@
   <a href="/contabilidad?periodo=semana" class="{{ 'active' if periodo == 'semana' else '' }}">Esta semana</a>
   <a href="/contabilidad?periodo=mes" class="{{ 'active' if periodo == 'mes' else '' }}">Este mes</a>
 </div>
+
+{% if not es_admin %}
+<p class="help" style="margin-bottom:14px;">Mostrando solo movimientos de <b>Caja Chica</b> (no incluye banco ni liquidez).</p>
+{% endif %}
+
 <form method="get" class="form-row" style="margin-bottom:16px;">
   <input type="hidden" name="periodo" value="rango">
   <div class="field"><label>Desde</label><input type="date" name="desde" value="{{ desde }}"></div>

@@ -60,5 +60,11 @@
     <button type="submit" class="btn btn-primary">Guardar</button>
     <a href="/inventario" class="btn btn-outline">Cancelar</a>
   </form>
+  {% if producto and usuario.rol == 'admin' %}
+  <form method="post" action="/inventario/{{ producto.id }}/eliminar" style="margin-top:14px;" onsubmit="return confirm('¿Eliminar definitivamente el producto {{ producto.codigo }} - {{ producto.nombre }}? Esto solo funciona si nunca se ha vendido; si tiene historial, se bloqueará. Esta acción no se puede deshacer.');">
+    <button type="submit" style="color: var(--danger); background:none; border:none; text-decoration:underline; cursor:pointer; padding:0; font-size:0.9em;">Eliminar producto definitivamente</button>
+  </form>
+  <div class="help" style="margin-top:4px;">Solo se puede eliminar si nunca se ha vendido (ni en una orden ni en el Punto de Venta). Si ya tiene historial, desactívalo arriba en vez de eliminarlo.</div>
+  {% endif %}
 </div>
 {% endblock %}

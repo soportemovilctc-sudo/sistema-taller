@@ -389,13 +389,20 @@ def ordenes_detalle(orden_id: int, request: Request, db: Session = Depends(get_d
     _anotar_precios_con_impuesto(productos_disponibles, tasa)
 
     ventas, movimientos, inventario = _movimientos_dinero_de_orden(db, orden)
-    fecha_desincronizada = usuario.get("rol") == "admin" and _fecha_desincronizada(orden, ventas, movimientos, inventario)
+    es_admin = usuario.get("rol") == "admin"
+    fecha_desincronizada = es_admin and _fecha_desincronizada(orden, ventas, movimientos, inventario)
+    reversion_pendiente = (
+        es_admin and orden.estado == "CANCELADO"
+        and (orden.repuestos or orden.servicios_extra)
+        and not _orden_ya_revertida(db, orden)
+    )
 
     return templates.TemplateResponse("ordenes/detail.html", {
         "request": request, "orden": orden, "usuario": usuario,
         "productos_disponibles": productos_disponibles, "tasa_isv": tasa,
         "servicios_disponibles": _servicios_disponibles(db),
         "fecha_desincronizada": fecha_desincronizada,
+        "reversion_pendiente": reversion_pendiente,
         **opciones,
     })
 
@@ -425,6 +432,29 @@ def ordenes_sincronizar_fecha(orden_id: int, request: Request, db: Session = Dep
         flash(request, f"Se corrigieron {corregidos} registro(s) para que coincidan con la fecha de la orden ({orden.fecha.strftime('%d/%m/%Y')}).", "success")
     else:
         flash(request, "No había nada que corregir: ya coinciden con la fecha de la orden.", "success")
+    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
+@router.post("/ordenes/{orden_id}/revertir-cancelacion")
+def ordenes_revertir_cancelacion(orden_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    """Para órdenes que ya estaban canceladas ANTES de que la reversión
+    automática existiera (ver _aplicar_cambio_estado): devuelve a
+    inventario sus repuestos y registra el egreso que cancela el ingreso
+    que habían sumado, igual que si se cancelaran ahora."""
+    orden = db.get(OrdenServicio, orden_id)
+    if not orden:
+        flash(request, "Orden no encontrada.", "error")
+        return RedirectResponse("/ordenes", status_code=303)
+    if orden.estado != "CANCELADO":
+        flash(request, "Esta orden no está cancelada.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+    monto_revertido = _revertir_ingresos_orden_cancelada(db, orden, usuario["nombre_completo"])
+    db.commit()
+    if monto_revertido:
+        flash(request, f"Se revirtieron {monto_revertido} de Caja/Reportes y se devolvieron los repuestos a inventario.", "success")
+    else:
+        flash(request, "No había nada que revertir: esta orden ya estaba revertida o no tenía repuestos/servicios.", "success")
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
@@ -539,11 +569,66 @@ def ordenes_actualizar(
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
+CATEGORIA_REVERSION_CANCELACION = "Reversión por orden cancelada"
+
+
+def _orden_ya_revertida(db: Session, orden: OrdenServicio) -> bool:
+    return db.query(MovimientoFinanciero).filter(
+        MovimientoFinanciero.referencia == orden.numero_orden,
+        MovimientoFinanciero.categoria == CATEGORIA_REVERSION_CANCELACION,
+    ).first() is not None
+
+
+def _revertir_ingresos_orden_cancelada(db: Session, orden: OrdenServicio, usuario_nombre: str) -> Decimal:
+    """Al cancelar una orden, los repuestos vendidos y servicios cobrados
+    para ella dejan de ser un ingreso real: el repuesto vuelve a existencia
+    y se registra un egreso que cancela exactamente ese ingreso, para que
+    Caja/Reportes bajen de inmediato. No toca abonos ya cobrados del
+    cliente ni facturas emitidas — una devolución de dinero real es una
+    decisión del Administrador, caso por caso, no algo automático. No hace
+    commit; es seguro llamarla varias veces (no hace nada si esta orden ya
+    se revirtió antes)."""
+    if _orden_ya_revertida(db, orden):
+        return Decimal("0.00")
+
+    total_revertido = Decimal("0.00")
+    ahora = datetime.utcnow()
+
+    for orden_repuesto in orden.repuestos:
+        producto = db.get(Producto, orden_repuesto.producto_id)
+        if producto:
+            producto.existencia += orden_repuesto.cantidad
+            db.add(MovimientoInventario(
+                producto_id=producto.id, tipo="entrada", cantidad=orden_repuesto.cantidad,
+                existencia_resultante=producto.existencia, usuario_nombre=usuario_nombre,
+                motivo=f"Reversión por cancelación - Orden {orden.numero_orden}", fecha=ahora,
+            ))
+        monto = to_decimal(orden_repuesto.subtotal)
+        db.add(MovimientoFinanciero(
+            tipo="gasto", categoria=CATEGORIA_REVERSION_CANCELACION, monto=monto,
+            descripcion=f"Reversión de venta de repuesto - Orden {orden.numero_orden} (cancelada)",
+            usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=ahora,
+        ))
+        total_revertido += monto
+
+    for servicio_extra in orden.servicios_extra:
+        monto = to_decimal(servicio_extra.subtotal)
+        db.add(MovimientoFinanciero(
+            tipo="gasto", categoria=CATEGORIA_REVERSION_CANCELACION, monto=monto,
+            descripcion=f"Reversión de venta de servicio - Orden {orden.numero_orden} (cancelada)",
+            usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=ahora,
+        ))
+        total_revertido += monto
+
+    return total_revertido.quantize(Decimal("0.01"))
+
+
 def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str, observacion: str, usuario_nombre: str):
     """Aplica un cambio de estado a una orden (incluye el pago automático al
-    marcar ENTREGADO). No hace commit ni valida que nuevo_estado sea válido;
-    eso lo decide quien llama. Devuelve el monto del pago automático
-    registrado, o None si no aplicó."""
+    marcar ENTREGADO, y la reversión de ingresos al marcar CANCELADO). No
+    hace commit ni valida que nuevo_estado sea válido; eso lo decide quien
+    llama. Devuelve (monto_pago_automatico, monto_revertido): el que no
+    aplicó queda en None/0."""
     estado_anterior = orden.estado
     historial = HistorialEstado(
         orden_id=orden.id, estado_anterior=estado_anterior, estado_nuevo=nuevo_estado,
@@ -606,7 +691,16 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
         db.flush()
         db.refresh(orden)
         recalcular_orden(orden)
-    return monto_pago_automatico
+
+    # Al cancelar una orden, lo que se le había sumado a Caja/Reportes por
+    # sus repuestos y servicios ya no es un ingreso real: se revierte
+    # automáticamente (ver _revertir_ingresos_orden_cancelada).
+    monto_revertido = Decimal("0.00")
+    if nuevo_estado == "CANCELADO" and estado_anterior != "CANCELADO":
+        monto_revertido = _revertir_ingresos_orden_cancelada(db, orden, usuario_nombre)
+        if monto_revertido:
+            db.flush()
+    return monto_pago_automatico, monto_revertido
 
 
 def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, observacion: str, usuario_nombre: str) -> Decimal:
@@ -638,10 +732,12 @@ def ordenes_cambiar_estado(
 ):
     orden = db.get(OrdenServicio, orden_id)
     if orden and nuevo_estado in ESTADOS_ORDEN:
-        monto_pago_automatico = _aplicar_cambio_estado(db, orden, nuevo_estado, observacion, usuario["nombre_completo"])
+        monto_pago_automatico, monto_revertido = _aplicar_cambio_estado(db, orden, nuevo_estado, observacion, usuario["nombre_completo"])
         db.commit()
         if monto_pago_automatico:
             flash(request, f"Estado actualizado a ENTREGADO. Se registró un pago automático de {monto_pago_automatico} para saldar la orden.", "success")
+        elif monto_revertido:
+            flash(request, f"Orden cancelada. Se revirtieron {monto_revertido} de Caja/Reportes y se devolvieron los repuestos a inventario.", "success")
         else:
             flash(request, f"Estado actualizado a {nuevo_estado}.", "success")
     destino = redirect_to if redirect_to.startswith("/") else f"/ordenes/{orden_id}"

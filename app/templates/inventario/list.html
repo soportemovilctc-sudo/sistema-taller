@@ -59,6 +59,11 @@
         <td style="white-space:nowrap;">
           <a href="/inventario/{{ p.id }}/movimiento" class="btn btn-outline btn-sm">Movimientos</a>
           <a href="/inventario/{{ p.id }}/editar" class="btn btn-outline btn-sm">Editar</a>
+          {% if usuario.rol == 'admin' %}
+          <form method="post" action="/inventario/{{ p.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar definitivamente el producto {{ p.codigo }} - {{ p.nombre }}? Solo funciona si nunca se ha vendido. Esta acción no se puede deshacer.');">
+            <button type="submit" class="btn btn-outline btn-sm" style="color: var(--danger);">Eliminar</button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% else %}

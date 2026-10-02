@@ -12,7 +12,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Producto, MovimientoInventario, ConfiguracionFacturacion, Categoria
+from app.models import Producto, MovimientoInventario, ConfiguracionFacturacion, Categoria, OrdenRepuesto, DetalleVenta
 from app.utils.calculations import to_decimal
 from app.utils.flash import flash
 from app.deps import login_required, roles_required
@@ -329,6 +329,41 @@ def inventario_actualizar(
         producto.estado = estado
         db.commit()
         flash(request, "Producto actualizado.", "success")
+    return RedirectResponse("/inventario", status_code=303)
+
+
+def _producto_en_uso(db: Session, producto: Producto) -> int:
+    """Cuántas ventas/órdenes ya usaron este producto (repuestos vendidos en
+    órdenes o en el Punto de Venta). Si tiene historial, no se puede
+    eliminar sin perder esos registros — hay que desactivarlo en vez de
+    eliminarlo, igual que con las categorías."""
+    en_ordenes = db.query(OrdenRepuesto).filter(OrdenRepuesto.producto_id == producto.id).count()
+    en_ventas = db.query(DetalleVenta).filter(DetalleVenta.producto_id == producto.id).count()
+    return en_ordenes + en_ventas
+
+
+@router.post("/inventario/{producto_id}/eliminar")
+def inventario_eliminar(producto_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    """Elimina definitivamente un producto (no solo lo desactiva), dejando
+    su código libre para reutilizarse. Solo se permite si el producto nunca
+    se vendió (ni en una orden ni en el Punto de Venta); si ya tiene
+    historial, se bloquea para no perder esos registros y se sugiere
+    desactivarlo en su lugar."""
+    producto = db.get(Producto, producto_id)
+    if not producto:
+        flash(request, "Producto no encontrado.", "error")
+        return RedirectResponse("/inventario", status_code=303)
+
+    en_uso = _producto_en_uso(db, producto)
+    if en_uso > 0:
+        flash(request, f"No se puede eliminar '{producto.nombre}' (código {producto.codigo}): tiene {en_uso} venta(s)/orden(es) registradas. Desactívalo en vez de eliminarlo.", "error")
+        return RedirectResponse(f"/inventario/{producto_id}/editar", status_code=303)
+
+    codigo = producto.codigo
+    nombre = producto.nombre
+    db.delete(producto)
+    db.commit()
+    flash(request, f"Producto '{nombre}' (código {codigo}) eliminado. Ese código ya queda libre para usarse de nuevo.", "success")
     return RedirectResponse("/inventario", status_code=303)
 
 

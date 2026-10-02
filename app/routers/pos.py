@@ -15,6 +15,7 @@ from app.models import (
 from app.schemas import VentaIn
 from app.utils.numbering import generar_numero_venta, generar_numero_factura
 from app.utils.calculations import to_decimal, aplicar_impuesto
+from app.utils.libro_diario import registrar_asiento_para_movimiento
 from app.deps import login_required
 
 router = APIRouter()
@@ -102,11 +103,14 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
             motivo=f"Venta {venta.numero_venta}",
         ))
 
-    db.add(MovimientoFinanciero(
+    mov_venta = MovimientoFinanciero(
         tipo="ingreso", categoria="Venta POS", monto=total,
         descripcion=f"Venta {venta.numero_venta}", usuario_nombre=usuario["nombre_completo"],
         referencia=venta.numero_venta,
-    ))
+    )
+    db.add(mov_venta)
+    db.flush()
+    registrar_asiento_para_movimiento(db, mov_venta, monto_neto=total_neto, isv_monto=isv_monto)
 
     # Recibo automático: cada venta del Punto de Venta genera de una vez un
     # comprobante interno (no fiscal) para que el cliente se lleve constancia

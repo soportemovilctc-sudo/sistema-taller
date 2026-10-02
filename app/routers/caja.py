@@ -25,6 +25,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import RedirectResponse, StreamingResponse, Response
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side
@@ -36,6 +37,7 @@ from app.models import (
     MovimientoFinanciero, Configuracion, Producto, MovimientoInventario,
     METODOS_PAGO_CAJA, CATEGORIAS_EGRESO_MAYOR,
     CATEGORIA_OTRO_INGRESO_CAJA, CATEGORIAS_SALIDA_CAJA,
+    CuentaContable, AsientoContable, DetalleAsiento,
 )
 from app.utils.calculations import to_decimal
 from app.utils.caja_calculos import (
@@ -43,6 +45,7 @@ from app.utils.caja_calculos import (
     calcular_saldo_caja_chica_a_fecha, calcular_saldo_anterior, calcular_resumen_caja_chica,
     guardar_saldo_inicial, mes_actual, CUENTA_CAJA_CHICA, CUENTA_BANCO,
 )
+from app.utils.libro_diario import registrar_asiento_para_movimiento, eliminar_asiento_de_movimiento
 from app.utils.flash import flash
 from app.utils.pdf import generar_pdf_informe_caja
 from app.deps import roles_required
@@ -199,6 +202,8 @@ def caja_registrar_crear(
         fecha=fecha_mov or datetime.utcnow(),
     )
     db.add(mov)
+    db.flush()
+    registrar_asiento_para_movimiento(db, mov)
     db.commit()
     flash(request, "Cobro registrado correctamente.", "success")
     return RedirectResponse("/caja/registrar", status_code=303)
@@ -221,12 +226,15 @@ def caja_ingreso_otro_crear(
         flash(request, str(e), "error")
         return RedirectResponse("/caja/registrar", status_code=303)
 
-    db.add(MovimientoFinanciero(
+    mov = MovimientoFinanciero(
         tipo="ingreso", categoria=CATEGORIA_OTRO_INGRESO_CAJA, monto=monto_dec.quantize(Decimal("0.01")),
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
         referencia="Caja", cuenta=CUENTA_CAJA_CHICA,
         fecha=fecha_mov or datetime.utcnow(),
-    ))
+    )
+    db.add(mov)
+    db.flush()
+    registrar_asiento_para_movimiento(db, mov)
     db.commit()
     flash(request, "Ingreso registrado correctamente.", "success")
     return RedirectResponse("/caja/registrar", status_code=303)
@@ -254,12 +262,15 @@ def caja_salida_crear(
         flash(request, str(e), "error")
         return RedirectResponse("/caja/registrar", status_code=303)
 
-    db.add(MovimientoFinanciero(
+    mov = MovimientoFinanciero(
         tipo="gasto", categoria=categoria, monto=monto_dec.quantize(Decimal("0.01")),
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
         referencia="Caja", cuenta=CUENTA_CAJA_CHICA,
         fecha=fecha_mov or datetime.utcnow(),
-    ))
+    )
+    db.add(mov)
+    db.flush()
+    registrar_asiento_para_movimiento(db, mov)
     db.commit()
     flash(request, "Salida de caja registrada correctamente.", "success")
     return RedirectResponse("/caja/registrar", status_code=303)
@@ -351,6 +362,11 @@ def caja_movimiento_editar(
         elif categoria and (categoria == CATEGORIA_OTRO_INGRESO_CAJA or categoria in CATEGORIAS_SALIDA_CAJA):
             mov.categoria = categoria
 
+    db.flush()
+    # Se regenera el asiento del Libro Diario con los datos ya corregidos
+    # (monto/fecha/categoría/cuenta), para que no quede desactualizado.
+    eliminar_asiento_de_movimiento(db, mov.id)
+    registrar_asiento_para_movimiento(db, mov)
     db.commit()
     flash(request, "Movimiento corregido correctamente.", "success")
     return RedirectResponse(volver, status_code=303)
@@ -391,6 +407,7 @@ def caja_movimiento_eliminar(
                 detalle_extra = f" Se restauraron {salida.cantidad} unidad(es) de {producto.nombre} a inventario."
 
     monto = mov.monto
+    eliminar_asiento_de_movimiento(db, mov.id)
     db.delete(mov)
     db.commit()
     flash(request, f"Movimiento de {monto} eliminado correctamente.{detalle_extra}", "success")
@@ -600,11 +617,14 @@ def caja_egreso_crear(
         return RedirectResponse("/caja/conciliacion", status_code=303)
 
     categoria_limpia = categoria.strip() or "Otros"
-    db.add(MovimientoFinanciero(
+    mov = MovimientoFinanciero(
         tipo="gasto", categoria=categoria_limpia, monto=monto_dec.quantize(Decimal("0.01")),
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
         referencia="Egreso mayor", cuenta=CUENTA_BANCO,
-    ))
+    )
+    db.add(mov)
+    db.flush()
+    registrar_asiento_para_movimiento(db, mov)
     db.commit()
     flash(request, "Egreso mayor registrado correctamente.", "success")
     return RedirectResponse("/caja/conciliacion", status_code=303)
@@ -796,6 +816,126 @@ def caja_informe_excel(anio: int = 0, mes: int = 0, db: Session = Depends(get_db
     wb.save(buffer)
     buffer.seek(0)
     nombre_archivo = f"informe_caja_{ctx['anio']}_{ctx['mes']:02d}.xlsx"
+    return StreamingResponse(
+        buffer, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Libro Diario (contabilidad de partida doble): asientos Debe/Haber generados
+# automáticamente a partir de los movimientos de Caja/Órdenes/POS (ver
+# app/utils/libro_diario.py). Es una capa adicional de solo lectura, solo
+# para el Administrador por ahora (no existe todavía un rol "Contador").
+# ---------------------------------------------------------------------------
+def _resumen_libro_diario(db: Session, desde: datetime, hasta: datetime, q: str = ""):
+    query = db.query(AsientoContable).filter(AsientoContable.fecha.between(desde, hasta))
+    if q.strip():
+        like = f"%{q.strip()}%"
+        query = query.filter(or_(
+            AsientoContable.concepto.ilike(like), AsientoContable.referencia.ilike(like),
+            AsientoContable.numero_asiento.ilike(like),
+        ))
+    asientos = query.order_by(AsientoContable.fecha.desc(), AsientoContable.id.desc()).all()
+
+    # Balance de comprobación: total Debe/Haber acumulado por cuenta, en el
+    # rango de fechas, para verificar de un vistazo que el libro cuadra
+    # (el total Debe general siempre debe ser igual al total Haber general).
+    por_cuenta = {}
+    total_debe = Decimal("0.00")
+    total_haber = Decimal("0.00")
+    for a in asientos:
+        for d in a.detalles:
+            fila = por_cuenta.setdefault(d.cuenta_id, {"cuenta": d.cuenta, "debe": Decimal("0.00"), "haber": Decimal("0.00")})
+            fila["debe"] += to_decimal(d.debe)
+            fila["haber"] += to_decimal(d.haber)
+            total_debe += to_decimal(d.debe)
+            total_haber += to_decimal(d.haber)
+    balance_comprobacion = sorted(por_cuenta.values(), key=lambda f: f["cuenta"].codigo)
+
+    return {
+        "desde": desde, "hasta": hasta, "asientos": asientos,
+        "balance_comprobacion": balance_comprobacion,
+        "total_debe": total_debe, "total_haber": total_haber,
+        "cuadra": abs(total_debe - total_haber) <= Decimal("0.01"),
+    }
+
+
+@router.get("/caja/libro-diario")
+def caja_libro_diario(
+    request: Request, periodo: str = "mes", desde: str = "", hasta: str = "", q: str = "",
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    ini, fin = _rango_fechas(periodo, desde, hasta)
+    resumen = _resumen_libro_diario(db, ini, fin, q)
+    return templates.TemplateResponse("caja/libro_diario.html", {
+        "request": request, "usuario": usuario, "resumen": resumen,
+        "periodo": periodo, "desde": desde, "hasta": hasta, "q": q,
+    })
+
+
+@router.get("/caja/libro-diario/exportar/excel")
+def caja_libro_diario_excel(
+    periodo: str = "mes", desde: str = "", hasta: str = "", q: str = "",
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    ini, fin = _rango_fechas(periodo, desde, hasta)
+    resumen = _resumen_libro_diario(db, ini, fin, q)
+
+    wb = Workbook()
+    fill = PatternFill(start_color="3D5F96", end_color="3D5F96", fill_type="solid")
+    negrita = Font(bold=True, color="FFFFFF")
+    borde = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+
+    hoja = wb.active
+    hoja.title = "Libro Diario"
+    encabezados = ["N. Asiento", "Fecha", "Concepto", "Cuenta", "Debe", "Haber"]
+    for col, titulo in enumerate(encabezados, start=1):
+        celda = hoja.cell(row=1, column=col, value=titulo)
+        celda.fill = fill
+        celda.font = negrita
+        celda.border = borde
+    fila = 2
+    for a in resumen["asientos"]:
+        for d in a.detalles:
+            valores = [a.numero_asiento, a.fecha.strftime("%d/%m/%Y %H:%M"), a.concepto,
+                       f"{d.cuenta.codigo} - {d.cuenta.nombre}", float(d.debe), float(d.haber)]
+            for col, valor in enumerate(valores, start=1):
+                celda = hoja.cell(row=fila, column=col, value=valor)
+                celda.border = borde
+                if isinstance(valor, float):
+                    celda.number_format = "#,##0.00"
+            fila += 1
+    for col, ancho in zip("ABCDEF", (14, 18, 36, 30, 14, 14)):
+        hoja.column_dimensions[col].width = ancho
+
+    hoja2 = wb.create_sheet("Balance de comprobación")
+    encabezados2 = ["Código", "Cuenta", "Debe", "Haber"]
+    for col, titulo in enumerate(encabezados2, start=1):
+        celda = hoja2.cell(row=1, column=col, value=titulo)
+        celda.fill = fill
+        celda.font = negrita
+        celda.border = borde
+    fila = 2
+    for f in resumen["balance_comprobacion"]:
+        valores = [f["cuenta"].codigo, f["cuenta"].nombre, float(f["debe"]), float(f["haber"])]
+        for col, valor in enumerate(valores, start=1):
+            celda = hoja2.cell(row=fila, column=col, value=valor)
+            celda.border = borde
+            if isinstance(valor, float):
+                celda.number_format = "#,##0.00"
+        fila += 1
+    fila += 1
+    hoja2.cell(row=fila, column=2, value="TOTAL").font = Font(bold=True)
+    hoja2.cell(row=fila, column=3, value=float(resumen["total_debe"])).number_format = "#,##0.00"
+    hoja2.cell(row=fila, column=4, value=float(resumen["total_haber"])).number_format = "#,##0.00"
+    for col, ancho in zip("ABCD", (10, 32, 14, 14)):
+        hoja2.column_dimensions[col].width = ancho
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre_archivo = f"libro_diario_{ini.strftime('%Y%m%d')}_{fin.strftime('%Y%m%d')}.xlsx"
     return StreamingResponse(
         buffer, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},

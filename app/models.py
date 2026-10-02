@@ -519,6 +519,63 @@ class SaldoInicialMensual(Base):
 
 
 # ---------------------------------------------------------------------------
+# Libro Diario (contabilidad de partida doble). Corre en PARALELO al libro de
+# caja de una sola entrada (MovimientoFinanciero) que ya existía: no lo
+# reemplaza ni lo modifica. Cada vez que se crea un MovimientoFinanciero
+# relevante (un cobro, una venta, un gasto, etc.) se genera automáticamente
+# su asiento correspondiente aquí, con las cuentas de Debe/Haber que le
+# tocan según el tipo de evento (ver app/utils/libro_diario.py para el
+# catálogo de cuentas y las reglas de asiento por evento).
+# ---------------------------------------------------------------------------
+class CuentaContable(Base):
+    __tablename__ = "cuentas_contables"
+
+    id = Column(Integer, primary_key=True)
+    codigo = Column(String(20), unique=True, nullable=False)
+    nombre = Column(String(100), nullable=False)
+    tipo = Column(String(20), nullable=False)  # activo | pasivo | capital | ingreso | gasto
+    naturaleza = Column(String(10), nullable=False)  # deudora | acreedora
+    activa = Column(Boolean, default=True, nullable=False)
+
+
+class AsientoContable(Base):
+    """Un asiento del Libro Diario: siempre debe quedar balanceado (la suma
+    de Debe == la suma de Haber entre sus detalles) — registrar_asiento() en
+    app/utils/libro_diario.py lo garantiza antes de guardarlo. Se crea
+    automáticamente al registrar un MovimientoFinanciero relevante; el
+    campo movimiento_financiero_id enlaza con ese movimiento de Caja para
+    poder encontrar/corregir su asiento si el movimiento se edita o
+    elimina (ver caja_movimiento_editar/eliminar en app/routers/caja.py)."""
+    __tablename__ = "asientos_contables"
+
+    id = Column(Integer, primary_key=True)
+    numero_asiento = Column(String(20), unique=True, nullable=False)
+    fecha = Column(DateTime, default=datetime.utcnow, index=True)
+    concepto = Column(String(255), nullable=False)
+    tipo_evento = Column(String(40), nullable=False)
+    referencia = Column(String(100), default="")
+    movimiento_financiero_id = Column(Integer, ForeignKey("movimientos_financieros.id"), nullable=True)
+    usuario_nombre = Column(String(150))
+
+    detalles = relationship(
+        "DetalleAsiento", backref="asiento",
+        cascade="all, delete-orphan", order_by="DetalleAsiento.id",
+    )
+
+
+class DetalleAsiento(Base):
+    __tablename__ = "detalles_asiento"
+
+    id = Column(Integer, primary_key=True)
+    asiento_id = Column(Integer, ForeignKey("asientos_contables.id"), nullable=False)
+    cuenta_id = Column(Integer, ForeignKey("cuentas_contables.id"), nullable=False)
+    debe = Column(Numeric(10, 2), nullable=False, default=0)
+    haber = Column(Numeric(10, 2), nullable=False, default=0)
+
+    cuenta = relationship("CuentaContable")
+
+
+# ---------------------------------------------------------------------------
 # Catálogo de marcas y modelos de equipos (celulares, tablets, laptops, etc.)
 # ---------------------------------------------------------------------------
 class MarcaEquipo(Base):

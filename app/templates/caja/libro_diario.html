@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Caja · Libro Diario{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/caja/panel">Panel gerencial</a>
+  <a href="/caja/conciliacion">Conciliación y egresos</a>
+  <a href="/caja/informe">Informe mensual</a>
+  <a href="/caja/reporte">Reportes de caja chica</a>
+  <a href="/caja/libro-diario" class="active">Libro Diario</a>
+</div>
+
+<p class="help" style="margin-bottom:14px;">Contabilidad de partida doble: cada cobro, venta, gasto o reversión que pasa por Caja/Órdenes/POS genera aquí su asiento Debe/Haber automáticamente. Es una capa adicional de solo lectura — no reemplaza ni cambia el libro de caja que ya usan Reportes y los demás módulos.</p>
+
+<div class="pill-tabs">
+  <a href="/caja/libro-diario?periodo=dia" class="{{ 'active' if periodo == 'dia' else '' }}">Hoy</a>
+  <a href="/caja/libro-diario?periodo=semana" class="{{ 'active' if periodo == 'semana' else '' }}">Esta semana</a>
+  <a href="/caja/libro-diario?periodo=mes" class="{{ 'active' if periodo == 'mes' else '' }}">Este mes</a>
+</div>
+
+<form method="get" action="/caja/libro-diario" class="form-row" style="margin-bottom:16px; align-items:flex-end;">
+  <input type="hidden" name="periodo" value="rango">
+  <div class="field" style="flex:0 0 auto;"><label>Desde</label><input type="date" name="desde" value="{{ desde }}"></div>
+  <div class="field" style="flex:0 0 auto;"><label>Hasta</label><input type="date" name="hasta" value="{{ hasta }}"></div>
+  <div class="field" style="flex:2;"><label>Buscar</label><input type="text" name="q" value="{{ q }}" placeholder="Concepto, referencia o N. de asiento..."></div>
+  <div class="field" style="flex:0 0 auto;"><button type="submit" class="btn btn-outline">Aplicar</button></div>
+  <div class="field" style="flex:0 0 auto;">
+    <a href="/caja/libro-diario/exportar/excel?periodo={{ periodo }}&amp;desde={{ desde|urlencode }}&amp;hasta={{ hasta|urlencode }}&amp;q={{ q|urlencode }}" class="btn btn-success">
+      <svg viewBox="0 0 24 24"><path d="M12 3v13m0 0l-4.5-4.5M12 16l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      Descargar Excel
+    </a>
+  </div>
+</form>
+
+<p class="help" style="margin-bottom:14px;">Mostrando del <b>{{ resumen.desde.strftime('%d/%m/%Y') }}</b> al <b>{{ resumen.hasta.strftime('%d/%m/%Y') }}</b>.</p>
+
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-blue"><div class="kpi-label">Total Debe</div><div class="kpi-value">{{ resumen.total_debe|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Total Haber</div><div class="kpi-value">{{ resumen.total_haber|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi {{ 'accent-green' if resumen.cuadra else 'accent-red' }}"><div class="kpi-label">¿Cuadra el libro?</div><div class="kpi-value">{{ 'Sí, Debe = Haber' if resumen.cuadra else '⚠ Descuadrado' }}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Balance de comprobación (saldos por cuenta en el periodo)</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Código</th><th>Cuenta</th><th>Debe</th><th>Haber</th></tr></thead>
+      <tbody>
+        {% for f in resumen.balance_comprobacion %}
+        <tr>
+          <td>{{ f.cuenta.codigo }}</td>
+          <td>{{ f.cuenta.nombre }}</td>
+          <td>{{ f.debe|moneda(config_taller().moneda) }}</td>
+          <td>{{ f.haber|moneda(config_taller().moneda) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty-state">Sin asientos en este periodo.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Asientos del periodo</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>N. Asiento</th><th>Fecha</th><th>Concepto</th><th>Cuenta</th><th>Debe</th><th>Haber</th></tr></thead>
+      <tbody>
+        {% for a in resumen.asientos %}
+        {% for d in a.detalles %}
+        <tr>
+          {% if loop.first %}
+          <td rowspan="{{ a.detalles|length }}">{{ a.numero_asiento }}</td>
+          <td rowspan="{{ a.detalles|length }}">{{ a.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td rowspan="{{ a.detalles|length }}">{{ a.concepto }}{% if a.referencia %}<br><span class="text-muted">({{ a.referencia }})</span>{% endif %}</td>
+          {% endif %}
+          <td>{{ d.cuenta.codigo }} - {{ d.cuenta.nombre }}</td>
+          <td>{{ d.debe|moneda(config_taller().moneda) if d.debe else '-' }}</td>
+          <td>{{ d.haber|moneda(config_taller().moneda) if d.haber else '-' }}</td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr><td colspan="6" class="empty-state">No hay asientos en este periodo{% if q %} que coincidan con "{{ q }}"{% endif %}.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

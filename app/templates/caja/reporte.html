@@ -5,6 +5,7 @@
   <a href="/caja/registrar">Registrar movimientos</a>
   <a href="/caja/cierre">Cierre de turno</a>
   <a href="/caja/reporte" class="active">Reportes</a>
+  {% if usuario.rol == 'admin' %}<a href="/caja/libro-diario">Libro Diario</a>{% endif %}
 </div>
 
 <p class="help" style="margin-bottom:14px;">Reporte de <b>Caja Chica</b> (nunca incluye banco ni liquidez). Busca por categoría, descripción, cliente o el número de una orden/venta (por ejemplo <code>OS-000079</code>) para encontrar un movimiento específico.</p>

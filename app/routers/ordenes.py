@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.utils.numbering import generar_numero_orden, generar_numero_venta
 from app.utils.calculations import calcular_recargo, calcular_total, calcular_saldo, validar_abono, to_decimal, recalcular_orden, aplicar_impuesto
+from app.utils.libro_diario import registrar_asiento_para_movimiento, eliminar_asiento_de_movimiento
 from app.utils.pdf import generar_pdf_orden, construir_contexto_pdf
 from app.utils.pdf_ticket import generar_ticket_orden
 from app.utils.flash import flash
@@ -612,20 +613,26 @@ def _revertir_ingresos_orden_cancelada(db: Session, orden: OrdenServicio, usuari
                 motivo=f"Reversión por cancelación - Orden {orden.numero_orden}", fecha=ahora,
             ))
         monto = to_decimal(orden_repuesto.subtotal)
-        db.add(MovimientoFinanciero(
+        mov_reversion = MovimientoFinanciero(
             tipo="gasto", categoria=CATEGORIA_REVERSION_CANCELACION, monto=monto,
             descripcion=f"Reversión de venta de repuesto - Orden {orden.numero_orden} (cancelada)",
             usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=ahora,
-        ))
+        )
+        db.add(mov_reversion)
+        db.flush()
+        registrar_asiento_para_movimiento(db, mov_reversion)
         total_revertido += monto
 
     for servicio_extra in orden.servicios_extra:
         monto = to_decimal(servicio_extra.subtotal)
-        db.add(MovimientoFinanciero(
+        mov_reversion = MovimientoFinanciero(
             tipo="gasto", categoria=CATEGORIA_REVERSION_CANCELACION, monto=monto,
             descripcion=f"Reversión de venta de servicio - Orden {orden.numero_orden} (cancelada)",
             usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=ahora,
-        ))
+        )
+        db.add(mov_reversion)
+        db.flush()
+        registrar_asiento_para_movimiento(db, mov_reversion)
         total_revertido += monto
 
     return total_revertido.quantize(Decimal("0.01"))
@@ -691,12 +698,14 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
         ))
         # Se registra también como ingreso en Reportes (antes solo quedaba
         # en el historial de pagos de la orden, invisible ahí).
-        db.add(MovimientoFinanciero(
+        mov_pago_auto = MovimientoFinanciero(
             tipo="ingreso", categoria="Cancelación de orden (automático)", monto=monto_pago_automatico,
             descripcion=f"Pago automático al entregar - Orden {orden.numero_orden}",
             usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
-        ))
+        )
+        db.add(mov_pago_auto)
         db.flush()
+        registrar_asiento_para_movimiento(db, mov_pago_auto)
         db.refresh(orden)
         recalcular_orden(orden)
 
@@ -721,12 +730,14 @@ def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, ob
     db.add(pago)
     # Se registra también como ingreso en Reportes (antes solo quedaba en
     # el historial de pagos de la orden, invisible ahí).
-    db.add(MovimientoFinanciero(
+    mov_abono = MovimientoFinanciero(
         tipo="ingreso", categoria="Abono de orden", monto=monto_validado,
         descripcion=f"Abono - Orden {orden.numero_orden}" + (f" ({observacion})" if observacion else ""),
         usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
-    ))
+    )
+    db.add(mov_abono)
     db.flush()
+    registrar_asiento_para_movimiento(db, mov_abono)
     db.refresh(orden)
     recalcular_orden(orden)
     return monto_validado
@@ -810,11 +821,19 @@ def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Produ
         motivo=f"Orden {orden.numero_orden}", fecha=fecha_mov,
     ))
 
-    db.add(MovimientoFinanciero(
+    mov = MovimientoFinanciero(
         tipo="ingreso", categoria="Venta de repuesto (orden)", monto=subtotal,
         descripcion=f"{producto.nombre} x{cantidad} - Orden {orden.numero_orden}",
         usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=fecha_mov,
-    ))
+    )
+    db.add(mov)
+    db.flush()
+    # El precio del repuesto ya incluye ISV (ver docstring arriba); se
+    # desglosa aquí para el Libro Diario (Ventas + Débito Fiscal ISV).
+    tasa_isv = _isv_tasa(db)
+    monto_neto = (subtotal / (1 + tasa_isv / Decimal("100"))).quantize(Decimal("0.01")) if tasa_isv else subtotal
+    isv_monto = (subtotal - monto_neto).quantize(Decimal("0.01"))
+    registrar_asiento_para_movimiento(db, mov, monto_neto=monto_neto, isv_monto=isv_monto)
 
     orden_repuesto = OrdenRepuesto(
         orden_id=orden.id, producto_id=producto.id, venta_id=venta.id,
@@ -841,11 +860,14 @@ def _agregar_servicio_a_orden(db: Session, orden: OrdenServicio, servicio: Servi
     subtotal = (precio * cantidad).quantize(Decimal("0.01"))
     costo_unitario = to_decimal(servicio.costo) if servicio.costo is not None else None
 
-    db.add(MovimientoFinanciero(
+    mov = MovimientoFinanciero(
         tipo="ingreso", categoria="Venta de servicio (orden)", monto=subtotal,
         descripcion=f"{servicio.nombre} x{cantidad} - Orden {orden.numero_orden}",
         usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=fecha or datetime.utcnow(),
-    ))
+    )
+    db.add(mov)
+    db.flush()
+    registrar_asiento_para_movimiento(db, mov)  # sin ISV (ver docstring arriba)
 
     orden_servicio_extra = OrdenServicioExtra(
         orden_id=orden.id, servicio_id=servicio.id, cantidad=cantidad,

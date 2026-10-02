@@ -12,6 +12,23 @@ document.addEventListener("DOMContentLoaded", function () {
 // marca, modelo y condición física estén completos. Si falta algo, se
 // bloquea el envío (sin perder nada de lo ya llenado) y se muestra un
 // aviso claro en vez de dejar que se cree una orden incompleta.
+//
+// EXCEPCIÓN: si en "Servicios adicionales" (abajo) ya se agregó un servicio
+// sin costo (precio en 0 o vacío), no se exige la Marca del equipo — el
+// cliente ya queda identificado con su nombre y teléfono (Cliente *).
+function tieneServicioSinCostoAbajo() {
+  var filas = document.querySelectorAll("#serviciosFilas .servicio-fila");
+  for (var i = 0; i < filas.length; i++) {
+    var nombre = filas[i].querySelector('input[name="servicio_nombre"]');
+    var precio = filas[i].querySelector('input[name="servicio_precio"]');
+    if (nombre && nombre.value.trim()) {
+      var monto = precio ? parseFloat(precio.value) : 0;
+      if (!monto || monto <= 0) return true;
+    }
+  }
+  return false;
+}
+
 function inicializarValidacionEnvio() {
   var form = document.querySelector(".content form");
   var errorBox = document.getElementById("ordenFormError");
@@ -21,9 +38,10 @@ function inicializarValidacionEnvio() {
     var hiddenMarca = document.getElementById("hiddenMarca");
     var hiddenModelo = document.getElementById("hiddenModelo");
     var condicionGrid = document.getElementById("condicionGrid");
+    var sinCosto = tieneServicioSinCostoAbajo();
 
     var faltantes = [];
-    if (!hiddenMarca || !hiddenMarca.value.trim()) faltantes.push("la marca del equipo");
+    if (!sinCosto && (!hiddenMarca || !hiddenMarca.value.trim())) faltantes.push("la marca del equipo");
     if (!hiddenModelo || !hiddenModelo.value.trim()) faltantes.push("el modelo del equipo");
     if (condicionGrid && !condicionGrid.querySelector('input[type=checkbox]:checked')) {
       faltantes.push('la condición física al recibir (marca al menos una opción, o "Sin daños visibles" si está en buen estado)');

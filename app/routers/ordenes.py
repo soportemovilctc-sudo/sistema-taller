@@ -195,8 +195,16 @@ def ordenes_crear(
     # condición física al recibir (para dejar constancia del estado y poder
     # identificar el equipo después). El navegador ya bloquea el envío si
     # falta algo, esta es solo una segunda verificación por si acaso.
+    # EXCEPCIÓN: si la orden es solo un servicio sin costo (uno de los
+    # servicios agregados en "Servicios adicionales" con precio 0, por
+    # ejemplo una revisión rápida de cortesía), no se exige la Marca: el
+    # cliente ya queda identificado con su nombre y teléfono (Cliente *).
+    tiene_servicio_sin_costo = any(
+        n.strip() and to_decimal(p or 0) <= 0
+        for n, p in zip(servicio_nombre, servicio_precio)
+    )
     faltantes = []
-    if not marca.strip():
+    if not marca.strip() and not tiene_servicio_sin_costo:
         faltantes.append("la marca del equipo")
     if not modelo.strip():
         faltantes.append("el modelo del equipo")

@@ -394,33 +394,11 @@ def facturas_anular(
     return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
 
 
-@router.post("/facturas/{factura_id}/eliminar")
-def facturas_eliminar(
-    factura_id: int, request: Request,
-    confirmar_numero: str = Form(""),
-    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
-):
-    """Elimina definitivamente una factura (interna o fiscal). Solo un
-    administrador puede hacerlo. Para una factura FISCAL se exige además
-    escribir su número exacto como confirmación, porque al eliminarla el
-    correlativo consecutivo que exige la SAR queda con un salto (a
-    diferencia de anular, que conserva el número marcado como anulado)."""
-    factura = db.get(Factura, factura_id)
-    if not factura:
-        flash(request, "Factura no encontrada.", "error")
-        return RedirectResponse("/facturas", status_code=303)
-    if factura.tipo == "fiscal" and confirmar_numero.strip() != factura.numero_documento:
-        flash(request, "Para eliminar una factura fiscal debes escribir su número exacto como confirmación.", "error")
-        return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
-    numero = factura.numero_documento
-    tipo = factura.tipo
-    db.delete(factura)
-    db.commit()
-    if tipo == "fiscal":
-        flash(request, f"Factura fiscal {numero} eliminada definitivamente. Ese número queda con un salto en tu correlativo ante la SAR.", "success")
-    else:
-        flash(request, f"Comprobante {numero} eliminado definitivamente.", "success")
-    return RedirectResponse("/facturas", status_code=303)
+# NOTA: facturas_eliminar() se removió a propósito. Eliminar definitivamente
+# una factura dejaba huérfanos los movimientos de Caja/Inventario que la orden
+# o venta asociada ya había generado (sin relación/FK para poder limpiarlos
+# automáticamente). De ahora en adelante las facturas (internas y fiscales)
+# solo se pueden anular, nunca eliminar.
 
 
 # ---------------------------------------------------------------------------

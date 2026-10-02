@@ -4,6 +4,7 @@
 <div class="pill-tabs">
   <a href="/caja/registrar" class="active">Registrar movimientos</a>
   <a href="/caja/cierre">Cierre de turno</a>
+  <a href="/caja/reporte">Reportes</a>
 </div>
 
 <div class="grid cols-3" style="margin-bottom:18px;">
@@ -69,7 +70,7 @@
   <p class="help" style="margin-bottom:10px;">Incluye lo que registras aquí y también los abonos, ventas de repuestos/servicios de Órdenes y ventas del Punto de Venta — todo lo que mueve tu caja chica hoy.</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Hora</th><th>Tipo</th><th>Categoría</th><th>Detalle</th><th>Monto</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Hora</th><th>Tipo</th><th>Categoría</th><th>Detalle</th><th>Monto</th><th>Estado</th><th></th></tr></thead>
       <tbody>
         {% for m in transacciones_hoy %}
         <tr>
@@ -88,9 +89,20 @@
             {% elif m.metodo_pago %}<span class="text-muted">{{ m.metodo_pago }}</span>
             {% else %}<span class="text-muted">-</span>{% endif %}
           </td>
+          <td style="white-space:nowrap;">
+            {% if m.referencia == 'Caja' or usuario.rol == 'admin' %}
+            <a href="/caja/movimiento/{{ m.id }}/editar?volver=/caja/registrar" class="btn btn-outline btn-sm">Editar</a>
+            <form method="post" action="/caja/movimiento/{{ m.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar este movimiento de {{ m.monto }}? Esta acción no se puede deshacer.');">
+              <input type="hidden" name="volver" value="/caja/registrar">
+              <button type="submit" class="btn btn-outline btn-sm" style="color: var(--danger);">Eliminar</button>
+            </form>
+            {% else %}
+            <span class="text-muted">-</span>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="empty-state">Aún no hay movimientos de caja registrados hoy.</td></tr>
+        <tr><td colspan="7" class="empty-state">Aún no hay movimientos de caja registrados hoy.</td></tr>
         {% endfor %}
       </tbody>
     </table>

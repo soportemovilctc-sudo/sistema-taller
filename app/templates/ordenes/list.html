@@ -48,7 +48,7 @@
   {% endif %}
   <div class="table-wrap">
   <table class="responsive-table">
-    <thead><tr><th>N. Orden</th><th>Ingreso</th><th>Días</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th>{% if usuario.rol == 'admin' %}<th></th>{% endif %}</tr></thead>
+    <thead><tr><th>N. Orden</th><th>Ingreso</th><th>Días</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th></tr></thead>
     <tbody>
       {% for o in ordenes %}
       <tr>
@@ -72,18 +72,9 @@
           {% endif %}
         </td>
         <td data-label="Saldo">{{ o.saldo|moneda(config_taller().moneda) }}</td>
-        {% if usuario.rol == 'admin' %}
-        <td data-label="">
-          <form method="post" action="/ordenes/{{ o.id }}/eliminar" onsubmit="return confirm('¿Eliminar definitivamente la orden {{ o.numero_orden }}? Esta acción no se puede deshacer.');">
-            <button type="submit" class="icon-btn icon-btn-danger" title="Eliminar orden">
-              <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0-.7 12.4a2 2 0 0 1-2 1.6H9.7a2 2 0 0 1-2-1.6L7 7"/></svg>
-            </button>
-          </form>
-        </td>
-        {% endif %}
       </tr>
       {% else %}
-      <tr><td colspan="{{ 10 if usuario.rol == 'admin' else 9 }}" class="empty-state">No se encontraron órdenes con esos filtros.</td></tr>
+      <tr><td colspan="9" class="empty-state">No se encontraron órdenes con esos filtros.</td></tr>
       {% endfor %}
     </tbody>
   </table>

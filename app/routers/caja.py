@@ -2,12 +2,18 @@
 egresos mayores, con dos vistas separadas por rol:
 
 - Vista Cajera (rol "vendedor", ya etiquetado "Caja" en el resto del
-  sistema): registra cobros del día (Efectivo, Transferencia, Tarjeta POS) y
-  ve el cierre/arqueo diario de su caja chica. RESTRICCIÓN ABSOLUTA: no ve
-  saldos de banco, liquidez consolidada ni reportes de utilidad.
-- Vista Administrador (rol "admin"): saldos iniciales del mes, Liquidez
-  Total, Estado de Resultados (Utilidad Neta), conciliación de las
-  transferencias que registra la Cajera, y Gestión de Egresos Mayores.
+  sistema): registra cobros del día (Efectivo, Transferencia, Tarjeta POS),
+  ve el cierre/arqueo diario de su caja chica, puede generar reportes de
+  caja chica por mes o por rango de fechas, y puede corregir (editar o
+  eliminar) los movimientos que ella misma registró directamente en Caja.
+  RESTRICCIÓN ABSOLUTA: no ve saldos de banco, liquidez consolidada ni
+  reportes de utilidad — eso sigue siendo solo del Administrador.
+- Vista Administrador (rol "admin"): todo lo anterior, más saldos
+  iniciales del mes, Liquidez Total, Estado de Resultados (Utilidad Neta),
+  conciliación de las transferencias que registra la Cajera, Gestión de
+  Egresos Mayores, y control total para editar/eliminar CUALQUIER
+  movimiento financiero (por ejemplo para corregir uno que quedó huérfano
+  de una orden ya eliminada).
 
 Ambas vistas leen y escriben el mismo MovimientoFinanciero que ya usan
 Contabilidad/Reportes/Dashboard (ver app/models.py), así que todo lo que
@@ -27,18 +33,25 @@ from openpyxl.utils import get_column_letter
 from app.templates_env import templates
 from app.database import get_db
 from app.models import (
-    MovimientoFinanciero, Configuracion, METODOS_PAGO_CAJA, CATEGORIAS_EGRESO_MAYOR,
+    MovimientoFinanciero, Configuracion, Producto, MovimientoInventario,
+    METODOS_PAGO_CAJA, CATEGORIAS_EGRESO_MAYOR,
     CATEGORIA_OTRO_INGRESO_CAJA, CATEGORIAS_SALIDA_CAJA,
 )
 from app.utils.calculations import to_decimal
 from app.utils.caja_calculos import (
     calcular_liquidez, calcular_utilidad_neta, calcular_cierre_dia,
-    calcular_saldo_caja_chica_a_fecha, calcular_saldo_anterior,
+    calcular_saldo_caja_chica_a_fecha, calcular_saldo_anterior, calcular_resumen_caja_chica,
     guardar_saldo_inicial, mes_actual, CUENTA_CAJA_CHICA, CUENTA_BANCO,
 )
 from app.utils.flash import flash
 from app.utils.pdf import generar_pdf_informe_caja
 from app.deps import roles_required
+
+# Categorías que la Cajera registra ella misma desde /caja/registrar (todas
+# quedan con referencia="Caja"): son las únicas que puede editar/eliminar
+# sin ser Administrador — las que vienen de Órdenes, POS, egresos mayores,
+# etc. solo las puede tocar un Administrador (ver _puede_editar_movimiento).
+REFERENCIA_CAJA = "Caja"
 
 router = APIRouter()
 
@@ -74,6 +87,18 @@ def _resolver_fecha_mov(fecha_str: str) -> datetime | None:
     if fecha_date > date.today():
         raise ValueError("La fecha no puede ser una fecha futura.")
     return datetime.combine(fecha_date, datetime.now().time())
+
+
+def _puede_editar_movimiento(usuario: dict, mov: MovimientoFinanciero) -> bool:
+    """Un Administrador puede editar/eliminar cualquier movimiento (por
+    ejemplo para limpiar uno que quedó huérfano de una orden ya eliminada).
+    La Cajera solo puede tocar los que ella misma registró directamente
+    desde /caja/registrar (cobro, otro ingreso o salida de caja) — nunca
+    los que vienen de una Orden, del Punto de Venta, de un Egreso Mayor o
+    de una reversión automática del sistema."""
+    if usuario.get("rol") == "admin":
+        return True
+    return mov.referencia == REFERENCIA_CAJA
 
 
 def _rango_fechas(periodo: str, desde: str, hasta: str):
@@ -246,6 +271,210 @@ def caja_ver_comprobante(mov_id: int, db: Session = Depends(get_db), usuario=Dep
     if not mov or not mov.comprobante_data:
         return Response(status_code=404)
     return StreamingResponse(BytesIO(mov.comprobante_data), media_type=mov.comprobante_mime or "application/octet-stream")
+
+
+# ---------------------------------------------------------------------------
+# Ajustar movimientos: la Cajera corrige lo que ella misma registró; el
+# Administrador puede corregir cualquier movimiento (incluyendo uno que
+# quedó huérfano de una orden o factura ya eliminada).
+# ---------------------------------------------------------------------------
+@router.get("/caja/movimiento/{mov_id}/editar")
+def caja_movimiento_editar_form(
+    mov_id: int, request: Request, volver: str = "/caja/registrar",
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
+):
+    mov = db.get(MovimientoFinanciero, mov_id)
+    if not mov:
+        flash(request, "Movimiento no encontrado.", "error")
+        return RedirectResponse(volver, status_code=303)
+    if not _puede_editar_movimiento(usuario, mov):
+        flash(request, "No puedes editar este movimiento: solo los que registraste directamente en Caja.", "error")
+        return RedirectResponse(volver, status_code=303)
+
+    es_simple = mov.categoria == CATEGORIA_OTRO_INGRESO_CAJA or mov.categoria in CATEGORIAS_SALIDA_CAJA
+    es_cobro = mov.categoria == "Cobro de caja"
+    return templates.TemplateResponse("caja/movimiento_editar.html", {
+        "request": request, "usuario": usuario, "mov": mov, "volver": volver,
+        "es_simple": es_simple, "es_cobro": es_cobro,
+        "categorias_salida": CATEGORIAS_SALIDA_CAJA, "metodos_pago": METODOS_PAGO_CAJA,
+    })
+
+
+@router.post("/caja/movimiento/{mov_id}/editar")
+def caja_movimiento_editar(
+    mov_id: int, request: Request,
+    monto: str = Form(...), descripcion: str = Form(""), fecha: str = Form(""),
+    categoria: str = Form(""), cliente_nombre: str = Form(""), metodo_pago: str = Form(""),
+    num_referencia: str = Form(""), volver: str = Form("/caja/registrar"),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
+):
+    mov = db.get(MovimientoFinanciero, mov_id)
+    if not mov:
+        flash(request, "Movimiento no encontrado.", "error")
+        return RedirectResponse(volver, status_code=303)
+    if not _puede_editar_movimiento(usuario, mov):
+        flash(request, "No puedes editar este movimiento: solo los que registraste directamente en Caja.", "error")
+        return RedirectResponse(volver, status_code=303)
+
+    try:
+        monto_dec = to_decimal(monto)
+        if monto_dec <= 0:
+            raise ValueError("El monto debe ser mayor a cero.")
+        fecha_mov = _resolver_fecha_mov(fecha)
+    except ValueError as e:
+        flash(request, str(e), "error")
+        return RedirectResponse(f"/caja/movimiento/{mov_id}/editar?volver={volver}", status_code=303)
+
+    mov.monto = monto_dec.quantize(Decimal("0.01"))
+    mov.descripcion = descripcion.strip()
+    if fecha_mov:
+        mov.fecha = fecha_mov
+
+    # Solo los movimientos que la propia Cajera arma a mano (no los que
+    # vienen de una Orden/POS/Egreso Mayor/reversión) permiten cambiar
+    # categoría o los datos del cobro — esos otros se corrigen únicamente
+    # en monto, descripción y fecha, para no desincronizarlos de dónde
+    # realmente se originaron.
+    if mov.referencia == REFERENCIA_CAJA:
+        if mov.categoria == "Cobro de caja" and metodo_pago:
+            if metodo_pago not in METODOS_PAGO_CAJA:
+                flash(request, "Método de pago no válido.", "error")
+                return RedirectResponse(f"/caja/movimiento/{mov_id}/editar?volver={volver}", status_code=303)
+            if metodo_pago == "Transferencia" and not num_referencia.strip():
+                flash(request, "El número de comprobante/referencia es obligatorio para una transferencia.", "error")
+                return RedirectResponse(f"/caja/movimiento/{mov_id}/editar?volver={volver}", status_code=303)
+            mov.metodo_pago = metodo_pago
+            mov.cuenta = CUENTA_CAJA_CHICA if metodo_pago == "Efectivo" else CUENTA_BANCO
+            mov.cliente_nombre = cliente_nombre.strip() or None
+            mov.num_referencia = num_referencia.strip() or None
+            mov.estado_conciliacion = "pendiente" if metodo_pago == "Transferencia" else None
+        elif categoria and (categoria == CATEGORIA_OTRO_INGRESO_CAJA or categoria in CATEGORIAS_SALIDA_CAJA):
+            mov.categoria = categoria
+
+    db.commit()
+    flash(request, "Movimiento corregido correctamente.", "success")
+    return RedirectResponse(volver, status_code=303)
+
+
+@router.post("/caja/movimiento/{mov_id}/eliminar")
+def caja_movimiento_eliminar(
+    mov_id: int, request: Request, volver: str = Form("/caja/registrar"),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
+):
+    mov = db.get(MovimientoFinanciero, mov_id)
+    if not mov:
+        flash(request, "Movimiento no encontrado.", "error")
+        return RedirectResponse(volver, status_code=303)
+    if not _puede_editar_movimiento(usuario, mov):
+        flash(request, "No puedes eliminar este movimiento: solo los que registraste directamente en Caja.", "error")
+        return RedirectResponse(volver, status_code=303)
+
+    # Si es un Administrador borrando una venta de repuesto que quedó
+    # huérfana (por ejemplo la orden que la generó ya se eliminó
+    # definitivamente), de paso se restaura a inventario la salida que
+    # quedó pendiente de esa misma orden, si todavía existe.
+    detalle_extra = ""
+    if usuario.get("rol") == "admin" and mov.categoria == "Venta de repuesto (orden)" and mov.referencia:
+        salida = db.query(MovimientoInventario).filter(
+            MovimientoInventario.motivo == f"Orden {mov.referencia}",
+            MovimientoInventario.tipo == "salida",
+        ).first()
+        if salida:
+            producto = db.get(Producto, salida.producto_id)
+            if producto:
+                producto.existencia += salida.cantidad
+                db.add(MovimientoInventario(
+                    producto_id=producto.id, tipo="entrada", cantidad=salida.cantidad,
+                    existencia_resultante=producto.existencia, usuario_nombre=usuario["nombre_completo"],
+                    motivo=f"Corrección: {mov.referencia} fue eliminada sin revertir inventario",
+                ))
+                detalle_extra = f" Se restauraron {salida.cantidad} unidad(es) de {producto.nombre} a inventario."
+
+    monto = mov.monto
+    db.delete(mov)
+    db.commit()
+    flash(request, f"Movimiento de {monto} eliminado correctamente.{detalle_extra}", "success")
+    return RedirectResponse(volver, status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Reportes de Caja Chica por mes o por rango de fechas: disponibles para la
+# Cajera y el Administrador (nunca incluye banco ni liquidez).
+# ---------------------------------------------------------------------------
+@router.get("/caja/reporte")
+def caja_reporte(
+    request: Request, periodo: str = "mes", desde: str = "", hasta: str = "", q: str = "",
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
+):
+    ini, fin = _rango_fechas(periodo, desde, hasta)
+    resumen = calcular_resumen_caja_chica(db, ini, fin, buscar=q)
+    return templates.TemplateResponse("caja/reporte.html", {
+        "request": request, "usuario": usuario, "resumen": resumen,
+        "periodo": periodo, "desde": desde, "hasta": hasta, "q": q,
+        "puede_editar": lambda m: _puede_editar_movimiento(usuario, m),
+    })
+
+
+@router.get("/caja/reporte/exportar/excel")
+def caja_reporte_excel(
+    periodo: str = "mes", desde: str = "", hasta: str = "", q: str = "",
+    db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
+):
+    ini, fin = _rango_fechas(periodo, desde, hasta)
+    resumen = calcular_resumen_caja_chica(db, ini, fin, buscar=q)
+
+    wb = Workbook()
+    hoja = wb.active
+    hoja.title = "Caja chica"
+    fill = PatternFill(start_color="3D5F96", end_color="3D5F96", fill_type="solid")
+    negrita = Font(bold=True, color="FFFFFF")
+    borde = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+
+    hoja.merge_cells("A1:E1")
+    hoja["A1"] = f"Reporte de Caja Chica — {ini.strftime('%d/%m/%Y')} a {fin.strftime('%d/%m/%Y')}"
+    hoja["A1"].font = Font(size=13, bold=True)
+
+    encabezados = ["Fecha", "Tipo", "Categoría", "Descripción/Referencia", "Monto"]
+    for col, titulo in enumerate(encabezados, start=1):
+        celda = hoja.cell(row=3, column=col, value=titulo)
+        celda.fill = fill
+        celda.font = negrita
+        celda.border = borde
+
+    fila = 4
+    for m in resumen["movimientos"]:
+        valores = [
+            m.fecha.strftime("%d/%m/%Y %H:%M"), "Ingreso" if m.tipo == "ingreso" else "Egreso",
+            m.categoria, (m.cliente_nombre or m.descripcion or m.referencia or "-"), float(m.monto),
+        ]
+        for col, valor in enumerate(valores, start=1):
+            celda = hoja.cell(row=fila, column=col, value=valor)
+            celda.border = borde
+            if isinstance(valor, float):
+                celda.number_format = "#,##0.00"
+        fila += 1
+
+    fila += 1
+    hoja.cell(row=fila, column=3, value="Total ingresos").font = Font(bold=True)
+    hoja.cell(row=fila, column=5, value=float(resumen["total_ingresos"])).number_format = "#,##0.00"
+    fila += 1
+    hoja.cell(row=fila, column=3, value="Total egresos").font = Font(bold=True)
+    hoja.cell(row=fila, column=5, value=float(resumen["total_egresos"])).number_format = "#,##0.00"
+    fila += 1
+    hoja.cell(row=fila, column=3, value="Neto").font = Font(bold=True)
+    hoja.cell(row=fila, column=5, value=float(resumen["neto"])).number_format = "#,##0.00"
+
+    for col, ancho in zip("ABCDE", (18, 10, 28, 36, 14)):
+        hoja.column_dimensions[col].width = ancho
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre_archivo = f"caja_chica_{ini.strftime('%Y%m%d')}_{fin.strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(
+        buffer, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
 
 
 # ---------------------------------------------------------------------------

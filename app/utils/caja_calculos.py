@@ -14,7 +14,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.models import MovimientoFinanciero, SaldoInicialMensual
 from app.utils.calculations import to_decimal
@@ -230,6 +230,50 @@ def calcular_saldo_caja_chica_a_fecha(db: Session, fecha: date) -> dict:
         "ingresos_acumulados_mes": ingresos,
         "egresos_acumulados_mes": egresos,
         "saldo_en_caja": saldo_en_caja,
+    }
+
+
+def calcular_resumen_caja_chica(db: Session, desde: datetime, hasta: datetime, buscar: str = "") -> dict:
+    """Resumen de Caja Chica (ingresos/egresos con desglose por categoría)
+    para cualquier rango de fechas — la versión "por mes o por rango" de lo
+    que calcular_cierre_dia() ya hace para un solo día. Esto es lo que ve
+    la Cajera en "Reportes de Caja": nunca incluye banco ni liquidez. Si se
+    pasa `buscar`, filtra por categoría/descripción/referencia/cliente (útil
+    para encontrar un movimiento específico, por ejemplo el de una orden ya
+    eliminada, y poder corregirlo)."""
+    filtro_base = [MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA, MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta]
+    filtros_busqueda = []
+    if buscar.strip():
+        like = f"%{buscar.strip()}%"
+        filtros_busqueda = [or_(
+            MovimientoFinanciero.categoria.ilike(like), MovimientoFinanciero.descripcion.ilike(like),
+            MovimientoFinanciero.referencia.ilike(like), MovimientoFinanciero.cliente_nombre.ilike(like),
+        )]
+
+    ingresos = db.query(MovimientoFinanciero).filter(
+        *filtro_base, MovimientoFinanciero.tipo == "ingreso", *filtros_busqueda,
+    ).order_by(MovimientoFinanciero.fecha.desc()).all()
+    egresos = db.query(MovimientoFinanciero).filter(
+        *filtro_base, MovimientoFinanciero.tipo == "gasto", *filtros_busqueda,
+    ).order_by(MovimientoFinanciero.fecha.desc()).all()
+
+    def _agrupar_por_categoria(movs):
+        agrupado = {}
+        for m in movs:
+            agrupado[m.categoria] = agrupado.get(m.categoria, Decimal("0.00")) + to_decimal(m.monto)
+        return sorted(agrupado.items(), key=lambda par: par[1], reverse=True)
+
+    total_ingresos = sum((to_decimal(m.monto) for m in ingresos), Decimal("0.00"))
+    total_egresos = sum((to_decimal(m.monto) for m in egresos), Decimal("0.00"))
+
+    return {
+        "desde": desde, "hasta": hasta,
+        "ingresos": ingresos, "egresos": egresos,
+        "ingresos_por_categoria": _agrupar_por_categoria(ingresos),
+        "egresos_por_categoria": _agrupar_por_categoria(egresos),
+        "total_ingresos": total_ingresos, "total_egresos": total_egresos,
+        "neto": (total_ingresos - total_egresos).quantize(Decimal("0.01")),
+        "movimientos": sorted((*ingresos, *egresos), key=lambda m: m.fecha, reverse=True),
     }
 
 

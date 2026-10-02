@@ -1062,36 +1062,14 @@ def ordenes_quitar_servicio(
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
-@router.post("/ordenes/{orden_id}/eliminar")
-def ordenes_eliminar(
-    orden_id: int, request: Request,
-    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
-):
-    """Elimina definitivamente una orden de servicio (solo administradores).
-    No se permite si la orden tiene una factura FISCAL asociada (esas
-    facturas no se pueden eliminar, solo anular, por control de la SAR).
-    Las facturas internas generadas desde la orden se eliminan junto con
-    ella. Las ventas de repuestos que se hayan generado desde la orden NO
-    se eliminan (para no perder el historial real de inventario y
-    contabilidad ya consumido); solo quedan desvinculadas de la orden."""
-    orden = db.get(OrdenServicio, orden_id)
-    if not orden:
-        flash(request, "Orden no encontrada.", "error")
-        return RedirectResponse("/ordenes", status_code=303)
-
-    if any(f.tipo == "fiscal" for f in orden.facturas):
-        flash(request, "No se puede eliminar esta orden: tiene una factura fiscal asociada (las facturas fiscales no se pueden eliminar, solo anular).", "error")
-        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
-
-    numero_orden = orden.numero_orden
-    for f in list(orden.facturas):
-        db.delete(f)
-    db.query(Venta).filter(Venta.orden_id == orden.id).update({"orden_id": None})
-    db.flush()
-    db.delete(orden)  # cascada: historial de estados, abonos y repuestos de la orden
-    db.commit()
-    flash(request, f"Orden {numero_orden} eliminada definitivamente.", "success")
-    return RedirectResponse("/ordenes", status_code=303)
+# NOTA: la orden eliminar() se removió a propósito (ver /ordenes/{orden_id}/anular
+# o el cambio de estado a CANCELADO). Eliminar definitivamente una orden dejaba
+# huérfanos los MovimientoFinanciero y MovimientoInventario que generó (no tienen
+# relación/FK con OrdenServicio, solo se enlazan por el texto de numero_orden), lo
+# cual desequilibraba Caja e Inventario sin forma de revertirlo automáticamente.
+# De ahora en adelante las órdenes solo se pueden anular (CANCELADO), nunca
+# eliminar, para que _revertir_ingresos_orden_cancelada() siempre pueda limpiar
+# correctamente lo que generaron.
 
 
 def _generar_pdf_bytes(db: Session, orden_id: int):

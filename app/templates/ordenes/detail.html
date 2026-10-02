@@ -26,11 +26,6 @@
     <div class="action-bar-more-menu">
       <a href="/ordenes/{{ orden.id }}/pdf/descargar">Descargar PDF (carta)</a>
       <a href="/ordenes/{{ orden.id }}/pdf/tirilla/descargar">Descargar tirilla 80mm</a>
-      {% if usuario.rol == 'admin' %}
-      <form method="post" action="/ordenes/{{ orden.id }}/eliminar" onsubmit="return confirm('¿Eliminar definitivamente la orden {{ orden.numero_orden }}? Esta acción no se puede deshacer y borrará su historial, abonos y repuestos asociados.');">
-        <button type="submit" style="color: var(--danger);">Eliminar orden</button>
-      </form>
-      {% endif %}
     </div>
   </div>
 </div>

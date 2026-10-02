@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Caja · Corregir movimiento{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+  <div class="card-title">Corregir movimiento</div>
+  <p class="help" style="margin-bottom:14px;">
+    {{ 'Ingreso' if mov.tipo == 'ingreso' else 'Egreso' }} · {{ mov.categoria }}
+    {% if mov.referencia and mov.referencia != 'Caja' %}· Referencia: <b>{{ mov.referencia }}</b>{% endif %}
+  </p>
+
+  {% if not es_simple and not es_cobro %}
+  <p class="help" style="margin-bottom:14px; color:#f2545b;">
+    Este movimiento viene de {{ 'una Orden' if 'orden' in mov.categoria.lower() else ('el Punto de Venta' if 'POS' in mov.categoria else 'el sistema') }}, así que solo puedes corregir el monto, la descripción y la fecha — no la categoría ni el método de pago, para no desincronizarlo de dónde se originó.
+  </p>
+  {% endif %}
+
+  <form method="post" action="/caja/movimiento/{{ mov.id }}/editar">
+    <input type="hidden" name="volver" value="{{ volver }}">
+
+    <div class="form-row">
+      <div class="field"><label>Monto *</label><input type="number" step="0.01" min="0.01" name="monto" required value="{{ mov.monto }}"></div>
+      <div class="field"><label>Fecha</label><input type="date" name="fecha" value="{{ mov.fecha.strftime('%Y-%m-%d') }}"></div>
+    </div>
+
+    <div class="field">
+      <label>Descripción</label>
+      <input type="text" name="descripcion" value="{{ mov.descripcion or '' }}">
+    </div>
+
+    {% if es_cobro %}
+    <div class="form-row">
+      <div class="field"><label>Cliente</label><input type="text" name="cliente_nombre" value="{{ mov.cliente_nombre or '' }}"></div>
+      <div class="field">
+        <label>Método de pago</label>
+        <select name="metodo_pago" id="metodoPago" onchange="document.getElementById('campoTransferencia').style.display = this.value === 'Transferencia' ? 'block' : 'none';">
+          {% for m in metodos_pago %}<option value="{{ m }}" {{ 'selected' if m == mov.metodo_pago else '' }}>{{ m }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div id="campoTransferencia" style="{{ 'display:block;' if mov.metodo_pago == 'Transferencia' else 'display:none;' }}">
+      <div class="field"><label>N. de comprobante / referencia</label><input type="text" name="num_referencia" value="{{ mov.num_referencia or '' }}"></div>
+      <div class="help" style="margin-bottom:10px;">Si cambias el método a Transferencia, este movimiento volverá a quedar <b>Pendiente de verificación</b> hasta que el Administrador lo concilie.</div>
+    </div>
+    {% elif es_simple %}
+    <div class="field">
+      <label>Categoría</label>
+      <select name="categoria">
+        {% if mov.tipo == 'ingreso' %}
+        <option value="{{ mov.categoria }}" selected>{{ mov.categoria }}</option>
+        {% else %}
+        {% for c in categorias_salida %}<option value="{{ c }}" {{ 'selected' if c == mov.categoria else '' }}>{{ c }}</option>{% endfor %}
+        {% endif %}
+      </select>
+    </div>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary">Guardar corrección</button>
+    <a href="{{ volver }}" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

@@ -344,6 +344,32 @@ def ordenes_crear(
     return RedirectResponse(f"/ordenes/{orden.id}", status_code=303)
 
 
+def _movimientos_dinero_de_orden(db: Session, orden: OrdenServicio):
+    """Todos los registros de dinero/inventario ligados a esta orden (ventas
+    de repuestos y servicios, y su salida de inventario) — lo que debe
+    quedar con la misma fecha que la orden para que no se mezcle con otro
+    día en Caja/Reportes/Facturación."""
+    ventas = db.query(Venta).filter(Venta.orden_id == orden.id).all()
+    movimientos = db.query(MovimientoFinanciero).filter(
+        MovimientoFinanciero.referencia == orden.numero_orden,
+        MovimientoFinanciero.categoria.in_(["Venta de repuesto (orden)", "Venta de servicio (orden)"]),
+    ).all()
+    inventario = db.query(MovimientoInventario).filter(
+        MovimientoInventario.motivo == f"Orden {orden.numero_orden}",
+    ).all()
+    return ventas, movimientos, inventario
+
+
+def _fecha_desincronizada(orden: OrdenServicio, ventas, movimientos, inventario) -> bool:
+    dia_orden = orden.fecha.date() if orden.fecha else None
+    if dia_orden is None:
+        return False
+    for fila in (*ventas, *movimientos, *inventario):
+        if fila.fecha and fila.fecha.date() != dia_orden:
+            return True
+    return False
+
+
 @router.get("/ordenes/{orden_id}")
 def ordenes_detalle(orden_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     orden = db.get(OrdenServicio, orden_id)
@@ -361,11 +387,45 @@ def ordenes_detalle(orden_id: int, request: Request, db: Session = Depends(get_d
         .all()
     )
     _anotar_precios_con_impuesto(productos_disponibles, tasa)
+
+    ventas, movimientos, inventario = _movimientos_dinero_de_orden(db, orden)
+    fecha_desincronizada = usuario.get("rol") == "admin" and _fecha_desincronizada(orden, ventas, movimientos, inventario)
+
     return templates.TemplateResponse("ordenes/detail.html", {
         "request": request, "orden": orden, "usuario": usuario,
         "productos_disponibles": productos_disponibles, "tasa_isv": tasa,
-        "servicios_disponibles": _servicios_disponibles(db), **opciones,
+        "servicios_disponibles": _servicios_disponibles(db),
+        "fecha_desincronizada": fecha_desincronizada,
+        **opciones,
     })
+
+
+@router.post("/ordenes/{orden_id}/sincronizar-fecha")
+def ordenes_sincronizar_fecha(orden_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    """Corrige las ventas de repuestos/servicios (y su salida de inventario)
+    de esta orden para que queden con la misma fecha que la orden, por si
+    se agregaron antes de que la fecha personalizada de la orden se
+    respetara ahí (ver _agregar_repuesto_a_orden/_agregar_servicio_a_orden).
+    No toca abonos ni facturas ya emitidas: un abono se fecha cuando
+    realmente se cobra, y una factura fiscal no debe alterarse después de
+    emitida."""
+    orden = db.get(OrdenServicio, orden_id)
+    if not orden:
+        flash(request, "Orden no encontrada.", "error")
+        return RedirectResponse("/ordenes", status_code=303)
+
+    ventas, movimientos, inventario = _movimientos_dinero_de_orden(db, orden)
+    corregidos = 0
+    for fila in (*ventas, *movimientos, *inventario):
+        if fila.fecha and fila.fecha.date() != orden.fecha.date():
+            fila.fecha = orden.fecha
+            corregidos += 1
+    db.commit()
+    if corregidos:
+        flash(request, f"Se corrigieron {corregidos} registro(s) para que coincidan con la fecha de la orden ({orden.fecha.strftime('%d/%m/%Y')}).", "success")
+    else:
+        flash(request, "No había nada que corregir: ya coinciden con la fecha de la orden.", "success")
+    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
 @router.get("/ordenes/{orden_id}/editar")

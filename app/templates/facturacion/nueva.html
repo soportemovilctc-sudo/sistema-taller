@@ -19,6 +19,11 @@
     <p class="flash flash-error">{{ error_fiscal }} <a href="/configuracion/facturacion">Ir a Configuración de facturación</a></p>
     {% endif %}
     <div class="field">
+      <label>RTN del cliente (para factura fiscal)</label>
+      <input type="text" name="cliente_rtn" value="{{ orden.cliente.rtn if orden.cliente else '' }}" placeholder="Déjalo en blanco si no aplica">
+      <div class="help">Se guarda también en la ficha del cliente para la próxima vez.</div>
+    </div>
+    <div class="field">
       <label>Técnico que hizo la reparación</label>
       <select name="tecnico_reparacion_id">
         <option value="">Sin asignar</option>

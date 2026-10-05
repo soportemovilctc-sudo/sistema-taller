@@ -211,6 +211,7 @@ def factura_crear(
     repuesto_producto_id: str = Form(""), repuesto_cantidad: str = Form("1"), repuesto_precio: str = Form(""),
     servicio_nombre: str = Form(""), servicio_categoria: str = Form(""),
     servicio_cantidad: str = Form("1"), servicio_precio: str = Form(""), servicio_costo: str = Form(""),
+    cliente_rtn: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
@@ -319,6 +320,14 @@ def factura_crear(
 
     numero_documento, correlativo = generar_numero_factura(cfg, tipo)
 
+    # El RTN se puede escribir o corregir aquí mismo al momento de facturar
+    # (antes solo se podía editar yendo al registro del Cliente aparte). Si
+    # la orden tiene cliente, se guarda también en su ficha para que quede
+    # disponible la próxima vez que se le facture.
+    cliente_rtn_final = (cliente_rtn or "").strip()
+    if orden.cliente and cliente_rtn_final != (orden.cliente.rtn or ""):
+        orden.cliente.rtn = cliente_rtn_final
+
     factura = Factura(
         orden_id=orden.id,
         tipo=tipo,
@@ -331,7 +340,7 @@ def factura_crear(
         rtn_emisor=cfg.rtn_taller if tipo == "fiscal" else None,
         razon_social_emisor=(cfg.razon_social or cfg.nombre_comercial) if tipo == "fiscal" else None,
         cliente_nombre=orden.cliente.nombre if orden.cliente else "Consumidor final",
-        cliente_rtn=(orden.cliente.rtn or "") if orden.cliente else "",
+        cliente_rtn=cliente_rtn_final,
         cliente_direccion=(orden.cliente.direccion or "") if orden.cliente else "",
         fecha_emision=datetime.utcnow(),
         subtotal=total,

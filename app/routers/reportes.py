@@ -414,9 +414,17 @@ def _datos_reporte(tipo, fecha_desde, fecha_hasta, tecnico_id, estado, db):
         if fecha_hasta:
             q = q.filter(MovimientoFinanciero.fecha <= fecha_hasta)
         movimientos = q.order_by(MovimientoFinanciero.fecha.desc()).all()
+        if tipo == "gastos":
+            # En Egresos la última columna es cómo salió el dinero
+            # (Efectivo/Transferencia/Tarjeta/Otro) en vez de la Referencia
+            # interna, que no le dice nada al usuario.
+            filas = [[m.fecha.strftime("%d/%m/%Y %H:%M"), m.categoria, float(m.monto), m.descripcion,
+                      m.metodo_pago or ""] for m in movimientos]
+            return (filas, ["Fecha", "Categoria", "Monto", "Descripcion", "Metodo de pago"], "reporte_gastos",
+                    "Egresos", [2])
         filas = [[m.fecha.strftime("%d/%m/%Y %H:%M"), m.categoria, float(m.monto), m.descripcion, m.referencia] for m in movimientos]
         return (filas, ["Fecha", "Categoria", "Monto", "Descripcion", "Referencia"], f"reporte_{tipo}",
-                ("Ingresos" if tipo == "ingresos" else "Gastos"), [2])
+                "Ingresos", [2])
 
     if tipo == "ventas":
         ventas = db.query(Venta).order_by(Venta.fecha.desc()).all()
@@ -464,7 +472,7 @@ def _datos_reporte(tipo, fecha_desde, fecha_hasta, tecnico_id, estado, db):
 
 TITULOS_REPORTE = {
     "ordenes": "Reporte de Órdenes", "reparaciones": "Reporte de Órdenes",
-    "ingresos": "Reporte de Ingresos", "gastos": "Reporte de Gastos",
+    "ingresos": "Reporte de Ingresos", "gastos": "Reporte de Egresos",
     "ventas": "Reporte de Ventas", "ventas_detallado": "Reporte de Ventas Detallado",
     "inventario": "Reporte de Inventario", "saldos": "Reporte de Saldos Pendientes",
     "utilidades": "Reporte de Utilidades por Producto",
@@ -512,12 +520,13 @@ def reportes_exportar_excel(
 def reportes_registrar_movimiento(
     request: Request,
     tipo: str = Form(...), categoria: str = Form(...), monto: str = Form(...), descripcion: str = Form(""),
+    metodo_pago: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     """Registra un ingreso o gasto manual (por ejemplo el pago de un
     servicio, una compra de insumos, un retiro de caja): para que cualquiera
     que use el sistema (no solo lo que genera automáticamente una venta o
-    un pago de orden) pueda dejarlo anotado en Ingresos/Gastos."""
+    un pago de orden) pueda dejarlo anotado en Ingresos/Egresos."""
     if tipo not in ("ingreso", "gasto"):
         flash(request, "Tipo de movimiento no válido.", "error")
         return RedirectResponse("/reportes?tipo=ingresos", status_code=303)
@@ -532,11 +541,15 @@ def reportes_registrar_movimiento(
         flash(request, "El monto debe ser mayor a cero.", "error")
         return RedirectResponse(f"/reportes?tipo={'ingresos' if tipo == 'ingreso' else 'gastos'}", status_code=303)
 
+    # "¿Cómo salió?" solo aplica a un Egreso (de dónde salió el dinero:
+    # efectivo, transferencia, tarjeta...); en un Ingreso se deja vacío.
+    metodo_pago_limpio = metodo_pago.strip() if tipo == "gasto" and metodo_pago.strip() in FORMAS_PAGO else None
+
     db.add(MovimientoFinanciero(
         tipo=tipo, categoria=categoria_limpia, monto=monto_decimal.quantize(Decimal("0.01")),
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
-        referencia="Manual",
+        referencia="Manual", metodo_pago=metodo_pago_limpio,
     ))
     db.commit()
-    flash(request, ("Ingreso" if tipo == "ingreso" else "Gasto") + " registrado correctamente.", "success")
+    flash(request, ("Ingreso" if tipo == "ingreso" else "Egreso") + " registrado correctamente.", "success")
     return RedirectResponse(f"/reportes?tipo={'ingresos' if tipo == 'ingreso' else 'gastos'}", status_code=303)

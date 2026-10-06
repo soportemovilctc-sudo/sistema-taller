@@ -510,10 +510,11 @@ class MovimientoFinanciero(Base):
     # por Caja: el cobro con Tarjeta (POS) o Transferencia se contabiliza en
     # "banco", y los Egresos Mayores del Administrador siempre son "banco".
     cuenta = Column(String(20), nullable=False, default="caja_chica")
-    # Método de cobro, solo en movimientos creados desde "Registrar cobro"
-    # (Vista Cajera). Sirve también como marca para identificar qué filas
-    # vienen de ese flujo (las demás rutas del sistema lo dejan vacío).
-    metodo_pago = Column(String(30), nullable=True)  # Efectivo | Transferencia | Tarjeta (POS)
+    # Método de cobro/pago: en un ingreso creado desde "Registrar cobro"
+    # (Vista Cajera) es Efectivo/Transferencia/Tarjeta (POS); en un egreso
+    # manual creado desde Reportes > Egresos es de dónde salió el dinero
+    # (ver FORMAS_PAGO). Las demás rutas del sistema lo dejan vacío.
+    metodo_pago = Column(String(30), nullable=True)
     cliente_nombre = Column(String(150), nullable=True)
     num_referencia = Column(String(60), nullable=True)  # N. de comprobante de la transferencia
     comprobante_data = Column(LargeBinary, nullable=True)

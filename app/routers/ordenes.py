@@ -63,12 +63,26 @@ def _config(db: Session) -> Configuracion:
     return cfg
 
 
+def _parse_fecha(valor, default=None):
+    if not valor:
+        return default
+    try:
+        return datetime.strptime(valor, "%Y-%m-%d")
+    except ValueError:
+        return default
+
+
 @router.get("/ordenes")
 def ordenes_list(
     request: Request, q: str = "", estado: str = "", tecnico_id: str = "", prioridad: str = "",
-    vencidas: str = "",
+    vencidas: str = "", desde: str = "", hasta: str = "",
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
+    fecha_desde = _parse_fecha(desde)
+    fecha_hasta = _parse_fecha(hasta)
+    if fecha_hasta:
+        fecha_hasta = fecha_hasta.replace(hour=23, minute=59, second=59)
+
     query = db.query(OrdenServicio).options(joinedload(OrdenServicio.cliente), joinedload(OrdenServicio.tecnico))
     if q:
         like = f"%{q}%"
@@ -84,6 +98,10 @@ def ordenes_list(
         query = query.filter(OrdenServicio.tecnico_id == int(tecnico_id))
     if prioridad:
         query = query.filter(OrdenServicio.prioridad == prioridad)
+    if fecha_desde:
+        query = query.filter(OrdenServicio.fecha >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(OrdenServicio.fecha <= fecha_hasta)
 
     conteo_estados = dict(
         db.query(OrdenServicio.estado, func.count(OrdenServicio.id)).group_by(OrdenServicio.estado).all()
@@ -102,7 +120,7 @@ def ordenes_list(
     return templates.TemplateResponse("ordenes/list.html", {
         "request": request, "ordenes": ordenes, "usuario": usuario,
         "q": q, "estado": estado, "tecnico_id": tecnico_id, "prioridad": prioridad,
-        "vencidas": vencidas,
+        "vencidas": vencidas, "desde": desde, "hasta": hasta,
         "conteo_estados": conteo_estados, "total_ordenes": total_ordenes,
         **opciones,
     })

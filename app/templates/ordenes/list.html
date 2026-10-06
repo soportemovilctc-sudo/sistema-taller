@@ -28,7 +28,18 @@
         {% for p in prioridades %}<option value="{{ p }}" {{ 'selected' if p == prioridad else '' }}>{{ p }}</option>{% endfor %}
       </select>
     </div>
+    <div class="field">
+      <label>Desde</label>
+      <input type="date" name="desde" value="{{ desde }}">
+    </div>
+    <div class="field">
+      <label>Hasta</label>
+      <input type="date" name="hasta" value="{{ hasta }}">
+    </div>
     <div class="field" style="flex:0;"><button type="submit" class="btn btn-outline">Filtrar</button></div>
+    {% if desde or hasta %}
+    <div class="field" style="flex:0; align-self:flex-end;"><a href="/ordenes" class="btn btn-outline btn-sm">Quitar fechas</a></div>
+    {% endif %}
   </form>
   <div class="estado-tabs">
     <a href="/ordenes" class="estado-tab {{ '' if estado else 'estado-tab-todos-active' }} {{ 'estado-tab-muted' if estado else '' }}">

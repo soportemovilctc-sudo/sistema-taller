@@ -12,10 +12,11 @@
         {% for modo in temas_modo %}
         <label class="checkbox-chip">
           <input type="radio" name="tema_modo" value="{{ modo }}" {{ 'checked' if u.tema_modo == modo else '' }}>
-          {{ 'Oscuro' if modo == 'oscuro' else 'Claro' }}
+          {{ {'oscuro': 'Oscuro', 'claro': 'Claro', 'vidrio': 'Vidrio (efecto cristal)'}.get(modo, modo) }}
         </label>
         {% endfor %}
       </div>
+      <div class="help" style="margin-top:6px;">El modo Vidrio trae su propio color cian con efecto de cristal esmerilado — mientras esté elegido, el color de acento de abajo no se usa.</div>
     </div>
 
     <div class="field">

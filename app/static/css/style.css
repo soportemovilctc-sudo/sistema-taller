@@ -96,6 +96,82 @@
   --primary-light: color-mix(in srgb, var(--custom-color, #2563eb) 78%, white);
 }
 
+/* ---------- Modo: Vidrio (glassmorphism, cian) ----------
+   Tercer modo además de Oscuro/Claro (no un acento): cambia fondo, paneles,
+   bordes, radio y sombra a la vez, así que va después de los acentos de
+   arriba para que siempre gane su propio cian, sin importar qué acento
+   tenga guardado el usuario (ver nota en Apariencia). Los colores de
+   estado (éxito/aviso/peligro/info) se quedan igual que siempre. */
+:root[data-tema="vidrio"] {
+  --bg: #070b12;
+  --bg-alt: #0b1420;
+  --panel: rgba(16, 26, 40, .55);
+  --panel-2: rgba(20, 32, 48, .5);
+  --border: rgba(34, 211, 238, .28);
+  --text: #eaf6fb;
+  --text-muted: #8fb0c0;
+  --primary: #22d3ee;
+  --primary-dark: #0e9fbd;
+  --primary-light: #67e8f9;
+  --muted-badge-bg: rgba(255, 255, 255, .08);
+  --muted-badge-text: #b9d2dc;
+  --radius: 18px;
+  --shadow: 0 0 0 1px rgba(34, 211, 238, .12), 0 10px 34px rgba(0, 0, 0, .55), 0 0 38px rgba(34, 211, 238, .08);
+}
+:root[data-tema="vidrio"] body {
+  background:
+    radial-gradient(circle at 82% 12%, rgba(34, 211, 238, .16), transparent 45%),
+    radial-gradient(circle at 10% 88%, rgba(34, 211, 238, .08), transparent 40%),
+    var(--bg);
+}
+/* Vidrio esmerilado real: desenfoca lo que queda detrás de los paneles
+   (la barra lateral y la superior quedan fijas sobre el contenido que se
+   desplaza debajo, así que el efecto se nota al hacer scroll). */
+:root[data-tema="vidrio"] .card,
+:root[data-tema="vidrio"] .kpi,
+:root[data-tema="vidrio"] .sidebar,
+:root[data-tema="vidrio"] .topbar,
+:root[data-tema="vidrio"] .login-box,
+:root[data-tema="vidrio"] .modal-box,
+:root[data-tema="vidrio"] .search-results,
+:root[data-tema="vidrio"] .buscar-select-resultados,
+:root[data-tema="vidrio"] .action-bar-sticky,
+:root[data-tema="vidrio"] .panda-asistente,
+:root[data-tema="vidrio"] .panda-sugerencias,
+:root[data-tema="vidrio"] .action-bar-more-menu {
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+:root[data-tema="vidrio"] .sidebar { background: rgba(9, 15, 24, .55); }
+:root[data-tema="vidrio"] .topbar { background: rgba(9, 15, 24, .5); box-shadow: none; }
+:root[data-tema="vidrio"] .login-page {
+  background:
+    radial-gradient(circle at top, rgba(34, 211, 238, .14), transparent 55%),
+    var(--bg);
+}
+/* Botones, pestañas y chips en forma de píldora, como en la referencia. */
+:root[data-tema="vidrio"] .btn,
+:root[data-tema="vidrio"] .nav-link,
+:root[data-tema="vidrio"] .badge,
+:root[data-tema="vidrio"] .estado-tab,
+:root[data-tema="vidrio"] .checkbox-chip,
+:root[data-tema="vidrio"] .dias-chip,
+:root[data-tema="vidrio"] .icon-btn {
+  border-radius: 999px;
+}
+:root[data-tema="vidrio"] .btn-primary {
+  box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 50%, transparent);
+}
+:root[data-tema="vidrio"] .btn-primary:hover {
+  box-shadow: 0 0 26px color-mix(in srgb, var(--primary) 60%, transparent), 0 4px 14px rgba(0, 0, 0, .3);
+}
+:root[data-tema="vidrio"] .nav-link.active {
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 45%, transparent);
+}
+:root[data-tema="vidrio"] .kpi-value {
+  text-shadow: 0 0 16px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
 * { box-sizing: border-box; }
 
 :selection { background: var(--primary); color: #fff; }

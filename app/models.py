@@ -69,7 +69,7 @@ CONDICIONES_FISICAS = [
 
 # Apariencia personal (ver Usuario.tema_modo / tema_acento / mascota y la
 # página "Apariencia" en auth.py).
-TEMAS_MODO = ["oscuro", "claro"]
+TEMAS_MODO = ["oscuro", "claro", "vidrio"]
 TEMAS_ACENTO = [
     {"valor": "azul", "nombre": "Azul clásico (el de siempre)", "muestra": "#2563eb"},
     {"valor": "cian", "nombre": "Cian tecnológico", "muestra": "#0891b2"},
@@ -132,7 +132,7 @@ class Usuario(Base):
     # Apariencia personal (ver "Apariencia" en el menú): cada usuario elige
     # su propio tema y mascota, guardado en su cuenta para que lo mantenga
     # sin importar desde qué computadora entre.
-    tema_modo = Column(String(20), nullable=False, default="oscuro")  # claro | oscuro
+    tema_modo = Column(String(20), nullable=False, default="oscuro")  # claro | oscuro | vidrio
     tema_acento = Column(String(30), nullable=False, default="azul")  # azul | cian | verde | purpura | naranja | personalizado
     tema_color_personalizado = Column(String(20), nullable=True)  # ej. "#2563eb", solo si tema_acento == personalizado
     mascota = Column(String(20), nullable=False, default="panda")  # panda | leon | raton

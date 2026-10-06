@@ -105,8 +105,8 @@
 :root[data-tema="vidrio"] {
   --bg: #070b12;
   --bg-alt: #0b1420;
-  --panel: rgba(16, 26, 40, .55);
-  --panel-2: rgba(20, 32, 48, .5);
+  --panel: rgba(16, 26, 40, .42);
+  --panel-2: rgba(20, 32, 48, .36);
   --border: rgba(34, 211, 238, .28);
   --text: #eaf6fb;
   --text-muted: #8fb0c0;
@@ -115,8 +115,9 @@
   --primary-light: #67e8f9;
   --muted-badge-bg: rgba(255, 255, 255, .08);
   --muted-badge-text: #b9d2dc;
-  --radius: 18px;
-  --shadow: 0 0 0 1px rgba(34, 211, 238, .12), 0 10px 34px rgba(0, 0, 0, .55), 0 0 38px rgba(34, 211, 238, .08);
+  --radius: 20px;
+  --shadow: inset 0 1px 0 rgba(255, 255, 255, .10), 0 0 0 1px rgba(34, 211, 238, .14),
+    0 10px 34px rgba(0, 0, 0, .55), 0 0 44px rgba(34, 211, 238, .12);
 }
 :root[data-tema="vidrio"] body {
   background:
@@ -139,11 +140,11 @@
 :root[data-tema="vidrio"] .panda-asistente,
 :root[data-tema="vidrio"] .panda-sugerencias,
 :root[data-tema="vidrio"] .action-bar-more-menu {
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(36px) saturate(180%);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
 }
-:root[data-tema="vidrio"] .sidebar { background: rgba(9, 15, 24, .55); }
-:root[data-tema="vidrio"] .topbar { background: rgba(9, 15, 24, .5); box-shadow: none; }
+:root[data-tema="vidrio"] .sidebar { background: rgba(9, 15, 24, .42); }
+:root[data-tema="vidrio"] .topbar { background: rgba(9, 15, 24, .34); box-shadow: none; }
 :root[data-tema="vidrio"] .login-page {
   background:
     radial-gradient(circle at top, rgba(34, 211, 238, .14), transparent 55%),
@@ -358,6 +359,27 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
 textarea { resize: vertical; min-height: 64px; }
+/* El icono de calendario/reloj de un <input type="date|time"> viene negro
+   de fábrica y en el fondo oscuro del sistema no se alcanza a ver (ver
+   captura de Ricardo). Se reemplaza por una silueta propia coloreada con
+   el color de acento del tema activo (var(--primary)), para que se vea
+   en cualquiera de los temas/colores personalizados. */
+input[type="date"], input[type="time"], input[type="datetime-local"] { color-scheme: dark; }
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  background-color: var(--primary);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+}
 .field { margin-bottom: 14px; }
 .form-row { display: flex; gap: 14px; flex-wrap: wrap; }
 .form-row > .field { flex: 1; min-width: 180px; }

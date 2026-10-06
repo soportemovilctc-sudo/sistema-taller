@@ -13,7 +13,7 @@ from app.templates_env import templates
 from app.database import get_db
 from app.models import (
     Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio, Tecnico, Producto, Servicio,
-    MovimientoFinanciero, CATEGORIA_VENTA_FACTURADA,
+    MovimientoFinanciero, CATEGORIA_VENTA_FACTURADA, FORMAS_PAGO,
 )
 from app.deps import login_required, roles_required
 from app.utils.flash import flash
@@ -384,14 +384,76 @@ def factura_crear(
 # ---------------------------------------------------------------------------
 # Listado y detalle
 # ---------------------------------------------------------------------------
+def _parse_fecha(valor, default=None):
+    if not valor:
+        return default
+    try:
+        return datetime.strptime(valor, "%Y-%m-%d")
+    except ValueError:
+        return default
+
+
+# Orden fijo en que se muestran los totales por forma de pago en el
+# resumen de Facturas (las formas "reales" primero, en el mismo orden que
+# en Órdenes/Ventas, y al final los dos casos especiales derivados).
+ORDEN_RESUMEN_FORMAS_PAGO = FORMAS_PAGO + ["Mixto", "Sin especificar"]
+
+
+def _forma_pago_factura(factura: Factura) -> str:
+    """Determina la forma de pago a mostrar para una factura, sin agregar
+    ninguna columna nueva en la base de datos:
+      - Facturas de POS (venta_id): se toma directo de Venta.forma_pago.
+      - Facturas de orden (orden_id): se deriva de los abonos (Pago.forma_pago)
+        ya registrados en esa orden -- puede no haber ninguno todavía, uno
+        solo, o varios con métodos distintos (pago mixto)."""
+    if factura.venta_id and factura.venta:
+        return factura.venta.forma_pago or "Sin especificar"
+    if factura.orden_id and factura.orden:
+        formas = {p.forma_pago for p in factura.orden.pagos if p.forma_pago}
+        if len(formas) == 1:
+            return next(iter(formas))
+        if len(formas) > 1:
+            return "Mixto"
+    return "Sin especificar"
+
+
 @router.get("/facturas")
-def facturas_list(request: Request, tipo: str = "", db: Session = Depends(get_db), usuario=Depends(login_required)):
-    query = db.query(Factura).options(joinedload(Factura.orden), joinedload(Factura.venta))
+def facturas_list(
+    request: Request, tipo: str = "", desde: str = "", hasta: str = "",
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    fecha_desde = _parse_fecha(desde)
+    fecha_hasta = _parse_fecha(hasta)
+    if fecha_hasta:
+        fecha_hasta = fecha_hasta.replace(hour=23, minute=59, second=59)
+
+    query = db.query(Factura).options(
+        joinedload(Factura.orden).joinedload(OrdenServicio.pagos),
+        joinedload(Factura.venta),
+    )
     if tipo in ("interno", "fiscal"):
         query = query.filter(Factura.tipo == tipo)
+    if fecha_desde:
+        query = query.filter(Factura.fecha_emision >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(Factura.fecha_emision <= fecha_hasta)
     facturas = query.order_by(Factura.id.desc()).all()
+
+    # Resumen de totales por forma de pago (solo facturas vigentes, para que
+    # una factura anulada no infle el total cobrado) + total general.
+    resumen = {clave: Decimal("0.00") for clave in ORDEN_RESUMEN_FORMAS_PAGO}
+    total_general = Decimal("0.00")
+    for f in facturas:
+        f.forma_pago_mostrar = _forma_pago_factura(f)
+        if not f.anulada:
+            resumen[f.forma_pago_mostrar] += to_decimal(f.total)
+            total_general += to_decimal(f.total)
+
     return templates.TemplateResponse("facturacion/list.html", {
         "request": request, "facturas": facturas, "usuario": usuario, "tipo": tipo,
+        "desde": desde, "hasta": hasta,
+        "orden_resumen_formas_pago": ORDEN_RESUMEN_FORMAS_PAGO,
+        "resumen_formas_pago": resumen, "total_general": total_general,
     })
 
 

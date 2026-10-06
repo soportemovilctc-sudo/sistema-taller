@@ -12,9 +12,23 @@
         <option value="fiscal" {{ 'selected' if tipo == 'fiscal' else '' }}>Fiscales</option>
       </select>
     </div>
+    <div class="field">
+      <label>Desde</label>
+      <input type="date" name="desde" value="{{ desde }}">
+    </div>
+    <div class="field">
+      <label>Hasta</label>
+      <input type="date" name="hasta" value="{{ hasta }}">
+    </div>
+    <div class="field" style="align-self:flex-end;">
+      <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+      {% if desde or hasta or tipo %}
+      <a href="/facturas" class="btn btn-outline btn-sm">Quitar filtros</a>
+      {% endif %}
+    </div>
   </form>
   <table>
-    <thead><tr><th>N.o Documento</th><th>Tipo</th><th>Origen</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+    <thead><tr><th>N.o Documento</th><th>Tipo</th><th>Origen</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Forma de pago</th><th>Estado</th><th></th></tr></thead>
     <tbody>
       {% for f in facturas %}
       <tr>
@@ -24,13 +38,36 @@
         <td>{{ f.cliente_nombre }}</td>
         <td>{{ f.fecha_emision|fecha('%d/%m/%Y %H:%M') }}</td>
         <td>{{ f.total|moneda(config_taller().moneda) }}</td>
+        <td>{{ f.forma_pago_mostrar }}</td>
         <td>{{ 'ANULADA' if f.anulada else 'Vigente' }}</td>
         <td><a href="/facturas/{{ f.id }}" class="btn btn-outline btn-sm">Ver</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="empty-state">Aún no se ha emitido ninguna factura.</td></tr>
+      <tr><td colspan="9" class="empty-state">Aún no se ha emitido ninguna factura.</td></tr>
       {% endfor %}
     </tbody>
   </table>
+
+  {% if facturas %}
+  <div class="card-title" style="margin-top:1.5rem;">Resumen por forma de pago</div>
+  <table>
+    <thead><tr><th>Forma de pago</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for clave in orden_resumen_formas_pago %}
+      {% if resumen_formas_pago[clave] %}
+      <tr>
+        <td>{{ clave }}</td>
+        <td>{{ resumen_formas_pago[clave]|moneda(config_taller().moneda) }}</td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+      <tr style="font-weight:600;">
+        <td>Total general</td>
+        <td>{{ total_general|moneda(config_taller().moneda) }}</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="help-text" style="margin-top:.5rem;">El resumen solo incluye facturas vigentes (no anuladas).</p>
+  {% endif %}
 </div>
 {% endblock %}

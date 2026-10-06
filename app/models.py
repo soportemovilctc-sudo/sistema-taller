@@ -76,6 +76,7 @@ TEMAS_ACENTO = [
     {"valor": "verde", "nombre": "Verde esmeralda", "muestra": "#059669"},
     {"valor": "purpura", "nombre": "Púrpura", "muestra": "#7c3aed"},
     {"valor": "naranja", "nombre": "Naranja", "muestra": "#ea580c"},
+    {"valor": "rendimiento", "nombre": "Rojo alto rendimiento", "muestra": "#ED1C24"},
     {"valor": "personalizado", "nombre": "Personalizado (elige tu color)", "muestra": None},
 ]
 MASCOTAS_DISPONIBLES = [

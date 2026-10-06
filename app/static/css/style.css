@@ -42,8 +42,8 @@
   --info-text: var(--primary-light);
   --muted-badge-bg: #334155;
   --muted-badge-text: #cbd5e1;
-  --radius: 10px;
-  --shadow: 0 4px 16px rgba(0, 0, 0, .35);
+  --radius: 8px;
+  --shadow: 0 3px 14px rgba(0, 0, 0, .3);
   --sidebar-w: 230px;
   --topbar-h: 60px;
 }
@@ -57,7 +57,7 @@
   --border: #dbe2ee;
   --text: #16203a;
   --text-muted: #5c6b85;
-  --shadow: 0 4px 16px rgba(30, 41, 71, .1);
+  --shadow: 0 2px 14px rgba(30, 41, 71, .08);
   --success-text: #15803d;
   --danger-text: #b91c1c;
   --warning-text: #b45309;
@@ -80,6 +80,12 @@
 }
 :root[data-acento="naranja"] {
   --primary: #ea580c; --primary-dark: #c2410c; --primary-light: #fb923c;
+}
+/* Rojo alto rendimiento: acento inspirado en la estética "computación de
+   alto desempeño" (procesadores/servidores) que pidió Ricardo — disponible
+   para quien lo elija en Apariencia, sin tocar a nadie más. */
+:root[data-acento="rendimiento"] {
+  --primary: #ED1C24; --primary-dark: #B3141B; --primary-light: #FF5A61;
 }
 /* Personalizado: --custom-color lo pone base.html en línea (style="") con
    el hex que el usuario eligió; los tonos claro/oscuro se derivan solos
@@ -256,7 +262,7 @@ details.card summary.card-title:hover { color: var(--primary); }
 .kpi {
   background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 16px; position: relative; overflow: hidden;
-  transition: transform .15s ease, box-shadow .15s ease;
+  transition: transform .2s ease-out, box-shadow .2s ease-out;
 }
 .kpi:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.3); }
 .kpi .kpi-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
@@ -296,10 +302,10 @@ textarea { resize: vertical; min-height: 64px; }
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 9px 16px; border-radius: 8px; border: 1px solid transparent;
   font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none;
-  transition: filter .15s ease, transform .1s ease;
+  transition: filter .2s ease-out, transform .15s ease-out, box-shadow .2s ease-out;
 }
-.btn:hover { text-decoration: none; filter: brightness(1.12); }
-.btn:active { transform: translateY(1px); }
+.btn:hover { text-decoration: none; filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+.btn:active { transform: translateY(0); filter: brightness(1.05); box-shadow: none; }
 .btn-primary { background: var(--primary); color: #fff; }
 .btn-success { background: var(--success); color: #fff; }
 .btn-danger { background: var(--danger); color: #fff; }
@@ -515,7 +521,7 @@ select.badge-select option { background: var(--panel-2); color: var(--text); }
    Rediseño visual (2026): tipografía, íconos e interacciones
    ============================================================ */
 html, body {
-  font-family: "Plus Jakarta Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: "Roboto", "Plus Jakarta Sans", "Segoe UI", Arial, sans-serif;
 }
 .mono, .kpi-value, td.mono, .money-positive, .money-negative {
   font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;

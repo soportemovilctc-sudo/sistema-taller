@@ -21,6 +21,7 @@ Revises: 0019_nomina_renombrar_deposito
 Create Date: 2026-10-06
 """
 from datetime import datetime
+from decimal import Decimal
 
 from alembic import op
 import sqlalchemy as sa
@@ -107,11 +108,15 @@ def upgrade() -> None:
             {
                 "tipo": "ingreso",
                 "categoria": CATEGORIA_VENTA_FACTURADA,
-                "monto": f["total"],
-                "fecha": _como_datetime(f["fecha_emision"]),
-                "descripcion": f"Factura {f['numero_documento']} - Orden {f['numero_orden']}",
+                # "monto"/"fecha" nunca pueden quedar NULL (la columna no lo
+                # permite): algunas facturas muy viejas de datos reales no
+                # tienen total o fecha_emision guardados, a diferencia de los
+                # datos de prueba usados para validar esta migracion.
+                "monto": f["total"] if f["total"] is not None else Decimal("0.00"),
+                "fecha": _como_datetime(f["fecha_emision"]) or datetime.utcnow(),
+                "descripcion": f"Factura {f['numero_documento']} - Orden {f['numero_orden'] or ''}".strip(),
                 "usuario_nombre": f["usuario_nombre"],
-                "referencia": f["numero_orden"],
+                "referencia": f["numero_orden"] or "",
                 "cuenta": "caja_chica",
                 "excluir_de_contabilidad": False,
                 "factura_id": f["factura_id"],

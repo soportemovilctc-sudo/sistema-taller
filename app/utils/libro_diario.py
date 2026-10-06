@@ -26,7 +26,10 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.models import CuentaContable, AsientoContable, DetalleAsiento, MovimientoFinanciero, CATEGORIA_DEPOSITO_BANCO
+from app.models import (
+    CuentaContable, AsientoContable, DetalleAsiento, MovimientoFinanciero,
+    CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO,
+)
 from app.utils.numbering import siguiente_numero
 
 CTA_CAJA_CHICA = "1101"
@@ -50,7 +53,10 @@ CATEGORIAS_VENTA_CONTADO = {"Venta de repuesto (orden)", "Venta de servicio (ord
 
 CATEGORIA_OTRO_INGRESO = "Otros ingresos"
 CATEGORIA_REVERSION_CANCELACION = "Reversión por orden cancelada"
-CATEGORIAS_SALIDA_CAJA_CHICA = {"Salida de caja", "Crédito por garantía", "Compra menor", "Otro gasto de caja"}
+CATEGORIAS_SALIDA_CAJA_CHICA = {
+    "Salida de caja", "Crédito por garantía", "Compra menor", "Otro gasto de caja",
+    CATEGORIA_NOMINA_EFECTIVO,
+}
 
 
 def generar_numero_asiento(db: Session) -> str:
@@ -144,13 +150,13 @@ def registrar_asiento_para_movimiento(
             )
 
         if mov.categoria == CATEGORIA_DEPOSITO_BANCO:
-            # Remesa: el efectivo no se gasta, se traslada de Caja Chica a
-            # Banco. Esta fila (la salida de Caja Chica) es la que genera el
-            # asiento completo y balanceado; la entrada en Banco que la
-            # acompaña (ver caja_salida_crear) no genera uno propio, para no
-            # duplicar el mismo traslado dos veces en el Libro Diario.
+            # Depósito bancario: el efectivo no se gasta, se traslada de Caja
+            # Chica a Banco. Esta fila (la salida de Caja Chica) es la que
+            # genera el asiento completo y balanceado; la entrada en Banco
+            # que la acompaña (ver caja_salida_crear) no genera uno propio,
+            # para no duplicar el mismo traslado dos veces en el Libro Diario.
             return registrar_asiento(
-                db, fecha, f"Depósito bancario (remesa) - {mov.descripcion or ''}".strip(" -"),
+                db, fecha, f"Depósito bancario - {mov.descripcion or ''}".strip(" -"),
                 "deposito_banco", [(CTA_BANCO, mov.monto, 0), (CTA_CAJA_CHICA, 0, mov.monto)],
                 referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
             )

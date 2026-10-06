@@ -298,7 +298,7 @@ def caja_salida_crear(
     registrar_asiento_para_movimiento(db, mov)
 
     if categoria == CATEGORIA_DEPOSITO_BANCO:
-        # Un depósito/remesa no es un gasto: el efectivo no se pierde, se
+        # Un depósito bancario no es un gasto: el efectivo no se pierde, se
         # traslada a Banco. A la salida de Caja Chica de arriba la acompaña
         # esta entrada a Banco, vinculada con ella (movimiento_vinculado_id)
         # para que editarla o eliminarla arrastre también a su pareja y
@@ -306,7 +306,7 @@ def caja_salida_crear(
         mov_banco = MovimientoFinanciero(
             tipo="ingreso", categoria=categoria, monto=monto_final,
             descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
-            referencia="Remesa de Caja Chica", cuenta=CUENTA_BANCO,
+            referencia="Depósito bancario de Caja Chica", cuenta=CUENTA_BANCO,
             fecha=fecha_final, movimiento_vinculado_id=mov.id,
         )
         db.add(mov_banco)
@@ -403,22 +403,22 @@ def caja_movimiento_editar(
             mov.estado_conciliacion = "pendiente" if metodo_pago == "Transferencia" else None
         elif categoria and (categoria == CATEGORIA_OTRO_INGRESO_CAJA or categoria in CATEGORIAS_SALIDA_CAJA):
             if (categoria == CATEGORIA_DEPOSITO_BANCO) != (mov.categoria == CATEGORIA_DEPOSITO_BANCO):
-                flash(request, "Un Depósito bancario (remesa) no se puede cambiar a otra categoría, ni al revés — "
+                flash(request, "Un Depósito bancario no se puede cambiar a otra categoría, ni al revés — "
                                "elimínalo y regístralo de nuevo con la categoría correcta.", "error")
                 return RedirectResponse(f"/caja/movimiento/{mov_id}/editar?volver={volver}", status_code=303)
             mov.categoria = categoria
 
-    # Si este movimiento es la mitad de un Depósito bancario (remesa), la
-    # otra mitad se mantiene en sincronía: mismo monto, fecha y descripción.
+    # Si este movimiento es la mitad de un Depósito bancario, la otra mitad
+    # se mantiene en sincronía: mismo monto, fecha y descripción.
     vinculado = db.get(MovimientoFinanciero, mov.movimiento_vinculado_id) if mov.movimiento_vinculado_id else None
     if vinculado:
         vinculado.monto = mov.monto
         vinculado.descripcion = mov.descripcion
         vinculado.fecha = mov.fecha
 
-    # El asiento del Libro Diario de un Depósito bancario (remesa) siempre
-    # vive en la fila de Caja Chica del par (ver caja_salida_crear), así que
-    # se regenera esa, sin importar cuál de las dos se haya editado.
+    # El asiento del Libro Diario de un Depósito bancario siempre vive en la
+    # fila de Caja Chica del par (ver caja_salida_crear), así que se
+    # regenera esa, sin importar cuál de las dos se haya editado.
     mov_para_asiento = mov
     if mov.categoria == CATEGORIA_DEPOSITO_BANCO and mov.cuenta == CUENTA_BANCO and vinculado:
         mov_para_asiento = vinculado
@@ -468,10 +468,10 @@ def caja_movimiento_eliminar(
                 detalle_extra = f" Se restauraron {salida.cantidad} unidad(es) de {producto.nombre} a inventario."
 
     monto = mov.monto
-    # Si es la mitad de un Depósito bancario (remesa), se elimina la pareja
-    # completa: nunca debe quedar la salida de Caja Chica sin su entrada a
-    # Banco, ni al revés (el mismo problema que la OS-000079, ahora
-    # prevenido por diseño).
+    # Si es la mitad de un Depósito bancario, se elimina la pareja completa:
+    # nunca debe quedar la salida de Caja Chica sin su entrada a Banco, ni
+    # al revés (el mismo problema que la OS-000079, ahora prevenido por
+    # diseño).
     vinculado = db.get(MovimientoFinanciero, mov.movimiento_vinculado_id) if mov.movimiento_vinculado_id else None
     id_caja_chica = mov.id if mov.cuenta == CUENTA_CAJA_CHICA else (vinculado.id if vinculado else mov.id)
     eliminar_asiento_de_movimiento(db, id_caja_chica)

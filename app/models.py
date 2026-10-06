@@ -52,10 +52,11 @@ CATEGORIA_OTRO_INGRESO_CAJA = "Otros ingresos"
 # caja" y "Crédito por Garantía" de la hoja de cálculo original. Son egresos
 # de caja chica (efectivo físico), distintos de los Egresos Mayores del
 # Administrador (que siempre son contra la cuenta bancaria).
-CATEGORIA_DEPOSITO_BANCO = "Depósito bancario (remesa)"
+CATEGORIA_DEPOSITO_BANCO = "Depósito bancario"
+CATEGORIA_NOMINA_EFECTIVO = "Nómina en efectivo"
 CATEGORIAS_SALIDA_CAJA = [
     "Salida de caja", "Crédito por garantía", "Compra menor", "Otro gasto de caja",
-    CATEGORIA_DEPOSITO_BANCO,
+    CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO,
 ]
 
 ACCESORIOS_DISPONIBLES = [

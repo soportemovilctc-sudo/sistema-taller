@@ -16,12 +16,19 @@ y otra vez al cobrarlo) y pasa a sumar solo las Facturas que se emitan.
   la fecha de la factura, para que el historial de meses anteriores no
   quede en cero.
 
+IMPORTANTE: agregar las columnas nuevas (lo que el codigo de la aplicacion
+realmente necesita para poder arrancar) NUNCA debe fallar por datos viejos
+raros en produccion. Por eso la parte 1 (marcar categorias excluidas) y la
+parte 2 (el ingreso retroactivo por factura, fila por fila) corren cada una
+en su propio SAVEPOINT: si una fila puntual tiene datos incompletos o
+inesperados, esa fila se omite (y se deja un aviso en el log de Railway)
+en vez de tumbar toda la migracion -- y con ella, toda la aplicacion.
+
 Revision ID: 0020_facturas_contabilidad
 Revises: 0019_nomina_renombrar_deposito
 Create Date: 2026-10-06
 """
 from datetime import datetime
-from decimal import Decimal
 
 from alembic import op
 import sqlalchemy as sa
@@ -71,58 +78,78 @@ def upgrade() -> None:
 
     # 1) Las filas viejas de ordenes: se quedan en la base de datos tal
     #    cual, solo se marcan para que dejen de sumar en la contabilidad.
-    conn.execute(sa.text(
-        "UPDATE movimientos_financieros SET excluir_de_contabilidad = true "
-        "WHERE categoria IN :categorias"
-    ).bindparams(sa.bindparam("categorias", expanding=True)), {
-        "categorias": CATEGORIAS_ORDEN_EXCLUIDAS_CONTABILIDAD,
-    })
+    #    Va en su propio SAVEPOINT para que, si llegara a fallar, no afecte
+    #    las columnas que ya se agregaron arriba.
+    try:
+        with conn.begin_nested():
+            conn.execute(sa.text(
+                "UPDATE movimientos_financieros SET excluir_de_contabilidad = true "
+                "WHERE categoria IN :categorias"
+            ).bindparams(sa.bindparam("categorias", expanding=True)), {
+                "categorias": CATEGORIAS_ORDEN_EXCLUIDAS_CONTABILIDAD,
+            })
+    except Exception as exc:
+        print(
+            "[0020_facturas_contabilidad] AVISO: no se pudieron excluir las "
+            f"categorias viejas de ordenes ({exc!r}). Revisar manualmente."
+        )
 
     # 2) Por cada factura ya emitida (no anulada) de una orden, se crea el
     #    ingreso contable que nunca existio (antes la Factura era solo un
     #    documento). Las facturas de POS (venta_id, sin orden_id) no se
     #    tocan: esas ya generan su ingreso al momento de la venta.
-    facturas = conn.execute(sa.text(
-        "SELECT f.id AS factura_id, f.numero_documento, f.total, f.fecha_emision, "
-        "       f.usuario_nombre, o.numero_orden "
-        "FROM facturas f "
-        "JOIN ordenes_servicio o ON o.id = f.orden_id "
-        "WHERE f.orden_id IS NOT NULL AND f.anulada = false"
-    )).mappings().all()
-
-    if facturas:
-        movimientos_tabla = sa.table(
-            "movimientos_financieros",
-            sa.column("tipo", sa.String),
-            sa.column("categoria", sa.String),
-            sa.column("monto", sa.Numeric),
-            sa.column("fecha", sa.DateTime),
-            sa.column("descripcion", sa.Text),
-            sa.column("usuario_nombre", sa.String),
-            sa.column("referencia", sa.String),
-            sa.column("cuenta", sa.String),
-            sa.column("excluir_de_contabilidad", sa.Boolean),
-            sa.column("factura_id", sa.Integer),
+    #    Se procesa factura por factura, cada una en su propio SAVEPOINT:
+    #    una factura vieja con datos incompletos (total/fecha nulos, etc.)
+    #    se omite con un aviso, en vez de bloquear a las demas.
+    try:
+        with conn.begin_nested():
+            facturas = conn.execute(sa.text(
+                "SELECT f.id AS factura_id, f.numero_documento, f.total, f.fecha_emision, "
+                "       f.usuario_nombre, o.numero_orden "
+                "FROM facturas f "
+                "JOIN ordenes_servicio o ON o.id = f.orden_id "
+                "WHERE f.orden_id IS NOT NULL AND f.anulada = false"
+            )).mappings().all()
+    except Exception as exc:
+        print(
+            "[0020_facturas_contabilidad] AVISO: no se pudo leer la lista de "
+            f"facturas a respaldar ({exc!r}). No se crea ningun ingreso retroactivo."
         )
-        op.bulk_insert(movimientos_tabla, [
-            {
-                "tipo": "ingreso",
-                "categoria": CATEGORIA_VENTA_FACTURADA,
-                # "monto"/"fecha" nunca pueden quedar NULL (la columna no lo
-                # permite): algunas facturas muy viejas de datos reales no
-                # tienen total o fecha_emision guardados, a diferencia de los
-                # datos de prueba usados para validar esta migracion.
-                "monto": f["total"] if f["total"] is not None else Decimal("0.00"),
-                "fecha": _como_datetime(f["fecha_emision"]) or datetime.utcnow(),
-                "descripcion": f"Factura {f['numero_documento']} - Orden {f['numero_orden'] or ''}".strip(),
-                "usuario_nombre": f["usuario_nombre"],
-                "referencia": f["numero_orden"] or "",
-                "cuenta": "caja_chica",
-                "excluir_de_contabilidad": False,
-                "factura_id": f["factura_id"],
-            }
-            for f in facturas
-        ])
+        facturas = []
+
+    insertadas = 0
+    omitidas = 0
+    for f in facturas:
+        try:
+            with conn.begin_nested():
+                conn.execute(sa.text(
+                    "INSERT INTO movimientos_financieros "
+                    "(tipo, categoria, monto, fecha, descripcion, usuario_nombre, "
+                    " referencia, cuenta, excluir_de_contabilidad, factura_id) "
+                    "VALUES ('ingreso', :categoria, :monto, :fecha, :descripcion, "
+                    " :usuario_nombre, :referencia, 'caja_chica', false, :factura_id)"
+                ), {
+                    "categoria": CATEGORIA_VENTA_FACTURADA,
+                    "monto": f["total"] if f["total"] is not None else 0,
+                    "fecha": _como_datetime(f["fecha_emision"]) or datetime.utcnow(),
+                    "descripcion": f"Factura {f['numero_documento']} - Orden {f['numero_orden'] or ''}".strip(),
+                    "usuario_nombre": f["usuario_nombre"],
+                    "referencia": f["numero_orden"] or "",
+                    "factura_id": f["factura_id"],
+                })
+            insertadas += 1
+        except Exception as exc:
+            omitidas += 1
+            print(
+                "[0020_facturas_contabilidad] AVISO: se omitio el ingreso retroactivo "
+                f"de la factura id={f.get('factura_id')} numero={f.get('numero_documento')} "
+                f"({exc!r})."
+            )
+
+    print(
+        f"[0020_facturas_contabilidad] ingresos retroactivos creados: {insertadas}, "
+        f"omitidos por datos incompletos: {omitidas}."
+    )
 
 
 def downgrade() -> None:

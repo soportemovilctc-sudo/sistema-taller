@@ -52,7 +52,11 @@ CATEGORIA_OTRO_INGRESO_CAJA = "Otros ingresos"
 # caja" y "Crédito por Garantía" de la hoja de cálculo original. Son egresos
 # de caja chica (efectivo físico), distintos de los Egresos Mayores del
 # Administrador (que siempre son contra la cuenta bancaria).
-CATEGORIAS_SALIDA_CAJA = ["Salida de caja", "Crédito por garantía", "Compra menor", "Otro gasto de caja"]
+CATEGORIA_DEPOSITO_BANCO = "Depósito bancario (remesa)"
+CATEGORIAS_SALIDA_CAJA = [
+    "Salida de caja", "Crédito por garantía", "Compra menor", "Otro gasto de caja",
+    CATEGORIA_DEPOSITO_BANCO,
+]
 
 ACCESORIOS_DISPONIBLES = [
     "Cobertor", "Vidrio", "Micro SD", "S Pen", "SIM tipo", "SIM Claro",
@@ -499,6 +503,12 @@ class MovimientoFinanciero(Base):
     estado_conciliacion = Column(String(20), nullable=True)  # pendiente | conciliado
     conciliado_por = Column(String(150), nullable=True)
     conciliado_en = Column(DateTime, nullable=True)
+
+    # Vincula las dos filas de un Depósito bancario (remesa): la salida de
+    # Caja Chica y su contraparte, la entrada a Banco. Se usa para que editar
+    # o eliminar una de las dos arrastre a la otra y nunca queden
+    # descuadradas o huérfanas (ver CATEGORIA_DEPOSITO_BANCO).
+    movimiento_vinculado_id = Column(Integer, ForeignKey("movimientos_financieros.id"), nullable=True)
 
 
 class SaldoInicialMensual(Base):

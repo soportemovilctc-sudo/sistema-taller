@@ -36,7 +36,7 @@ from app.database import get_db
 from app.models import (
     MovimientoFinanciero, Configuracion, Producto, MovimientoInventario,
     METODOS_PAGO_CAJA, CATEGORIAS_EGRESO_MAYOR,
-    CATEGORIA_OTRO_INGRESO_CAJA, CATEGORIAS_SALIDA_CAJA,
+    CATEGORIA_OTRO_INGRESO_CAJA, CATEGORIAS_SALIDA_CAJA, CATEGORIA_DEPOSITO_BANCO,
     CuentaContable, AsientoContable, DetalleAsiento,
 )
 from app.utils.calculations import to_decimal
@@ -284,15 +284,35 @@ def caja_salida_crear(
         flash(request, str(e), "error")
         return RedirectResponse("/caja/registrar", status_code=303)
 
+    monto_final = monto_dec.quantize(Decimal("0.01"))
+    fecha_final = fecha_mov or datetime.utcnow()
+
     mov = MovimientoFinanciero(
-        tipo="gasto", categoria=categoria, monto=monto_dec.quantize(Decimal("0.01")),
+        tipo="gasto", categoria=categoria, monto=monto_final,
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
-        referencia="Caja", cuenta=CUENTA_CAJA_CHICA,
-        fecha=fecha_mov or datetime.utcnow(),
+        referencia=REFERENCIA_CAJA, cuenta=CUENTA_CAJA_CHICA,
+        fecha=fecha_final,
     )
     db.add(mov)
     db.flush()
     registrar_asiento_para_movimiento(db, mov)
+
+    if categoria == CATEGORIA_DEPOSITO_BANCO:
+        # Un depósito/remesa no es un gasto: el efectivo no se pierde, se
+        # traslada a Banco. A la salida de Caja Chica de arriba la acompaña
+        # esta entrada a Banco, vinculada con ella (movimiento_vinculado_id)
+        # para que editarla o eliminarla arrastre también a su pareja y
+        # nunca queden descuadradas ni huérfanas la una de la otra.
+        mov_banco = MovimientoFinanciero(
+            tipo="ingreso", categoria=categoria, monto=monto_final,
+            descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
+            referencia="Remesa de Caja Chica", cuenta=CUENTA_BANCO,
+            fecha=fecha_final, movimiento_vinculado_id=mov.id,
+        )
+        db.add(mov_banco)
+        db.flush()
+        mov.movimiento_vinculado_id = mov_banco.id
+
     db.commit()
     flash(request, "Salida de caja registrada correctamente.", "success")
     return RedirectResponse("/caja/registrar", status_code=303)
@@ -382,13 +402,32 @@ def caja_movimiento_editar(
             mov.num_referencia = num_referencia.strip() or None
             mov.estado_conciliacion = "pendiente" if metodo_pago == "Transferencia" else None
         elif categoria and (categoria == CATEGORIA_OTRO_INGRESO_CAJA or categoria in CATEGORIAS_SALIDA_CAJA):
+            if (categoria == CATEGORIA_DEPOSITO_BANCO) != (mov.categoria == CATEGORIA_DEPOSITO_BANCO):
+                flash(request, "Un Depósito bancario (remesa) no se puede cambiar a otra categoría, ni al revés — "
+                               "elimínalo y regístralo de nuevo con la categoría correcta.", "error")
+                return RedirectResponse(f"/caja/movimiento/{mov_id}/editar?volver={volver}", status_code=303)
             mov.categoria = categoria
+
+    # Si este movimiento es la mitad de un Depósito bancario (remesa), la
+    # otra mitad se mantiene en sincronía: mismo monto, fecha y descripción.
+    vinculado = db.get(MovimientoFinanciero, mov.movimiento_vinculado_id) if mov.movimiento_vinculado_id else None
+    if vinculado:
+        vinculado.monto = mov.monto
+        vinculado.descripcion = mov.descripcion
+        vinculado.fecha = mov.fecha
+
+    # El asiento del Libro Diario de un Depósito bancario (remesa) siempre
+    # vive en la fila de Caja Chica del par (ver caja_salida_crear), así que
+    # se regenera esa, sin importar cuál de las dos se haya editado.
+    mov_para_asiento = mov
+    if mov.categoria == CATEGORIA_DEPOSITO_BANCO and mov.cuenta == CUENTA_BANCO and vinculado:
+        mov_para_asiento = vinculado
 
     db.flush()
     # Se regenera el asiento del Libro Diario con los datos ya corregidos
     # (monto/fecha/categoría/cuenta), para que no quede desactualizado.
-    eliminar_asiento_de_movimiento(db, mov.id)
-    registrar_asiento_para_movimiento(db, mov)
+    eliminar_asiento_de_movimiento(db, mov_para_asiento.id)
+    registrar_asiento_para_movimiento(db, mov_para_asiento)
     db.commit()
     flash(request, "Movimiento corregido correctamente.", "success")
     return RedirectResponse(volver, status_code=303)
@@ -429,10 +468,19 @@ def caja_movimiento_eliminar(
                 detalle_extra = f" Se restauraron {salida.cantidad} unidad(es) de {producto.nombre} a inventario."
 
     monto = mov.monto
-    eliminar_asiento_de_movimiento(db, mov.id)
+    # Si es la mitad de un Depósito bancario (remesa), se elimina la pareja
+    # completa: nunca debe quedar la salida de Caja Chica sin su entrada a
+    # Banco, ni al revés (el mismo problema que la OS-000079, ahora
+    # prevenido por diseño).
+    vinculado = db.get(MovimientoFinanciero, mov.movimiento_vinculado_id) if mov.movimiento_vinculado_id else None
+    id_caja_chica = mov.id if mov.cuenta == CUENTA_CAJA_CHICA else (vinculado.id if vinculado else mov.id)
+    eliminar_asiento_de_movimiento(db, id_caja_chica)
+    if vinculado:
+        db.delete(vinculado)
     db.delete(mov)
     db.commit()
-    flash(request, f"Movimiento de {monto} eliminado correctamente.{detalle_extra}", "success")
+    detalle_vinculado = " Se eliminó también su depósito/traslado vinculado." if vinculado else ""
+    flash(request, f"Movimiento de {monto} eliminado correctamente.{detalle_extra}{detalle_vinculado}", "success")
     return RedirectResponse(volver, status_code=303)
 
 

@@ -18,7 +18,6 @@ Lo que todavía NO se contabiliza aquí (depende de funcionalidad que aún no
 existe en el sistema, ver conversación con Ricardo):
   - Apertura de turno / Fondo de Sencillo (no existe un "abrir turno").
   - Sobrante y Faltante de caja (depende del arqueo a ciegas, no existe).
-  - Remesa / Depósito Bancario (no existe un flujo de "barrido de caja").
   - Crédito Fiscal ISV de gastos de caja chica con factura (los gastos de
     caja chica hoy no distinguen si tienen factura/ISV deducible).
 """
@@ -27,7 +26,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.models import CuentaContable, AsientoContable, DetalleAsiento, MovimientoFinanciero
+from app.models import CuentaContable, AsientoContable, DetalleAsiento, MovimientoFinanciero, CATEGORIA_DEPOSITO_BANCO
 from app.utils.numbering import siguiente_numero
 
 CTA_CAJA_CHICA = "1101"
@@ -141,6 +140,18 @@ def registrar_asiento_para_movimiento(
             return registrar_asiento(
                 db, fecha, f"Otro ingreso de caja - {mov.descripcion or ''}".strip(" -"),
                 "otro_ingreso", [(CTA_CAJA_CHICA, mov.monto, 0), (CTA_OTROS_INGRESOS, 0, mov.monto)],
+                referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
+            )
+
+        if mov.categoria == CATEGORIA_DEPOSITO_BANCO:
+            # Remesa: el efectivo no se gasta, se traslada de Caja Chica a
+            # Banco. Esta fila (la salida de Caja Chica) es la que genera el
+            # asiento completo y balanceado; la entrada en Banco que la
+            # acompaña (ver caja_salida_crear) no genera uno propio, para no
+            # duplicar el mismo traslado dos veces en el Libro Diario.
+            return registrar_asiento(
+                db, fecha, f"Depósito bancario (remesa) - {mov.descripcion or ''}".strip(" -"),
+                "deposito_banco", [(CTA_BANCO, mov.monto, 0), (CTA_CAJA_CHICA, 0, mov.monto)],
                 referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
             )
 

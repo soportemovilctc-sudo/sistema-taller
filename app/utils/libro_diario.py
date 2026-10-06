@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     CuentaContable, AsientoContable, DetalleAsiento, MovimientoFinanciero,
-    CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO,
+    CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO, CATEGORIA_VENTA_FACTURADA,
 )
 from app.utils.numbering import siguiente_numero
 
@@ -43,13 +43,22 @@ CTA_OTROS_INGRESOS = "4102"
 CTA_GASTOS_OPERATIVOS = "5101"
 
 # Categorías de MovimientoFinanciero que se tratan como "Cobro a Cliente
-# (Factura pendiente)": el ingreso (la venta) ya se había reconocido antes
-# (al agregar el repuesto/servicio a la orden); esto es solo la entrada de
-# efectivo que lo cancela.
+# (Factura pendiente)". "Abono de orden"/"Cancelación de orden (automático)"
+# ya no se vuelven a generar (ver CATEGORIA_VENTA_FACTURADA en app/models.py)
+# pero se dejan aquí por si algún movimiento viejo necesita re-generar su
+# asiento; "Cobro de caja" sigue siendo un registro de efectivo aparte, no
+# ligado a ninguna orden.
 CATEGORIAS_COBRO_CLIENTE = {"Cobro de caja", "Abono de orden", "Cancelación de orden (automático)"}
 
 # Categorías que representan una venta nueva reconocida al contado.
-CATEGORIAS_VENTA_CONTADO = {"Venta de repuesto (orden)", "Venta de servicio (orden)", "Venta POS"}
+# "Venta de repuesto/servicio (orden)" ya no se vuelven a generar: el único
+# ingreso de una orden ahora es CATEGORIA_VENTA_FACTURADA, al emitir su
+# Factura (se trata igual que una venta al contado: Debe Caja, Haber
+# Ventas + ISV).
+CATEGORIAS_VENTA_CONTADO = {
+    "Venta de repuesto (orden)", "Venta de servicio (orden)", "Venta POS",
+    CATEGORIA_VENTA_FACTURADA,
+}
 
 CATEGORIA_OTRO_INGRESO = "Otros ingresos"
 CATEGORIA_REVERSION_CANCELACION = "Reversión por orden cancelada"
@@ -162,9 +171,13 @@ def registrar_asiento_para_movimiento(
             )
 
         if mov.categoria in CATEGORIAS_SALIDA_CAJA_CHICA:
+            # El gasto puede salir de Caja Chica (efectivo) o de Banco
+            # (transferencia) — se contabiliza contra la cuenta real de
+            # donde salió el dinero (ver "cuenta" en el formulario de
+            # Salida de caja), no siempre Caja Chica.
             return registrar_asiento(
                 db, fecha, f"{mov.categoria} - {mov.descripcion or ''}".strip(" -"),
-                "gasto_caja_chica", [(CTA_GASTOS_OPERATIVOS, mov.monto, 0), (CTA_CAJA_CHICA, 0, mov.monto)],
+                "gasto_caja_chica", [(CTA_GASTOS_OPERATIVOS, mov.monto, 0), (cuenta_caja, 0, mov.monto)],
                 referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
             )
 

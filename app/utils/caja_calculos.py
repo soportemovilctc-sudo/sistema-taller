@@ -88,6 +88,7 @@ def _suma(db: Session, tipo: str, cuenta: str, desde: datetime, hasta: datetime)
         MovimientoFinanciero.cuenta == cuenta,
         MovimientoFinanciero.fecha >= desde,
         MovimientoFinanciero.fecha < hasta,
+        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     ).scalar()
     return to_decimal(total)
 
@@ -135,10 +136,12 @@ def calcular_utilidad_neta(db: Session, fecha_desde: datetime, fecha_hasta: date
     ingresos = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
         MovimientoFinanciero.tipo == "ingreso",
         MovimientoFinanciero.fecha >= fecha_desde, MovimientoFinanciero.fecha <= fecha_hasta,
+        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     ).scalar()
     egresos = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
         MovimientoFinanciero.tipo == "gasto",
         MovimientoFinanciero.fecha >= fecha_desde, MovimientoFinanciero.fecha <= fecha_hasta,
+        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     ).scalar()
     ingresos = to_decimal(ingresos)
     egresos = to_decimal(egresos)
@@ -166,10 +169,12 @@ def calcular_cierre_dia(db: Session, dia: date | None = None) -> dict:
     ingresos_caja_chica = db.query(MovimientoFinanciero).filter(
         MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA, MovimientoFinanciero.tipo == "ingreso",
         MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     ).order_by(MovimientoFinanciero.fecha.asc()).all()
     egresos_caja_chica = db.query(MovimientoFinanciero).filter(
         MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA, MovimientoFinanciero.tipo == "gasto",
         MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     ).order_by(MovimientoFinanciero.fecha.asc()).all()
 
     transferencias = db.query(MovimientoFinanciero).filter(
@@ -231,10 +236,12 @@ def calcular_saldo_caja_chica_a_fecha(db: Session, fecha: date) -> dict:
     ingresos = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
         MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA,
         MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     ).scalar()
     egresos = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
         MovimientoFinanciero.tipo == "gasto", MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA,
         MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     ).scalar()
     ingresos = to_decimal(ingresos)
     egresos = to_decimal(egresos)
@@ -257,7 +264,10 @@ def calcular_resumen_caja_chica(db: Session, desde: datetime, hasta: datetime, b
     pasa `buscar`, filtra por categoría/descripción/referencia/cliente (útil
     para encontrar un movimiento específico, por ejemplo el de una orden ya
     eliminada, y poder corregirlo)."""
-    filtro_base = [MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA, MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta]
+    filtro_base = [
+        MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA, MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
+        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+    ]
     filtros_busqueda = []
     if buscar.strip():
         like = f"%{buscar.strip()}%"

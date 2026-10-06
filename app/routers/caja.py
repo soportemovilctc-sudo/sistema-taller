@@ -151,6 +151,7 @@ def caja_registrar_form(request: Request, db: Session = Depends(get_db), usuario
         "metodos_pago": METODOS_PAGO_CAJA,
         "categorias_salida": CATEGORIAS_SALIDA_CAJA,
         "categoria_otro_ingreso": CATEGORIA_OTRO_INGRESO_CAJA,
+        "categoria_deposito_banco": CATEGORIA_DEPOSITO_BANCO,
         "transacciones_hoy": transacciones_hoy,
         "saldo": _saldo_caja_chica_para_cajera(db),
         "hoy_iso": date.today().isoformat(),
@@ -265,14 +266,27 @@ def caja_ingreso_otro_crear(
 @router.post("/caja/salida")
 def caja_salida_crear(
     request: Request, categoria: str = Form(...), monto: str = Form(...), descripcion: str = Form(""),
-    fecha: str = Form(""),
+    fecha: str = Form(""), cuenta: str = Form(CUENTA_CAJA_CHICA),
     db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     """Salida de Caja / Crédito por Garantía: egresos de efectivo del día a
     día que registra la propia Cajera (no requieren ser Administrador),
-    distintos de los Egresos Mayores (que siempre van contra el banco)."""
+    distintos de los Egresos Mayores (que siempre van contra el banco). El
+    dinero puede haber salido de Caja Chica (efectivo) o directamente de
+    Banco (por ejemplo, una compra pagada con transferencia) — se elige en
+    el formulario, con "cuenta". Depósito bancario es la única excepción:
+    esa fila SIEMPRE sale de Caja Chica hacia Banco (es un traslado, no un
+    gasto), así que se ignora lo que venga en "cuenta" para esa categoría."""
     if categoria not in CATEGORIAS_SALIDA_CAJA:
         flash(request, "Categoría no válida.", "error")
+        return RedirectResponse("/caja/registrar", status_code=303)
+
+    if categoria == CATEGORIA_DEPOSITO_BANCO:
+        cuenta_final = CUENTA_CAJA_CHICA
+    elif cuenta in (CUENTA_CAJA_CHICA, CUENTA_BANCO):
+        cuenta_final = cuenta
+    else:
+        flash(request, "Cuenta no válida.", "error")
         return RedirectResponse("/caja/registrar", status_code=303)
 
     try:
@@ -290,7 +304,7 @@ def caja_salida_crear(
     mov = MovimientoFinanciero(
         tipo="gasto", categoria=categoria, monto=monto_final,
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
-        referencia=REFERENCIA_CAJA, cuenta=CUENTA_CAJA_CHICA,
+        referencia=REFERENCIA_CAJA, cuenta=cuenta_final,
         fecha=fecha_final,
     )
     db.add(mov)
@@ -350,6 +364,7 @@ def caja_movimiento_editar_form(
         "request": request, "usuario": usuario, "mov": mov, "volver": volver,
         "es_simple": es_simple, "es_cobro": es_cobro,
         "categorias_salida": CATEGORIAS_SALIDA_CAJA, "metodos_pago": METODOS_PAGO_CAJA,
+        "categoria_deposito_banco": CATEGORIA_DEPOSITO_BANCO,
     })
 
 
@@ -358,7 +373,7 @@ def caja_movimiento_editar(
     mov_id: int, request: Request,
     monto: str = Form(...), descripcion: str = Form(""), fecha: str = Form(""),
     categoria: str = Form(""), cliente_nombre: str = Form(""), metodo_pago: str = Form(""),
-    num_referencia: str = Form(""), volver: str = Form("/caja/registrar"),
+    num_referencia: str = Form(""), cuenta: str = Form(""), volver: str = Form("/caja/registrar"),
     db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     mov = db.get(MovimientoFinanciero, mov_id)
@@ -407,6 +422,12 @@ def caja_movimiento_editar(
                                "elimínalo y regístralo de nuevo con la categoría correcta.", "error")
                 return RedirectResponse(f"/caja/movimiento/{mov_id}/editar?volver={volver}", status_code=303)
             mov.categoria = categoria
+            # La cuenta de origen (Caja Chica o Banco) se puede corregir en
+            # una Salida de caja, igual que al registrarla — excepto en un
+            # Depósito bancario, que siempre sale de Caja Chica (ver
+            # caja_salida_crear).
+            if categoria in CATEGORIAS_SALIDA_CAJA and categoria != CATEGORIA_DEPOSITO_BANCO and cuenta in (CUENTA_CAJA_CHICA, CUENTA_BANCO):
+                mov.cuenta = cuenta
 
     # Si este movimiento es la mitad de un Depósito bancario, la otra mitad
     # se mantiene en sincronía: mismo monto, fecha y descripción.

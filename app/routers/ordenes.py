@@ -20,7 +20,6 @@ from app.models import (
 )
 from app.utils.numbering import generar_numero_orden, generar_numero_venta
 from app.utils.calculations import calcular_recargo, calcular_total, calcular_saldo, validar_abono, to_decimal, recalcular_orden, aplicar_impuesto
-from app.utils.libro_diario import registrar_asiento_para_movimiento, eliminar_asiento_de_movimiento
 from app.utils.pdf import generar_pdf_orden, construir_contexto_pdf
 from app.utils.pdf_ticket import generar_ticket_orden
 from app.utils.flash import flash
@@ -402,7 +401,7 @@ def ordenes_detalle(orden_id: int, request: Request, db: Session = Depends(get_d
     fecha_desincronizada = es_admin and _fecha_desincronizada(orden, ventas, movimientos, inventario)
     reversion_pendiente = (
         es_admin and orden.estado == "CANCELADO"
-        and (orden.repuestos or orden.servicios_extra)
+        and orden.repuestos
         and not _orden_ya_revertida(db, orden)
     )
 
@@ -448,8 +447,7 @@ def ordenes_sincronizar_fecha(orden_id: int, request: Request, db: Session = Dep
 def ordenes_revertir_cancelacion(orden_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
     """Para órdenes que ya estaban canceladas ANTES de que la reversión
     automática existiera (ver _aplicar_cambio_estado): devuelve a
-    inventario sus repuestos y registra el egreso que cancela el ingreso
-    que habían sumado, igual que si se cancelaran ahora."""
+    inventario los repuestos que se le habían descontado."""
     orden = db.get(OrdenServicio, orden_id)
     if not orden:
         flash(request, "Orden no encontrada.", "error")
@@ -461,9 +459,9 @@ def ordenes_revertir_cancelacion(orden_id: int, request: Request, db: Session = 
     monto_revertido = _revertir_ingresos_orden_cancelada(db, orden, usuario["nombre_completo"])
     db.commit()
     if monto_revertido:
-        flash(request, f"Se revirtieron {monto_revertido} de Caja/Reportes y se devolvieron los repuestos a inventario.", "success")
+        flash(request, f"Se devolvieron a inventario los repuestos de esta orden (valor {monto_revertido}).", "success")
     else:
-        flash(request, "No había nada que revertir: esta orden ya estaba revertida o no tenía repuestos/servicios.", "success")
+        flash(request, "No había nada que revertir: esta orden ya estaba revertida o no tenía repuestos.", "success")
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
@@ -578,25 +576,23 @@ def ordenes_actualizar(
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
 
-CATEGORIA_REVERSION_CANCELACION = "Reversión por orden cancelada"
-
-
 def _orden_ya_revertida(db: Session, orden: OrdenServicio) -> bool:
-    return db.query(MovimientoFinanciero).filter(
-        MovimientoFinanciero.referencia == orden.numero_orden,
-        MovimientoFinanciero.categoria == CATEGORIA_REVERSION_CANCELACION,
+    return db.query(MovimientoInventario).filter(
+        MovimientoInventario.motivo == f"Reversión por cancelación - Orden {orden.numero_orden}",
     ).first() is not None
 
 
 def _revertir_ingresos_orden_cancelada(db: Session, orden: OrdenServicio, usuario_nombre: str) -> Decimal:
-    """Al cancelar una orden, los repuestos vendidos y servicios cobrados
-    para ella dejan de ser un ingreso real: el repuesto vuelve a existencia
-    y se registra un egreso que cancela exactamente ese ingreso, para que
-    Caja/Reportes bajen de inmediato. No toca abonos ya cobrados del
-    cliente ni facturas emitidas — una devolución de dinero real es una
-    decisión del Administrador, caso por caso, no algo automático. No hace
-    commit; es seguro llamarla varias veces (no hace nada si esta orden ya
-    se revirtió antes)."""
+    """Al cancelar una orden, los repuestos que se le habían descontado del
+    inventario se devuelven a existencia (ya no se van a usar). Desde que
+    la contabilidad solo se genera al facturar (ver CATEGORIA_VENTA_
+    FACTURADA), agregar un repuesto/servicio a una orden ya NO genera un
+    ingreso que haya que revertir aquí — esto ahora solo restaura
+    inventario. No toca abonos ya cobrados del cliente ni facturas
+    emitidas — una devolución de dinero real es una decisión del
+    Administrador, caso por caso, no algo automático. No hace commit; es
+    seguro llamarla varias veces (no hace nada si esta orden ya se
+    revirtió antes)."""
     if _orden_ya_revertida(db, orden):
         return Decimal("0.00")
 
@@ -612,28 +608,10 @@ def _revertir_ingresos_orden_cancelada(db: Session, orden: OrdenServicio, usuari
                 existencia_resultante=producto.existencia, usuario_nombre=usuario_nombre,
                 motivo=f"Reversión por cancelación - Orden {orden.numero_orden}", fecha=ahora,
             ))
-        monto = to_decimal(orden_repuesto.subtotal)
-        mov_reversion = MovimientoFinanciero(
-            tipo="gasto", categoria=CATEGORIA_REVERSION_CANCELACION, monto=monto,
-            descripcion=f"Reversión de venta de repuesto - Orden {orden.numero_orden} (cancelada)",
-            usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=ahora,
-        )
-        db.add(mov_reversion)
-        db.flush()
-        registrar_asiento_para_movimiento(db, mov_reversion)
-        total_revertido += monto
+        total_revertido += to_decimal(orden_repuesto.subtotal)
 
     for servicio_extra in orden.servicios_extra:
-        monto = to_decimal(servicio_extra.subtotal)
-        mov_reversion = MovimientoFinanciero(
-            tipo="gasto", categoria=CATEGORIA_REVERSION_CANCELACION, monto=monto,
-            descripcion=f"Reversión de venta de servicio - Orden {orden.numero_orden} (cancelada)",
-            usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=ahora,
-        )
-        db.add(mov_reversion)
-        db.flush()
-        registrar_asiento_para_movimiento(db, mov_reversion)
-        total_revertido += monto
+        total_revertido += to_decimal(servicio_extra.subtotal)
 
     return total_revertido.quantize(Decimal("0.01"))
 
@@ -687,7 +665,9 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
     # pagado el saldo. Si queda saldo pendiente en ese momento, se
     # registra automáticamente un abono por ese monto (en vez de
     # obligar a un paso aparte de "Registrar abono" antes de poder
-    # cerrar la orden).
+    # cerrar la orden). Este pago YA NO genera un ingreso contable aquí
+    # (ver CATEGORIA_VENTA_FACTURADA) — el único ingreso de la orden se
+    # genera al emitir su Factura, no al cobrarla ni al entregarla.
     monto_pago_automatico = None
     if nuevo_estado == "ENTREGADO" and orden.saldo and orden.saldo > 0:
         monto_pago_automatico = orden.saldo
@@ -696,22 +676,14 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
             usuario_nombre=usuario_nombre,
             observacion="Pago automático al marcar la orden como ENTREGADO",
         ))
-        # Se registra también como ingreso en Reportes (antes solo quedaba
-        # en el historial de pagos de la orden, invisible ahí).
-        mov_pago_auto = MovimientoFinanciero(
-            tipo="ingreso", categoria="Cancelación de orden (automático)", monto=monto_pago_automatico,
-            descripcion=f"Pago automático al entregar - Orden {orden.numero_orden}",
-            usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
-        )
-        db.add(mov_pago_auto)
         db.flush()
-        registrar_asiento_para_movimiento(db, mov_pago_auto)
         db.refresh(orden)
         recalcular_orden(orden)
 
-    # Al cancelar una orden, lo que se le había sumado a Caja/Reportes por
-    # sus repuestos y servicios ya no es un ingreso real: se revierte
-    # automáticamente (ver _revertir_ingresos_orden_cancelada).
+    # Al cancelar una orden, se devuelven a inventario los repuestos que se
+    # le habían descontado (ver _revertir_ingresos_orden_cancelada). Ya no
+    # hay un ingreso contable que revertir: agregar un repuesto/servicio a
+    # una orden no genera ingreso desde que este solo se genera al facturar.
     monto_revertido = Decimal("0.00")
     if nuevo_estado == "CANCELADO" and estado_anterior != "CANCELADO":
         monto_revertido = _revertir_ingresos_orden_cancelada(db, orden, usuario_nombre)
@@ -722,22 +694,16 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
 
 def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, observacion: str, usuario_nombre: str) -> Decimal:
     """Registra un abono sobre una orden (valida el monto contra el saldo
-    actual, puede lanzar ValueError/InvalidOperation). No hace commit.
-    Devuelve el monto ya validado."""
+    actual, puede lanzar ValueError/InvalidOperation). Ya NO genera un
+    ingreso contable aquí (ver CATEGORIA_VENTA_FACTURADA) — el abono queda
+    en el historial de pagos de la orden, pero el único ingreso de la
+    orden se genera al emitir su Factura. No hace commit. Devuelve el
+    monto ya validado."""
     monto_validado = validar_abono(monto, orden.saldo)
     pago = Pago(orden_id=orden.id, monto=monto_validado, forma_pago=forma_pago,
                 usuario_nombre=usuario_nombre, observacion=observacion)
     db.add(pago)
-    # Se registra también como ingreso en Reportes (antes solo quedaba en
-    # el historial de pagos de la orden, invisible ahí).
-    mov_abono = MovimientoFinanciero(
-        tipo="ingreso", categoria="Abono de orden", monto=monto_validado,
-        descripcion=f"Abono - Orden {orden.numero_orden}" + (f" ({observacion})" if observacion else ""),
-        usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
-    )
-    db.add(mov_abono)
     db.flush()
-    registrar_asiento_para_movimiento(db, mov_abono)
     db.refresh(orden)
     recalcular_orden(orden)
     return monto_validado
@@ -785,19 +751,22 @@ def ordenes_registrar_abono(
 
 def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Producto, cantidad: int, usuario_nombre: str, precio_override: Optional[Decimal] = None, fecha: Optional[datetime] = None) -> OrdenRepuesto:
     """Descuenta `cantidad` unidades de `producto` y las agrega a `orden`:
-    crea la Venta/DetalleVenta (igual que en POS, enlazada a la orden),
-    el MovimientoInventario de salida, el MovimientoFinanciero de ingreso
-    y el registro OrdenRepuesto. No valida existencia disponible (el
-    llamador debe validarla antes) ni hace commit ni recalcula la orden.
-    Si se pasa `precio_override`, se usa ese precio unitario en vez del
-    precio de venta del producto (para permitir ajustar el precio al
-    agregar el repuesto a la orden). Si no se pasa, el precio por defecto
-    es el precio de venta del producto CON el impuesto (ISV) incluido,
-    porque el total de la orden/factura se trata como un monto que ya
-    incluye impuesto (ver facturación). Si se pasa `fecha`, la Venta, el
-    movimiento de inventario y el ingreso financiero quedan con esa fecha
-    en vez de "ahora" — para que un repuesto agregado al crear una orden
-    con fecha pasada no se mezcle con las ventas de hoy en Caja/Reportes."""
+    crea la Venta/DetalleVenta (igual que en POS, enlazada a la orden, para
+    Inventario/Utilidades), el MovimientoInventario de salida y el registro
+    OrdenRepuesto. Ya NO genera un ingreso contable aquí (ver CATEGORIA_
+    VENTA_FACTURADA) — agregar un repuesto a una orden no es todavía una
+    venta cobrada; el único ingreso de la orden se genera al emitir su
+    Factura. No valida existencia disponible (el llamador debe validarla
+    antes) ni hace commit ni recalcula la orden. Si se pasa
+    `precio_override`, se usa ese precio unitario en vez del precio de
+    venta del producto (para permitir ajustar el precio al agregar el
+    repuesto a la orden). Si no se pasa, el precio por defecto es el
+    precio de venta del producto CON el impuesto (ISV) incluido, porque el
+    total de la orden/factura se trata como un monto que ya incluye
+    impuesto (ver facturación). Si se pasa `fecha`, la Venta y el
+    movimiento de inventario quedan con esa fecha en vez de "ahora" — para
+    que un repuesto agregado al crear una orden con fecha pasada no se
+    mezcle con las ventas de hoy en Reportes."""
     precio = precio_override if precio_override is not None else aplicar_impuesto(producto.precio_venta, _isv_tasa(db))
     subtotal = (precio * cantidad).quantize(Decimal("0.01"))
     fecha_mov = fecha or datetime.utcnow()
@@ -821,20 +790,6 @@ def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Produ
         motivo=f"Orden {orden.numero_orden}", fecha=fecha_mov,
     ))
 
-    mov = MovimientoFinanciero(
-        tipo="ingreso", categoria="Venta de repuesto (orden)", monto=subtotal,
-        descripcion=f"{producto.nombre} x{cantidad} - Orden {orden.numero_orden}",
-        usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=fecha_mov,
-    )
-    db.add(mov)
-    db.flush()
-    # El precio del repuesto ya incluye ISV (ver docstring arriba); se
-    # desglosa aquí para el Libro Diario (Ventas + Débito Fiscal ISV).
-    tasa_isv = _isv_tasa(db)
-    monto_neto = (subtotal / (1 + tasa_isv / Decimal("100"))).quantize(Decimal("0.01")) if tasa_isv else subtotal
-    isv_monto = (subtotal - monto_neto).quantize(Decimal("0.01"))
-    registrar_asiento_para_movimiento(db, mov, monto_neto=monto_neto, isv_monto=isv_monto)
-
     orden_repuesto = OrdenRepuesto(
         orden_id=orden.id, producto_id=producto.id, venta_id=venta.id,
         cantidad=cantidad, precio_unitario=precio, subtotal=subtotal,
@@ -846,28 +801,21 @@ def _agregar_repuesto_a_orden(db: Session, orden: OrdenServicio, producto: Produ
 
 def _agregar_servicio_a_orden(db: Session, orden: OrdenServicio, servicio: Servicio, cantidad: int, usuario_nombre: str, precio_override: Optional[Decimal] = None, fecha: Optional[datetime] = None) -> OrdenServicioExtra:
     """Agrega un servicio del catálogo (ver app/routers/servicios.py) a la
-    orden: registra el ingreso en Reportes/Contabilidad y guarda una copia
-    del precio y costo del servicio al momento de agregarlo (igual que con
-    los repuestos), para que un cambio posterior en el catálogo no altere
-    órdenes o facturas ya emitidas. No hace commit ni recalcula la orden;
-    quien llama decide cuándo hacerlo. Si se pasa `precio_override`, se usa
-    ese precio en vez del precio de venta del catálogo. A diferencia de los
-    repuestos, el precio del servicio NO lleva el ajuste de impuesto (se
-    trata igual que la cotización: un monto final que ya cobra el taller).
-    Si se pasa `fecha`, el ingreso financiero queda con esa fecha en vez de
-    "ahora" (ver _agregar_repuesto_a_orden)."""
+    orden y guarda una copia del precio y costo del servicio al momento de
+    agregarlo (igual que con los repuestos), para que un cambio posterior
+    en el catálogo no altere órdenes o facturas ya emitidas. Ya NO genera
+    un ingreso contable aquí (ver CATEGORIA_VENTA_FACTURADA) — el único
+    ingreso de la orden se genera al emitir su Factura. No hace commit ni
+    recalcula la orden; quien llama decide cuándo hacerlo. Si se pasa
+    `precio_override`, se usa ese precio en vez del precio de venta del
+    catálogo. A diferencia de los repuestos, el precio del servicio NO
+    lleva el ajuste de impuesto (se trata igual que la cotización: un
+    monto final que ya cobra el taller). `fecha` ya no se usa aquí (antes
+    era solo para el ingreso financiero que se quitó); se deja en la firma
+    para no tener que tocar quién la llama."""
     precio = precio_override if precio_override is not None else to_decimal(servicio.precio_venta)
     subtotal = (precio * cantidad).quantize(Decimal("0.01"))
     costo_unitario = to_decimal(servicio.costo) if servicio.costo is not None else None
-
-    mov = MovimientoFinanciero(
-        tipo="ingreso", categoria="Venta de servicio (orden)", monto=subtotal,
-        descripcion=f"{servicio.nombre} x{cantidad} - Orden {orden.numero_orden}",
-        usuario_nombre=usuario_nombre, referencia=orden.numero_orden, fecha=fecha or datetime.utcnow(),
-    )
-    db.add(mov)
-    db.flush()
-    registrar_asiento_para_movimiento(db, mov)  # sin ISV (ver docstring arriba)
 
     orden_servicio_extra = OrdenServicioExtra(
         orden_id=orden.id, servicio_id=servicio.id, cantidad=cantidad,
@@ -933,12 +881,14 @@ def ordenes_quitar_repuesto(
     agregó por error o con la cantidad equivocada): repone la existencia
     en el inventario dejando su propio movimiento de entrada (para que
     quede registrado el porqué, sin borrar el movimiento de salida
-    original), revierte el ingreso contable con un movimiento de gasto de
-    corrección, y elimina la venta/detalle asociados (esa venta se creó
+    original), y elimina la venta/detalle asociados (esa venta se creó
     únicamente para representar este repuesto dentro de la orden; no es
-    una venta independiente del POS). No se permite si la orden ya tiene
-    una factura vigente (fiscal o interna, no anulada): su total ya quedó
-    impreso y no se actualiza solo."""
+    una venta independiente del POS). Ya no genera un movimiento de gasto
+    de corrección aquí: desde que agregar un repuesto no genera un ingreso
+    (ver CATEGORIA_VENTA_FACTURADA), no hay nada contable que revertir al
+    quitarlo. No se permite si la orden ya tiene una factura vigente
+    (fiscal o interna, no anulada): su total ya quedó impreso y no se
+    actualiza solo."""
     orden = db.get(OrdenServicio, orden_id)
     if not orden:
         flash(request, "Orden no encontrada.", "error")
@@ -955,7 +905,6 @@ def ordenes_quitar_repuesto(
 
     producto = orden_repuesto.producto
     cantidad = orden_repuesto.cantidad
-    subtotal = orden_repuesto.subtotal
     nombre_producto = producto.nombre if producto else "(producto ya no existe)"
 
     if producto:
@@ -965,12 +914,6 @@ def ordenes_quitar_repuesto(
             existencia_resultante=producto.existencia, usuario_nombre=usuario["nombre_completo"],
             motivo=f"Se quitó de la Orden {orden.numero_orden} (repuesto agregado por error)",
         ))
-
-    db.add(MovimientoFinanciero(
-        tipo="gasto", categoria="Corrección de repuesto (orden)", monto=subtotal,
-        descripcion=f"Se quitó {nombre_producto} x{cantidad} de la Orden {orden.numero_orden}",
-        usuario_nombre=usuario["nombre_completo"], referencia=orden.numero_orden,
-    ))
 
     venta = orden_repuesto.venta
     db.delete(orden_repuesto)
@@ -1055,10 +998,12 @@ def ordenes_quitar_servicio(
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     """Deshace el agregado de un servicio a la orden (por ejemplo si se
-    agregó por error): revierte el ingreso contable con un movimiento de
-    gasto de corrección, igual que al quitar un repuesto. No se permite si
-    la orden ya tiene una factura vigente (fiscal o interna, no anulada):
-    su total ya quedó impreso y no se actualiza solo."""
+    agregó por error). Ya no genera un movimiento de gasto de corrección
+    aquí (ver _agregar_servicio_a_orden / ordenes_quitar_repuesto): agregar
+    un servicio no genera un ingreso, así que no hay nada contable que
+    revertir al quitarlo. No se permite si la orden ya tiene una factura
+    vigente (fiscal o interna, no anulada): su total ya quedó impreso y no
+    se actualiza solo."""
     orden = db.get(OrdenServicio, orden_id)
     if not orden:
         flash(request, "Orden no encontrada.", "error")
@@ -1074,14 +1019,6 @@ def ordenes_quitar_servicio(
         return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
     nombre_servicio = item.servicio.nombre if item.servicio else "(servicio ya no existe)"
-    cantidad = item.cantidad
-    subtotal = item.subtotal
-
-    db.add(MovimientoFinanciero(
-        tipo="gasto", categoria="Corrección de servicio (orden)", monto=subtotal,
-        descripcion=f"Se quitó {nombre_servicio} x{cantidad} de la Orden {orden.numero_orden}",
-        usuario_nombre=usuario["nombre_completo"], referencia=orden.numero_orden,
-    ))
 
     db.delete(item)
     db.flush()

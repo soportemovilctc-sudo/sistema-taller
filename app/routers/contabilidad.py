@@ -45,7 +45,8 @@ def contabilidad_index(
 ):
     ini, fin = _rango_fechas(periodo, desde, hasta)
     query = db.query(MovimientoFinanciero).filter(
-        MovimientoFinanciero.fecha.between(ini, fin)
+        MovimientoFinanciero.fecha.between(ini, fin),
+        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     )
     # La Cajera nunca debe ver movimientos de banco (transferencias/tarjeta
     # conciliadas como banco, egresos mayores) — solo Caja Chica. El Admin

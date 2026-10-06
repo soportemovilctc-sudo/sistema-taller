@@ -61,11 +61,18 @@
 
   <div class="card">
     <div class="card-title">Salida de caja</div>
-    <p class="help" style="margin-bottom:10px;">Efectivo que sale de la caja chica: una salida de caja, un crédito por garantía a un cliente, una compra menor, una nómina pagada en efectivo, etc. Si es un <b>Depósito bancario</b> — dinero que llevas al banco — también se registra solo como entrada a Banco, no como gasto.</p>
-    <form method="post" action="/caja/salida">
+    <p class="help" style="margin-bottom:10px;">Dinero que sale: una salida de caja, un crédito por garantía a un cliente, una compra menor, una nómina pagada en efectivo, etc. — puede salir de la Caja Chica (efectivo) o directamente del Banco (por ejemplo, pagado con transferencia). Si es un <b>Depósito bancario</b> — dinero que llevas al banco — siempre sale de Caja Chica y se registra también como entrada a Banco, no como gasto.</p>
+    <form method="post" action="/caja/salida" id="formSalida">
       <div class="field">
         <label>Categoría *</label>
-        <select name="categoria">{% for c in categorias_salida %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+        <select name="categoria" id="categoriaSalida">{% for c in categorias_salida %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+      </div>
+      <div class="field" id="campoCuentaSalida">
+        <label>¿De dónde salió? *</label>
+        <select name="cuenta">
+          <option value="caja_chica">Caja Chica (efectivo)</option>
+          <option value="banco">Banco (transferencia/débito)</option>
+        </select>
       </div>
       <div class="field"><label>Monto *</label><input type="number" step="0.01" min="0.01" name="monto" required></div>
       <div class="field"><label>Descripción</label><input type="text" name="descripcion" placeholder="Opcional"></div>
@@ -119,4 +126,17 @@
     </table>
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    var categoriaSalida = document.getElementById('categoriaSalida');
+    var campoCuenta = document.getElementById('campoCuentaSalida');
+    if (!categoriaSalida || !campoCuenta) return;
+    var categoriaDeposito = {{ categoria_deposito_banco|tojson }};
+    categoriaSalida.addEventListener('change', function (e) {
+      campoCuenta.style.display = e.target.value === categoriaDeposito ? 'none' : 'block';
+    });
+  })();
+</script>
 {% endblock %}

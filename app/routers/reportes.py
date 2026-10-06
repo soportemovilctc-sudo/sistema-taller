@@ -241,14 +241,18 @@ def reportes_index(
     if tipo == "ordenes" or tipo == "reparaciones":
         contexto["ordenes"] = _filtrar_ordenes(db, fecha_desde, fecha_hasta, tecnico_id, estado)
     elif tipo == "ingresos":
-        q = db.query(MovimientoFinanciero).filter(MovimientoFinanciero.tipo == "ingreso")
+        q = db.query(MovimientoFinanciero).filter(
+            MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+        )
         if fecha_desde:
             q = q.filter(MovimientoFinanciero.fecha >= fecha_desde)
         if fecha_hasta:
             q = q.filter(MovimientoFinanciero.fecha <= fecha_hasta)
         contexto["movimientos"] = q.order_by(MovimientoFinanciero.fecha.desc()).all()
     elif tipo == "gastos":
-        q = db.query(MovimientoFinanciero).filter(MovimientoFinanciero.tipo == "gasto")
+        q = db.query(MovimientoFinanciero).filter(
+            MovimientoFinanciero.tipo == "gasto", MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+        )
         if fecha_desde:
             q = q.filter(MovimientoFinanciero.fecha >= fecha_desde)
         if fecha_hasta:
@@ -401,7 +405,10 @@ def _datos_reporte(tipo, fecha_desde, fecha_hasta, tecnico_id, estado, db):
                 "reporte_ordenes", "Ordenes", [8, 9, 10])
 
     if tipo in ("ingresos", "gastos"):
-        q = db.query(MovimientoFinanciero).filter(MovimientoFinanciero.tipo == ("ingreso" if tipo == "ingresos" else "gasto"))
+        q = db.query(MovimientoFinanciero).filter(
+            MovimientoFinanciero.tipo == ("ingreso" if tipo == "ingresos" else "gasto"),
+            MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+        )
         if fecha_desde:
             q = q.filter(MovimientoFinanciero.fecha >= fecha_desde)
         if fecha_hasta:

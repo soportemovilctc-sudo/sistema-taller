@@ -11,17 +11,22 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio, Tecnico, Producto, Servicio
+from app.models import (
+    Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio, Tecnico, Producto, Servicio,
+    MovimientoFinanciero, CATEGORIA_VENTA_FACTURADA,
+)
 from app.deps import login_required, roles_required
 from app.utils.flash import flash
 from app.utils.calculations import to_decimal, aplicar_impuesto, recalcular_orden
 from app.utils.numbering import generar_numero_factura, extraer_correlativo_de_rango
 from app.utils.pdf import generar_pdf_factura, construir_contexto_pdf_factura
 from app.utils.pdf_ticket import generar_ticket_factura
+from app.utils.libro_diario import registrar_asiento_para_movimiento, eliminar_asiento_de_movimiento
 # Se reutilizan las mismas funciones que ya usan "Repuestos utilizados" y
 # "Servicios agregados" al editar una orden, para no duplicar la lógica de
-# descontar inventario, registrar la venta/el ingreso y el movimiento
-# financiero (ver ordenes.py).
+# descontar inventario y registrar la venta (ver ordenes.py). Ya no generan
+# el ingreso financiero: ese se genera aquí mismo, una sola vez, al emitir
+# la factura (ver CATEGORIA_VENTA_FACTURADA).
 from app.routers.ordenes import _agregar_repuesto_a_orden, _agregar_servicio_a_orden, _servicios_disponibles
 
 router = APIRouter()
@@ -353,6 +358,23 @@ def factura_crear(
         usuario_nombre=usuario["nombre_completo"],
     )
     db.add(factura)
+    db.flush()
+    db.refresh(factura)
+
+    # Único momento en que una orden genera un ingreso contable: antes se
+    # generaba (y se contaba dos veces) al agregar el repuesto/servicio y
+    # otra vez al cobrarlo; ahora solo se genera aquí, al emitir la
+    # factura (ver CATEGORIA_VENTA_FACTURADA).
+    mov = MovimientoFinanciero(
+        tipo="ingreso", categoria=CATEGORIA_VENTA_FACTURADA, monto=factura.total,
+        descripcion=f"Factura {factura.numero_documento} - Orden {orden.numero_orden}",
+        usuario_nombre=usuario["nombre_completo"], referencia=orden.numero_orden,
+        fecha=factura.fecha_emision, factura_id=factura.id,
+    )
+    db.add(mov)
+    db.flush()
+    registrar_asiento_para_movimiento(db, mov, monto_neto=(total - isv_monto), isv_monto=isv_monto)
+
     db.commit()
     db.refresh(factura)
     flash(request, f"Factura {factura.numero_documento} generada correctamente.", "success")
@@ -398,6 +420,15 @@ def facturas_anular(
         return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
     factura.anulada = True
     factura.motivo_anulacion = motivo
+
+    # El ingreso contable que generó esta factura (ver CATEGORIA_VENTA_
+    # FACTURADA) ya no debe contar: se excluye (nunca se borra) igual que
+    # cualquier otro movimiento que deja de ser válido.
+    mov = db.query(MovimientoFinanciero).filter(MovimientoFinanciero.factura_id == factura.id).first()
+    if mov:
+        mov.excluir_de_contabilidad = True
+        eliminar_asiento_de_movimiento(db, mov.id)
+
     db.commit()
     flash(request, f"Factura {factura.numero_documento} anulada. El número de documento no se reutilizará.", "success")
     return RedirectResponse(f"/facturas/{factura_id}", status_code=303)

@@ -36,7 +36,8 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
 
     def suma_movimientos(tipo, desde):
         return db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
-            MovimientoFinanciero.tipo == tipo, MovimientoFinanciero.fecha >= desde
+            MovimientoFinanciero.tipo == tipo, MovimientoFinanciero.fecha >= desde,
+            MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
         ).scalar() or 0
 
     inicio_hoy = datetime.combine(hoy, datetime.min.time())
@@ -76,7 +77,8 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
         ini = datetime.combine(d, datetime.min.time())
         fin = datetime.combine(d, datetime.max.time())
         total = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
-            MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.fecha.between(ini, fin)
+            MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.fecha.between(ini, fin),
+            MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
         ).scalar() or 0
         serie_ingresos.append({"dia": d.strftime("%d/%m"), "total": float(total)})
 

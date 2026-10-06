@@ -44,7 +44,7 @@
     {% elif es_simple %}
     <div class="field">
       <label>Categoría</label>
-      <select name="categoria">
+      <select name="categoria" id="categoriaSalida">
         {% if mov.tipo == 'ingreso' %}
         <option value="{{ mov.categoria }}" selected>{{ mov.categoria }}</option>
         {% else %}
@@ -52,6 +52,21 @@
         {% endif %}
       </select>
     </div>
+    {% if mov.tipo == 'gasto' %}
+    <div class="field" id="campoCuentaSalida" style="{{ 'display:none;' if mov.categoria == categoria_deposito_banco else 'display:block;' }}">
+      <label>¿De dónde salió?</label>
+      <select name="cuenta">
+        <option value="caja_chica" {{ 'selected' if mov.cuenta == 'caja_chica' else '' }}>Caja Chica (efectivo)</option>
+        <option value="banco" {{ 'selected' if mov.cuenta == 'banco' else '' }}>Banco (transferencia/débito)</option>
+      </select>
+    </div>
+    <script>
+      document.getElementById('categoriaSalida').addEventListener('change', function (e) {
+        var campo = document.getElementById('campoCuentaSalida');
+        if (campo) campo.style.display = e.target.value === {{ categoria_deposito_banco|tojson }} ? 'none' : 'block';
+      });
+    </script>
+    {% endif %}
     {% endif %}
 
     <button type="submit" class="btn btn-primary">Guardar corrección</button>

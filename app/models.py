@@ -59,6 +59,23 @@ CATEGORIAS_SALIDA_CAJA = [
     CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO,
 ]
 
+# Ingreso contable de una Orden: ANTES se generaba dos veces (al agregar el
+# repuesto/servicio a la orden, y otra vez al cobrarlo con un abono o al
+# entregar el equipo), lo que duplicaba Ingresos/Caja/Utilidad Neta. Ahora
+# el ÚNICO momento que genera este ingreso es cuando se emite una Factura
+# (interna o fiscal) para la orden (ver app/routers/facturacion.py). Las
+# categorías viejas (CATEGORIAS_ORDEN_EXCLUIDAS_CONTABILIDAD) ya no se
+# vuelven a generar, pero sus filas existentes NUNCA se borran — solo se
+# marcan excluir_de_contabilidad=True (ver migración 0020) para que dejen
+# de sumar en Ingresos/Caja/Utilidad Neta/Contabilidad.
+CATEGORIA_VENTA_FACTURADA = "Venta facturada (orden)"
+CATEGORIAS_ORDEN_EXCLUIDAS_CONTABILIDAD = [
+    "Venta de repuesto (orden)", "Venta de servicio (orden)",
+    "Abono de orden", "Cancelación de orden (automático)",
+    "Reversión por orden cancelada",
+    "Corrección de repuesto (orden)", "Corrección de servicio (orden)",
+]
+
 ACCESORIOS_DISPONIBLES = [
     "Cobertor", "Vidrio", "Micro SD", "S Pen", "SIM tipo", "SIM Claro",
 ]
@@ -511,6 +528,16 @@ class MovimientoFinanciero(Base):
     # o eliminar una de las dos arrastre a la otra y nunca queden
     # descuadradas o huérfanas (ver CATEGORIA_DEPOSITO_BANCO).
     movimiento_vinculado_id = Column(Integer, ForeignKey("movimientos_financieros.id"), nullable=True)
+
+    # Si esta fila ya NO debe sumar en Ingresos/Caja/Utilidad Neta/
+    # Contabilidad, pero se conserva en la base de datos sin borrarse (ver
+    # CATEGORIAS_ORDEN_EXCLUIDAS_CONTABILIDAD). Se usa en vez de eliminar
+    # filas para no perder nunca el historial real de lo que pasó.
+    excluir_de_contabilidad = Column(Boolean, nullable=False, default=False)
+
+    # Si este ingreso viene de una Factura (ver CATEGORIA_VENTA_FACTURADA):
+    # permite, por ejemplo, excluirlo también si esa factura se anula.
+    factura_id = Column(Integer, ForeignKey("facturas.id"), nullable=True)
 
 
 class SaldoInicialMensual(Base):

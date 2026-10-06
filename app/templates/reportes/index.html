@@ -66,7 +66,7 @@
         <div class="field"><label>Monto *</label><input type="number" name="monto" min="0.01" step="0.01" required></div>
         {% if tipo == 'gastos' %}
         <div class="field">
-          <label>¿Cómo salió? *</label>
+          <label>Forma de pago *</label>
           <select name="metodo_pago">{% for fp in formas_pago %}<option value="{{ fp }}">{{ fp }}</option>{% endfor %}</select>
         </div>
         {% endif %}
@@ -80,12 +80,27 @@
     </details>
     <div class="table-wrap"><table>
       <thead><tr><th>Fecha</th><th>Categoría</th><th>Monto</th><th>Descripción</th>
-        <th>{{ 'Referencia' if tipo == 'ingresos' else '¿Cómo salió?' }}</th>
+        <th>{{ 'Referencia' if tipo == 'ingresos' else 'Forma de pago' }}</th>
       </tr></thead>
       <tbody>
         {% for m in movimientos %}
         <tr><td>{{ m.fecha|fecha('%d/%m/%Y %H:%M') }}</td><td>{{ m.categoria }}</td><td>{{ m.monto|moneda(config_taller().moneda) }}</td><td>{{ m.descripcion or '-' }}</td>
-          <td>{{ (m.referencia or '-') if tipo == 'ingresos' else (m.metodo_pago or '-') }}</td>
+          {% if tipo == 'ingresos' %}
+          <td>{{ m.referencia or '-' }}</td>
+          {% else %}
+          <td>
+            <form method="post" action="/reportes/movimiento/{{ m.id }}/forma-pago" style="display:inline;">
+              <input type="hidden" name="desde" value="{{ desde }}">
+              <input type="hidden" name="hasta" value="{{ hasta }}">
+              <select name="metodo_pago" onchange="this.form.submit()" title="Elegir forma de pago">
+                <option value="" {{ 'selected' if not m.metodo_pago else '' }}>Sin especificar</option>
+                {% for fp in formas_pago %}
+                <option value="{{ fp }}" {{ 'selected' if m.metodo_pago == fp else '' }}>{{ fp }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </td>
+          {% endif %}
         </tr>
         {% else %}<tr><td colspan="5" class="empty-state">Sin resultados.</td></tr>{% endfor %}
       </tbody>

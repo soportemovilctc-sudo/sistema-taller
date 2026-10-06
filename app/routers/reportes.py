@@ -541,8 +541,10 @@ def reportes_registrar_movimiento(
         flash(request, "El monto debe ser mayor a cero.", "error")
         return RedirectResponse(f"/reportes?tipo={'ingresos' if tipo == 'ingreso' else 'gastos'}", status_code=303)
 
-    # "¿Cómo salió?" solo aplica a un Egreso (de dónde salió el dinero:
-    # efectivo, transferencia, tarjeta...); en un Ingreso se deja vacío.
+    # La "Forma de pago" solo aplica a un Egreso (de dónde salió el
+    # dinero: efectivo, transferencia, tarjeta...); en un Ingreso se deja
+    # vacío. Si se registra sin elegirla, queda pendiente y se puede
+    # completar después desde la tabla (ver reportes_actualizar_forma_pago).
     metodo_pago_limpio = metodo_pago.strip() if tipo == "gasto" and metodo_pago.strip() in FORMAS_PAGO else None
 
     db.add(MovimientoFinanciero(
@@ -553,3 +555,27 @@ def reportes_registrar_movimiento(
     db.commit()
     flash(request, ("Ingreso" if tipo == "ingreso" else "Egreso") + " registrado correctamente.", "success")
     return RedirectResponse(f"/reportes?tipo={'ingresos' if tipo == 'ingreso' else 'gastos'}", status_code=303)
+
+
+@router.post("/reportes/movimiento/{movimiento_id}/forma-pago")
+def reportes_actualizar_forma_pago(
+    movimiento_id: int, request: Request, metodo_pago: str = Form(""),
+    desde: str = Form(""), hasta: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(login_required),
+):
+    """Elección rápida desde la misma tabla de Egresos: para cuando se
+    registró un egreso sin la forma de pago (por ejemplo la Cajera no lo
+    supo en el momento), cualquiera que use el sistema lo puede completar
+    o corregir después sin tener que editar el movimiento completo. No
+    afecta el monto ni la contabilidad, solo este dato informativo."""
+    mov = db.get(MovimientoFinanciero, movimiento_id)
+    destino = f"/reportes?tipo=gastos&desde={desde}&hasta={hasta}"
+    if not mov or mov.tipo != "gasto":
+        flash(request, "Egreso no encontrado.", "error")
+        return RedirectResponse(destino, status_code=303)
+
+    valor = metodo_pago.strip()
+    mov.metodo_pago = valor if valor in FORMAS_PAGO else None
+    db.commit()
+    flash(request, "Forma de pago actualizada.", "success")
+    return RedirectResponse(destino, status_code=303)

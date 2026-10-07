@@ -25,6 +25,7 @@ from app.models import (
 )
 from app.utils.calculations import to_decimal
 from app.utils.flash import flash
+from app.utils.caja_calculos import CUENTA_CAJA_CHICA, CUENTA_BANCO
 from app.deps import login_required
 
 router = APIRouter()
@@ -547,10 +548,14 @@ def reportes_registrar_movimiento(
     # completar después desde la tabla (ver reportes_actualizar_forma_pago).
     metodo_pago_limpio = metodo_pago.strip() if tipo == "gasto" and metodo_pago.strip() in FORMAS_PAGO else None
 
+    # Efectivo (o sin elegir todavía) -> Caja Chica; Transferencia/Tarjeta/
+    # Otro -> Banco, porque ese dinero nunca pasó físicamente por la caja.
+    cuenta_mov = CUENTA_BANCO if metodo_pago_limpio in ("Transferencia", "Tarjeta", "Otro") else CUENTA_CAJA_CHICA
+
     db.add(MovimientoFinanciero(
         tipo=tipo, categoria=categoria_limpia, monto=monto_decimal.quantize(Decimal("0.01")),
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
-        referencia="Manual", metodo_pago=metodo_pago_limpio,
+        referencia="Manual", metodo_pago=metodo_pago_limpio, cuenta=cuenta_mov,
     ))
     db.commit()
     flash(request, ("Ingreso" if tipo == "ingreso" else "Egreso") + " registrado correctamente.", "success")
@@ -567,7 +572,9 @@ def reportes_actualizar_forma_pago(
     registró un egreso sin la forma de pago (por ejemplo la Cajera no lo
     supo en el momento), cualquiera que use el sistema lo puede completar
     o corregir después sin tener que editar el movimiento completo. No
-    afecta el monto ni la contabilidad, solo este dato informativo."""
+    afecta el monto, pero SÍ reclasifica la cuenta (Caja Chica/Banco) para
+    que coincida con la forma de pago elegida -- ver la misma regla en
+    reportes_registrar_movimiento."""
     mov = db.get(MovimientoFinanciero, movimiento_id)
     destino = f"/reportes?tipo=gastos&desde={desde}&hasta={hasta}"
     if not mov or mov.tipo != "gasto":
@@ -576,6 +583,7 @@ def reportes_actualizar_forma_pago(
 
     valor = metodo_pago.strip()
     mov.metodo_pago = valor if valor in FORMAS_PAGO else None
+    mov.cuenta = CUENTA_BANCO if mov.metodo_pago in ("Transferencia", "Tarjeta", "Otro") else CUENTA_CAJA_CHICA
     db.commit()
     flash(request, "Forma de pago actualizada.", "success")
     return RedirectResponse(destino, status_code=303)

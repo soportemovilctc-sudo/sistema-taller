@@ -182,7 +182,10 @@ def calcular_cierre_dia(db: Session, dia: date | None = None) -> dict:
         MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
     ).order_by(MovimientoFinanciero.fecha.asc()).all()
     cobros_pos = db.query(MovimientoFinanciero).filter(
-        MovimientoFinanciero.metodo_pago == "Tarjeta (POS)",
+        # "Tarjeta (POS)" es el texto que usa Caja; "Tarjeta" es el que usan
+        # Órdenes/POS/Facturas (ver FORMAS_PAGO) -- un cobro con tarjeta
+        # puede traer cualquiera de los dos según de dónde vino.
+        MovimientoFinanciero.metodo_pago.in_(["Tarjeta (POS)", "Tarjeta"]),
         MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha <= hasta,
     ).order_by(MovimientoFinanciero.fecha.asc()).all()
 

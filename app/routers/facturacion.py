@@ -22,6 +22,7 @@ from app.utils.numbering import generar_numero_factura, extraer_correlativo_de_r
 from app.utils.pdf import generar_pdf_factura, construir_contexto_pdf_factura
 from app.utils.pdf_ticket import generar_ticket_factura
 from app.utils.libro_diario import registrar_asiento_para_movimiento, eliminar_asiento_de_movimiento
+from app.utils.caja_calculos import CUENTA_CAJA_CHICA, CUENTA_BANCO
 # Se reutilizan las mismas funciones que ya usan "Repuestos utilizados" y
 # "Servicios agregados" al editar una orden, para no duplicar la lógica de
 # descontar inventario y registrar la venta (ver ordenes.py). Ya no generan
@@ -174,6 +175,66 @@ def _validar_fiscal_disponible(cfg: ConfiguracionFacturacion) -> str | None:
         return ("Ya se utilizó todo el rango de facturas autorizado por la SAR para este CAI. "
                 "Solicita un nuevo CAI y actualízalo en Configuración > Facturación.")
     return None
+
+
+def _desglose_pagos_orden(orden: OrdenServicio, total_factura) -> list[tuple[str, Decimal]]:
+    """Reparte el total de una factura de orden entre Efectivo/Transferencia/
+    Tarjeta/Otro según los abonos (Pago.forma_pago) que ya tiene registrados
+    esa orden -- para que el ingreso contable se clasifique en la cuenta
+    real donde cayó el dinero (ver _crear_ingresos_factura). Si lo ya
+    abonado no alcanza el total facturado (por ejemplo se factura antes de
+    terminar de cobrar), la diferencia se suma a Efectivo, igual que el
+    comportamiento de siempre antes de este desglose -- no se inventa un
+    método de pago que el cliente nunca eligió."""
+    acumulado: dict[str, Decimal] = {}
+    for p in orden.pagos:
+        forma = p.forma_pago if p.forma_pago in FORMAS_PAGO else "Efectivo"
+        acumulado[forma] = acumulado.get(forma, Decimal("0.00")) + to_decimal(p.monto)
+
+    suma_pagos = sum(acumulado.values(), Decimal("0.00"))
+    faltante = (to_decimal(total_factura) - suma_pagos).quantize(Decimal("0.01"))
+    if faltante > 0:
+        acumulado["Efectivo"] = acumulado.get("Efectivo", Decimal("0.00")) + faltante
+    elif faltante < 0:
+        # Se abonó de más que el total facturado (caso raro, por ejemplo un
+        # redondeo): se recorta el excedente del método con mayor monto, para
+        # nunca contar como ingreso más de lo que la factura realmente vale.
+        clave_mayor = max(acumulado, key=acumulado.get) if acumulado else "Efectivo"
+        acumulado[clave_mayor] = acumulado.get(clave_mayor, Decimal("0.00")) + faltante
+
+    return [(forma, monto.quantize(Decimal("0.01"))) for forma, monto in acumulado.items() if monto > 0]
+
+
+def _crear_ingresos_factura(
+    db: Session, factura: Factura, orden: OrdenServicio, usuario_nombre: str,
+    monto_neto_total: Decimal, isv_monto_total: Decimal,
+) -> None:
+    """Crea el o los MovimientoFinanciero de ingreso de una factura de orden
+    (ver CATEGORIA_VENTA_FACTURADA): uno por cada forma de pago distinta con
+    la que se cobró la orden (ver _desglose_pagos_orden), cada uno en su
+    cuenta real -- Efectivo va a Caja Chica, Transferencia/Tarjeta/Otro van
+    a Banco, porque ese dinero nunca pasó físicamente por la caja. El neto y
+    el ISV de cada fila se reparten en la misma proporción que su monto,
+    para que el asiento del Libro Diario quede balanceado fila por fila."""
+    desglose = _desglose_pagos_orden(orden, factura.total)
+    total_factura = to_decimal(factura.total)
+    for forma_pago, monto in desglose:
+        if total_factura > 0:
+            isv_fila = (monto * isv_monto_total / total_factura).quantize(Decimal("0.01"))
+        else:
+            isv_fila = Decimal("0.00")
+        neto_fila = (monto - isv_fila).quantize(Decimal("0.01"))
+        cuenta = CUENTA_CAJA_CHICA if forma_pago == "Efectivo" else CUENTA_BANCO
+        mov = MovimientoFinanciero(
+            tipo="ingreso", categoria=CATEGORIA_VENTA_FACTURADA, monto=monto,
+            descripcion=f"Factura {factura.numero_documento} - Orden {orden.numero_orden}",
+            usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
+            cuenta=cuenta, metodo_pago=forma_pago,
+            fecha=factura.fecha_emision, factura_id=factura.id,
+        )
+        db.add(mov)
+        db.flush()
+        registrar_asiento_para_movimiento(db, mov, monto_neto=neto_fila, isv_monto=isv_fila)
 
 
 @router.get("/ordenes/{orden_id}/factura/nueva")
@@ -364,16 +425,13 @@ def factura_crear(
     # Único momento en que una orden genera un ingreso contable: antes se
     # generaba (y se contaba dos veces) al agregar el repuesto/servicio y
     # otra vez al cobrarlo; ahora solo se genera aquí, al emitir la
-    # factura (ver CATEGORIA_VENTA_FACTURADA).
-    mov = MovimientoFinanciero(
-        tipo="ingreso", categoria=CATEGORIA_VENTA_FACTURADA, monto=factura.total,
-        descripcion=f"Factura {factura.numero_documento} - Orden {orden.numero_orden}",
-        usuario_nombre=usuario["nombre_completo"], referencia=orden.numero_orden,
-        fecha=factura.fecha_emision, factura_id=factura.id,
+    # factura (ver CATEGORIA_VENTA_FACTURADA). Se crea un ingreso por cada
+    # forma de pago distinta con que se cobró la orden, cada uno en su
+    # cuenta real (Caja Chica o Banco) -- ver _crear_ingresos_factura.
+    _crear_ingresos_factura(
+        db, factura, orden, usuario["nombre_completo"],
+        monto_neto_total=(total - isv_monto), isv_monto_total=isv_monto,
     )
-    db.add(mov)
-    db.flush()
-    registrar_asiento_para_movimiento(db, mov, monto_neto=(total - isv_monto), isv_monto=isv_monto)
 
     db.commit()
     db.refresh(factura)
@@ -483,11 +541,13 @@ def facturas_anular(
     factura.anulada = True
     factura.motivo_anulacion = motivo
 
-    # El ingreso contable que generó esta factura (ver CATEGORIA_VENTA_
-    # FACTURADA) ya no debe contar: se excluye (nunca se borra) igual que
-    # cualquier otro movimiento que deja de ser válido.
-    mov = db.query(MovimientoFinanciero).filter(MovimientoFinanciero.factura_id == factura.id).first()
-    if mov:
+    # El o los ingresos contables que generó esta factura (ver CATEGORIA_
+    # VENTA_FACTURADA) ya no deben contar: se excluyen (nunca se borran)
+    # igual que cualquier otro movimiento que deja de ser válido. Puede
+    # haber más de uno si la orden se cobró con más de una forma de pago
+    # (ver _crear_ingresos_factura: uno por cada forma de pago distinta).
+    movs = db.query(MovimientoFinanciero).filter(MovimientoFinanciero.factura_id == factura.id).all()
+    for mov in movs:
         mov.excluir_de_contabilidad = True
         eliminar_asiento_de_movimiento(db, mov.id)
 

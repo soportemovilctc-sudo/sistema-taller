@@ -1212,4 +1212,95 @@ html, body {
   0%, 100% { opacity: 0; }
   15%, 85% { opacity: 1; }
 }
+
+/* ----- "Props" extra (laptop/telefono/idea/pulgar/selfie): no son poses
+   reales del personaje (no hay forma de redibujarlo con otra postura),
+   son iconos que aparecen junto a él un momento, igual que la taza de
+   café de arriba -- inspirados en las poses que mandó Ricardo de otro
+   personaje (trabajando en laptop, llamada, idea, aprobación, selfie). */
+
+/* Trabajando en laptop: el cuerpo se inclina levemente hacia adelante,
+   como "tecleando", mientras el ícono aparece frente a él. */
+.reaccion-laptop .asistente-img { animation: asistente-laptop-cuerpo 2.4s ease-in-out; }
+@keyframes asistente-laptop-cuerpo {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  20%, 80% { transform: rotate(-2deg) translateY(1px); }
+  35%, 65% { transform: rotate(1deg) translateY(0); }
+  50% { transform: rotate(-1deg) translateY(1px); }
+}
+.reaccion-laptop .asistente-fx-laptop { opacity: 1; animation: asistente-fx-aparecer 2.4s ease; }
+.reaccion-laptop .asistente-laptop {
+  left: 0; bottom: 40%; font-size: 19px;
+  animation: asistente-laptop-tecleo 2.4s ease-in-out;
+}
+@keyframes asistente-laptop-tecleo {
+  0%, 100% { transform: translateY(3px) rotate(0deg); }
+  25%, 75% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-1px) rotate(3deg); }
+}
+
+/* Llamada: el teléfono vibra junto a la oreja. */
+.reaccion-telefono .asistente-fx-telefono { opacity: 1; animation: asistente-fx-aparecer 2.2s ease; }
+.reaccion-telefono .asistente-telefono {
+  right: 2px; top: 20%; font-size: 18px;
+  animation: asistente-telefono-vibra 2.2s ease-in-out;
+}
+@keyframes asistente-telefono-vibra {
+  0%, 16%, 100% { transform: rotate(0deg); }
+  20%, 28%, 36% { transform: rotate(-9deg); }
+  24%, 32% { transform: rotate(9deg); }
+  40% { transform: rotate(0deg); }
+}
+
+/* Idea: bombilla que se "enciende" sobre la cabeza + un pequeño salto
+   de sorpresa, como si se le acabara de ocurrir algo. */
+.reaccion-idea .asistente-img { animation: asistente-sorpresa .55s ease-out; }
+.reaccion-idea .asistente-fx-idea { opacity: 1; }
+.reaccion-idea .asistente-bombilla {
+  top: -16%; left: 50%; margin-left: -9px; font-size: 18px;
+  animation: asistente-bombilla-prende 1.7s ease-in-out;
+}
+@keyframes asistente-bombilla-prende {
+  0%, 100% { opacity: 0; transform: scale(.5) translateY(6px); }
+  30% { opacity: 1; transform: scale(1.25) translateY(-3px); }
+  55% { opacity: 1; transform: scale(1) translateY(0); }
+  85% { opacity: .75; }
+}
+
+/* Pulgar arriba: aparece junto a la mano con un pequeño "pop". */
+.reaccion-pulgar .asistente-fx-pulgar { opacity: 1; }
+.reaccion-pulgar .asistente-pulgar {
+  left: -8px; bottom: 44%; font-size: 17px;
+  animation: asistente-pulgar-pop 1.3s ease-out;
+}
+@keyframes asistente-pulgar-pop {
+  0% { opacity: 0; transform: scale(.3) translateY(8px); }
+  35% { opacity: 1; transform: scale(1.3) translateY(-4px); }
+  60% { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(.9) translateY(-2px); }
+}
+
+/* Selfie: se asoma el teléfono junto a la cara con un breve destello de
+   flash (la caja completa del contenedor parpadea en blanco). */
+.reaccion-selfie .asistente-fx-selfie { opacity: 1; }
+.reaccion-selfie .asistente-selfie {
+  right: -10px; top: 12%; font-size: 17px;
+  animation: asistente-selfie-pop 1.4s ease-out;
+}
+@keyframes asistente-selfie-pop {
+  0% { opacity: 0; transform: scale(.5) rotate(-12deg); }
+  30% { opacity: 1; transform: scale(1.12) rotate(6deg); }
+  60% { opacity: 1; transform: scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: scale(.92) rotate(0deg); }
+}
+.reaccion-selfie .asistente-flash {
+  inset: 0; left: 0; top: 0; width: 100%; height: 100%;
+  background: radial-gradient(circle at 70% 25%, rgba(255,255,255,.9), rgba(255,255,255,0) 65%);
+  animation: asistente-flash-destello 1.4s ease;
+}
+@keyframes asistente-flash-destello {
+  0%, 36%, 100% { opacity: 0; }
+  42% { opacity: .8; }
+  50% { opacity: 0; }
+}
 .panda-chat-accion-btn:disabled { opacity: .6; cursor: default; }

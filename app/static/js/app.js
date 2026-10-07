@@ -332,9 +332,12 @@ function inicializarPandaMascota() {
   var REACCIONES_ASISTENTE = [
     "reaccion-salto", "reaccion-giro", "reaccion-baile", "reaccion-sorpresa",
     "reaccion-risa", "reaccion-mareo", "reaccion-confeti", "reaccion-corazones",
-    "reaccion-celebrar", "reaccion-cafe"
+    "reaccion-celebrar", "reaccion-cafe",
+    // "Props" extra (no son poses reales del personaje, son iconos que
+    // aparecen junto a él, igual que la taza de café -- ver style.css).
+    "reaccion-laptop", "reaccion-telefono", "reaccion-idea", "reaccion-pulgar", "reaccion-selfie"
   ];
-  var DURACION_MAX_REACCION_ASISTENTE = 2800; // ms: la más larga (café) dura 2.6s
+  var DURACION_MAX_REACCION_ASISTENTE = 2800; // ms: la más larga (café/laptop) dura 2.4-2.6s
 
   function dispararReaccionAsistente() {
     var clase = REACCIONES_ASISTENTE[Math.floor(Math.random() * REACCIONES_ASISTENTE.length)];

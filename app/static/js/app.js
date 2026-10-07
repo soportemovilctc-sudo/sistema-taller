@@ -322,7 +322,40 @@ function inicializarPandaMascota() {
     ["reaccionConfetiMov1", "reaccionConfetiGiro1", "reaccionConfetiOpacidad1", "reaccionConfetiMov2", "reaccionConfetiGiro2", "reaccionConfetiOpacidad2", "reaccionConfetiMov3", "reaccionConfetiGiro3", "reaccionConfetiOpacidad3"]
   ];
 
+  // La mascota "Asistente" no es un SVG dibujado a mano (es una imagen),
+  // así que sus reacciones no pueden disparar <animate> con beginElement():
+  // en vez de ids SMIL, son nombres de clase CSS (ver ".reaccion-*" en
+  // style.css) que se agregan brevemente al contenedor; el movimiento del
+  // cuerpo y los overlays (estrellas/corazones/confeti/café) reaccionan
+  // solos vía selectores descendientes. Incluye "celebrar" y "tomar café"
+  // además de las mismas 8 reacciones de panda/león/ratón.
+  var REACCIONES_ASISTENTE = [
+    "reaccion-salto", "reaccion-giro", "reaccion-baile", "reaccion-sorpresa",
+    "reaccion-risa", "reaccion-mareo", "reaccion-confeti", "reaccion-corazones",
+    "reaccion-celebrar", "reaccion-cafe"
+  ];
+  var DURACION_MAX_REACCION_ASISTENTE = 2800; // ms: la más larga (café) dura 2.6s
+
+  function dispararReaccionAsistente() {
+    var clase = REACCIONES_ASISTENTE[Math.floor(Math.random() * REACCIONES_ASISTENTE.length)];
+    // Quita cualquier reacción anterior y fuerza un reflow antes de volver
+    // a agregar la clase, para que la animación CSS se pueda repetir aunque
+    // toque la misma reacción dos veces seguidas (si no, el navegador no
+    // detecta el "cambio" de clase y no la vuelve a reproducir).
+    REACCIONES_ASISTENTE.forEach(function (c) { panda.classList.remove(c); });
+    void panda.offsetWidth;
+    panda.classList.add(clase);
+    clearTimeout(panda._reaccionTimeout);
+    panda._reaccionTimeout = setTimeout(function () {
+      panda.classList.remove(clase);
+    }, DURACION_MAX_REACCION_ASISTENTE);
+  }
+
   function dispararReaccionAleatoria() {
+    if (panda.dataset.mascota === "asistente") {
+      dispararReaccionAsistente();
+      return;
+    }
     var elegida = REACCIONES[Math.floor(Math.random() * REACCIONES.length)];
     elegida.forEach(function (id) {
       var el = document.getElementById(id);

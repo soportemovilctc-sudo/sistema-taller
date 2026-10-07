@@ -151,6 +151,50 @@
        beginElement() al tocarla (un <img> no permite eso: su SVG queda
        aislado, sin acceso desde el JS de la página). -->
   {% set _mascota = usuario.mascota or 'panda' %}
+  {% if _mascota == 'asistente' %}
+  <!-- Mascota "Asistente": a diferencia de panda/leon/raton (dibujadas a
+       mano en SVG para que app.js dispare sus animaciones con
+       beginElement()), esta es una imagen (no hay forma de "dibujar" este
+       diseño en vector). Las reacciones se logran con clases CSS sobre
+       este mismo div (ver REACCIONES_ASISTENTE en app.js) en vez de
+       beginElement(); los globos/estrellas/confeti/taza de café son hijos
+       de este div, ocultos hasta que la clase de la reacción los activa
+       (ver ".mascota-asistente" en style.css). -->
+  <div id="pandaCajaMascota" class="panda-mascota mascota-asistente" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" title="Arrástrame a donde quieras. Tócame para una sorpresa.">
+    <img class="asistente-img" src="{{ url_for('static', path='img/mascota-asistente.png') }}" alt="Asistente" draggable="false">
+    <span class="asistente-fx asistente-fx-estrellas" aria-hidden="true">
+      <span class="asistente-pieza asistente-estrella">✦</span>
+      <span class="asistente-pieza asistente-estrella">✦</span>
+      <span class="asistente-pieza asistente-estrella">✦</span>
+    </span>
+    <span class="asistente-fx asistente-fx-corazones" aria-hidden="true">
+      <span class="asistente-pieza asistente-corazon">💙</span>
+      <span class="asistente-pieza asistente-corazon">💙</span>
+      <span class="asistente-pieza asistente-corazon">💙</span>
+    </span>
+    <span class="asistente-fx asistente-fx-confeti" aria-hidden="true">
+      <span class="asistente-pieza asistente-confeti asistente-confeti-1"></span>
+      <span class="asistente-pieza asistente-confeti asistente-confeti-2"></span>
+      <span class="asistente-pieza asistente-confeti asistente-confeti-3"></span>
+      <span class="asistente-pieza asistente-confeti asistente-confeti-4"></span>
+      <span class="asistente-pieza asistente-confeti asistente-confeti-5"></span>
+      <span class="asistente-pieza asistente-confeti asistente-confeti-6"></span>
+    </span>
+    <span class="asistente-fx asistente-fx-cafe" aria-hidden="true">
+      <span class="asistente-pieza asistente-vapor asistente-vapor-1"></span>
+      <span class="asistente-pieza asistente-vapor asistente-vapor-2"></span>
+      <span class="asistente-pieza asistente-taza">☕</span>
+    </span>
+    <span class="asistente-fx asistente-fx-mareo" aria-hidden="true">
+      <span class="asistente-pieza asistente-mareo-estrella">✦</span>
+      <span class="asistente-pieza asistente-mareo-estrella">✧</span>
+    </span>
+    <!-- brillito decorativo permanente (igual que panda/leon/raton): se
+         repite solo, no es una reaccion, para que se sienta viva incluso
+         sin tocarla. -->
+    <span class="asistente-pieza asistente-brillo" aria-hidden="true">✨</span>
+  </div>
+  {% else %}
   <svg id="pandaCajaMascota" class="panda-mascota" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
     <title>Arrástrame a donde quieras. Tócame para una sorpresa.</title>
     {% if _mascota == 'leon' %}
@@ -1090,6 +1134,7 @@
     </g>
     {% endif %}
   </svg>
+  {% endif %}
   {% endif %}
 </div>
 {% else %}

@@ -463,7 +463,7 @@
       overlay.style.display = 'flex';
       inputNombre.focus();
     }
-    function cerrar() { overlay.style.display = 'none'; }
+    function cerrar() { cerrarModalConEfecto(overlay); }
 
     btnAbrir.addEventListener('click', abrir);
     document.getElementById('clienteRapidoCancelar').addEventListener('click', cerrar);

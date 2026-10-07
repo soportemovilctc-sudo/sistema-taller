@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" data-tema="{{ usuario.tema_modo if usuario and usuario.tema_modo else 'oscuro' }}" data-acento="{{ usuario.tema_acento if usuario and usuario.tema_acento else 'azul' }}"{% if usuario and usuario.tema_acento == 'personalizado' and usuario.tema_color_personalizado %} style="--custom-color: {{ usuario.tema_color_personalizado }};"{% endif %}>
+<html lang="es" data-tema="{{ usuario.tema_modo if usuario and usuario.tema_modo else 'oscuro' }}" data-acento="{{ usuario.tema_acento if usuario and usuario.tema_acento else 'azul' }}" data-efecto-cierre="{{ usuario.efecto_cierre_ventana if usuario and usuario.efecto_cierre_ventana else 'escala' }}" data-animar-apertura="{{ '1' if usuario and usuario.animar_apertura_ventana else '0' }}" data-dock-magnificacion="{{ '1' if usuario and usuario.dock_magnificacion else '0' }}" data-liquid-glass="{{ '1' if usuario and usuario.liquid_glass else '0' }}"{% if usuario and usuario.tema_acento == 'personalizado' and usuario.tema_color_personalizado %} style="--custom-color: {{ usuario.tema_color_personalizado }};"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">

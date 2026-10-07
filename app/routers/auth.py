@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import Usuario, TEMAS_MODO, TEMAS_ACENTO, MASCOTAS_DISPONIBLES
+from app.models import Usuario, TEMAS_MODO, TEMAS_ACENTO, MASCOTAS_DISPONIBLES, EFECTOS_CIERRE_VENTANA
 from app.security import hash_password, verify_password, usuario_actual
 from app.deps import roles_required, login_required
 from app.utils.flash import flash
@@ -24,6 +24,10 @@ def _sesion_desde_usuario(u: Usuario) -> dict:
         "id": u.id, "username": u.username, "nombre_completo": u.nombre_completo, "rol": u.rol,
         "tema_modo": u.tema_modo, "tema_acento": u.tema_acento,
         "tema_color_personalizado": u.tema_color_personalizado, "mascota": u.mascota,
+        "efecto_cierre_ventana": u.efecto_cierre_ventana,
+        "animar_apertura_ventana": u.animar_apertura_ventana,
+        "dock_magnificacion": u.dock_magnificacion,
+        "liquid_glass": u.liquid_glass,
     }
 
 
@@ -150,6 +154,7 @@ def apariencia_form(request: Request, db: Session = Depends(get_db), usuario=Dep
     return templates.TemplateResponse("perfil/apariencia.html", {
         "request": request, "usuario": usuario, "u": u,
         "temas_modo": TEMAS_MODO, "temas_acento": TEMAS_ACENTO, "mascotas_disponibles": MASCOTAS_DISPONIBLES,
+        "efectos_cierre_ventana": EFECTOS_CIERRE_VENTANA,
     })
 
 
@@ -160,6 +165,10 @@ def apariencia_actualizar(
     tema_acento: str = Form("azul"),
     tema_color_personalizado: str = Form(""),
     mascota: str = Form("panda"),
+    efecto_cierre_ventana: str = Form("escala"),
+    animar_apertura_ventana: bool = Form(False),
+    dock_magnificacion: bool = Form(False),
+    liquid_glass: bool = Form(False),
     db: Session = Depends(get_db),
     usuario=Depends(login_required),
 ):
@@ -171,10 +180,20 @@ def apariencia_actualizar(
     valores_modo = [m for m in TEMAS_MODO]
     valores_acento = [a["valor"] for a in TEMAS_ACENTO]
     valores_mascota = [m["valor"] for m in MASCOTAS_DISPONIBLES]
+    valores_efecto_cierre = [e["valor"] for e in EFECTOS_CIERRE_VENTANA]
 
     u.tema_modo = tema_modo if tema_modo in valores_modo else "oscuro"
     u.tema_acento = tema_acento if tema_acento in valores_acento else "azul"
     u.mascota = mascota if mascota in valores_mascota else "panda"
+
+    # Efectos de ventana: cada uno es independiente (ver EFECTOS_CIERRE_
+    # VENTANA y los demás campos de Usuario). Los checkboxes solo mandan
+    # un valor cuando están marcados, así que si no vienen en el form es
+    # porque el usuario los desmarcó.
+    u.efecto_cierre_ventana = efecto_cierre_ventana if efecto_cierre_ventana in valores_efecto_cierre else "escala"
+    u.animar_apertura_ventana = animar_apertura_ventana
+    u.dock_magnificacion = dock_magnificacion
+    u.liquid_glass = liquid_glass
 
     color = tema_color_personalizado.strip()
     if u.tema_acento == "personalizado" and color:

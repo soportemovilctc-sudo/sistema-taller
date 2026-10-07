@@ -1,4 +1,39 @@
 // Funciones generales de la interfaz: menú móvil y búsqueda global.
+
+// ---------- Efectos de ventana (modales) ----------
+// Cierra un modal (su overlay con clase .modal-overlay) respetando el
+// efecto de cierre elegido en Apariencia (ver data-efecto-cierre en
+// <html>, base.html, y EFECTOS_CIERRE_VENTANA en models.py): agrega una
+// clase "cerrando-<efecto>" al .modal-box, espera a que termine la
+// animación (o un tiempo de respaldo, por si el navegador no dispara
+// animationend) y recién ahí oculta el overlay. Si el efecto es
+// "ninguno" (o el modal no tiene .modal-box), oculta de una vez como
+// antes de este cambio. Se usa en los 3 modales que ya existían (ver
+// orden.js, ordenes/form.html y dashboard.html) para no duplicar esta
+// lógica en cada uno.
+function cerrarModalConEfecto(overlay) {
+  if (!overlay) return;
+  var caja = overlay.querySelector(".modal-box");
+  var efecto = document.documentElement.getAttribute("data-efecto-cierre") || "escala";
+  if (!caja || efecto === "ninguno") {
+    overlay.style.display = "none";
+    return;
+  }
+  var clase = "cerrando-" + efecto;
+  var yaTermino = false;
+  function terminar() {
+    if (yaTermino) return;
+    yaTermino = true;
+    caja.removeEventListener("animationend", terminar);
+    caja.classList.remove(clase);
+    overlay.style.display = "none";
+  }
+  caja.classList.add(clase);
+  caja.addEventListener("animationend", terminar);
+  setTimeout(terminar, 450);
+}
+window.cerrarModalConEfecto = cerrarModalConEfecto;
+
 document.addEventListener("DOMContentLoaded", function () {
   var toggle = document.getElementById("menuToggle");
   var sidebar = document.getElementById("sidebar");

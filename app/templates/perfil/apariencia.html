@@ -50,8 +50,57 @@
       <div class="help">Tu mascota te da consejos, te avisa de órdenes vencidas y otras cosas útiles mientras trabajas (solo la ves tú).</div>
     </div>
 
+    <div class="field">
+      <label>Efecto al cerrar ventanas</label>
+      <div class="checkbox-grid" id="gridEfectoCierre">
+        {% for e in efectos_cierre_ventana %}
+        <label class="checkbox-chip">
+          <input type="radio" name="efecto_cierre_ventana" value="{{ e.valor }}" {{ 'checked' if u.efecto_cierre_ventana == e.valor else '' }}>
+          {{ e.nombre }}
+        </label>
+        {% endfor %}
+      </div>
+      <div class="help" style="margin-top:6px;">
+        Así se anima cualquier ventana emergente del sistema (por ejemplo "Nuevo cliente rápido" en Órdenes) al cerrarse.
+        <button type="button" class="btn btn-outline btn-sm" id="btnProbarVentana" style="margin-left:6px;">Probar</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="checkbox-chip" style="display:inline-flex;">
+        <input type="checkbox" name="animar_apertura_ventana" value="1" {{ 'checked' if u.animar_apertura_ventana else '' }}>
+        Animar apertura de ventanas (rebote al aparecer)
+      </label>
+    </div>
+
+    <div class="field">
+      <label class="checkbox-chip" style="display:inline-flex;">
+        <input type="checkbox" id="chkDockMagnificacion" name="dock_magnificacion" value="1" {{ 'checked' if u.dock_magnificacion else '' }}>
+        Magnificación estilo Dock en la mascota flotante
+      </label>
+      <div class="help" style="margin-top:4px;">Pasa el mouse sobre tu mascota (abajo a la derecha) para sentir la diferencia ahora mismo.</div>
+    </div>
+
+    <div class="field">
+      <label class="checkbox-chip" style="display:inline-flex;">
+        <input type="checkbox" id="chkLiquidGlass" name="liquid_glass" value="1" {{ 'checked' if u.liquid_glass else '' }}>
+        Liquid Glass (vidrio esmerilado en tarjetas y ventanas, sin importar el modo)
+      </label>
+      <div class="help" style="margin-top:4px;">Pruébalo marcando la casilla: esta misma tarjeta cambia al instante. Se puede combinar con Oscuro, Claro o Vidrio.</div>
+    </div>
+
     <button type="submit" class="btn btn-primary">Guardar apariencia</button>
   </form>
+</div>
+
+<!-- Ventana de ejemplo para el botón "Probar" de arriba: no guarda nada,
+     solo muestra cómo se ve el efecto de cierre elegido. -->
+<div class="modal-overlay" id="overlayPruebaVentana" style="display:none;">
+  <div class="card modal-box" style="max-width:380px;">
+    <div class="card-title">Ventana de ejemplo</div>
+    <p class="help">Así se abre y se cierra una ventana con el efecto que elegiste arriba.</p>
+    <button type="button" class="btn btn-primary" id="btnCerrarPruebaVentana">Cerrar</button>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -59,11 +108,61 @@
   (function () {
     var grid = document.getElementById('gridAcentos');
     var campoColor = document.getElementById('campoColorPersonalizado');
-    if (!grid || !campoColor) return;
-    grid.addEventListener('change', function (e) {
-      if (e.target.name !== 'tema_acento') return;
-      campoColor.style.display = e.target.value === 'personalizado' ? '' : 'none';
-    });
+    if (grid && campoColor) {
+      grid.addEventListener('change', function (e) {
+        if (e.target.name !== 'tema_acento') return;
+        campoColor.style.display = e.target.value === 'personalizado' ? '' : 'none';
+      });
+    }
+
+    // Vitrina visual: Dock magnification y Liquid Glass se reflejan de
+    // inmediato en la página (mascota flotante y esta tarjeta) apenas se
+    // marca/desmarca la casilla, sin esperar a "Guardar apariencia" -- así
+    // se puede probar antes de decidir. Si el usuario no guarda, el
+    // cambio no queda (data-* se vuelve a armar desde la BD en la
+    // próxima carga de página).
+    var chkDock = document.getElementById('chkDockMagnificacion');
+    if (chkDock) {
+      chkDock.addEventListener('change', function () {
+        document.documentElement.setAttribute('data-dock-magnificacion', chkDock.checked ? '1' : '0');
+      });
+    }
+    var chkGlass = document.getElementById('chkLiquidGlass');
+    if (chkGlass) {
+      chkGlass.addEventListener('change', function () {
+        document.documentElement.setAttribute('data-liquid-glass', chkGlass.checked ? '1' : '0');
+      });
+    }
+
+    // Botón "Probar": abre una ventana de ejemplo usando el efecto de
+    // cierre y la opción de apertura seleccionados en este momento en el
+    // formulario (aunque todavía no se hayan guardado), para verlos antes
+    // de decidir. Al cerrarla se restauran los valores reales del
+    // usuario en <html>.
+    var btnProbar = document.getElementById('btnProbarVentana');
+    var overlayPrueba = document.getElementById('overlayPruebaVentana');
+    if (btnProbar && overlayPrueba) {
+      btnProbar.addEventListener('click', function () {
+        var efectoElegido = document.querySelector('input[name="efecto_cierre_ventana"]:checked');
+        var apertura = document.querySelector('input[name="animar_apertura_ventana"]');
+        var htmlEl = document.documentElement;
+        var efectoOriginal = htmlEl.getAttribute('data-efecto-cierre');
+        var aperturaOriginal = htmlEl.getAttribute('data-animar-apertura');
+        htmlEl.setAttribute('data-efecto-cierre', efectoElegido ? efectoElegido.value : 'escala');
+        htmlEl.setAttribute('data-animar-apertura', (apertura && apertura.checked) ? '1' : '0');
+        overlayPrueba.style.display = 'flex';
+
+        function cerrarPrueba() {
+          cerrarModalConEfecto(overlayPrueba);
+          setTimeout(function () {
+            htmlEl.setAttribute('data-efecto-cierre', efectoOriginal || 'escala');
+            htmlEl.setAttribute('data-animar-apertura', aperturaOriginal || '0');
+          }, 500);
+        }
+        document.getElementById('btnCerrarPruebaVentana').onclick = cerrarPrueba;
+        overlayPrueba.onclick = function (e) { if (e.target === overlayPrueba) cerrarPrueba(); };
+      });
+    }
   })();
 </script>
 {% endblock %}

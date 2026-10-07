@@ -936,4 +936,77 @@ html, body {
 }
 .panda-chat-accion-btn:hover { background: var(--primary-dark); }
 .panda-chat-accion-btn:active { transform: scale(.96); }
+
+/* ============================================================
+   Efectos de ventana (Apariencia): aproximaciones con CSS/JS de los
+   efectos de minimizar/Dock/Liquid Glass de macOS -- no son la física
+   real de esos efectos, pero dan la misma sensación. Cada uno se activa
+   o no por separado según lo que el usuario eligió en /mi-perfil/
+   apariencia (ver data-efecto-cierre, data-animar-apertura, data-dock-
+   magnificacion y data-liquid-glass en <html>, base.html).
+   ============================================================ */
+
+/* Apertura con rebote: como el <html> ya trae data-animar-apertura="1"
+   antes de que el modal exista, basta con condicionar la animación -- no
+   hace falta tocar nada en JS. Un modal vuelve a animarse solo cada vez
+   que pasa de display:none a flex (el navegador reinicia la animación al
+   re-entrar al flujo), así que "abrir" siempre dispara esto de nuevo. */
+:root[data-animar-apertura="1"] .modal-box {
+  animation: ventana-rebote-in .32s cubic-bezier(.34, 1.56, .64, 1);
+}
+@keyframes ventana-rebote-in {
+  0%   { transform: scale(.72); opacity: 0; }
+  60%  { transform: scale(1.035); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* Cierre: cerrarModalConEfecto() en app.js agrega una de estas clases al
+   .modal-box antes de ocultar el overlay, espera a que la animación
+   termine (o un tiempo de respaldo) y recién ahí pone display:none. Si
+   el usuario eligió "Ninguno", la función ni siquiera agrega la clase y
+   el cierre queda instantáneo como era antes de este cambio. */
+.modal-box.cerrando-escala { animation: ventana-escala-out .22s ease-in forwards; }
+@keyframes ventana-escala-out {
+  from { transform: scale(1); opacity: 1; }
+  to   { transform: scale(.78); opacity: 0; }
+}
+
+.modal-box.cerrando-genie { animation: ventana-genie-out .38s cubic-bezier(.5, 0, .75, 0) forwards; transform-origin: 50% 100%; }
+@keyframes ventana-genie-out {
+  0%   { transform: scale(1) translateY(0); opacity: 1; border-radius: var(--radius); }
+  55%  { transform: scale(.45, .55) translateY(18%) skewX(10deg); opacity: .65; }
+  100% { transform: scale(.04, .08) translateY(55%) skewX(18deg); opacity: 0; border-radius: 50%; }
+}
+
+.modal-box.cerrando-succion { animation: ventana-succion-out .3s cubic-bezier(.6, 0, .9, 0) forwards; transform-origin: 50% 65%; }
+@keyframes ventana-succion-out {
+  0%   { transform: scale(1, 1); opacity: 1; }
+  45%  { transform: scale(.32, 1.18); opacity: .7; }
+  100% { transform: scale(.02, .02) translateY(25%); opacity: 0; }
+}
+
+/* Dock magnification: el hover normal de la mascota (definido arriba)
+   se queda tal cual cuando el usuario apaga esta opción; cuando está
+   prendida (es lo normal, viene activada por defecto) se exagera el
+   acercamiento para que se sienta como un ícono del Dock creciendo. */
+:root[data-dock-magnificacion="1"] .panda-mascota:hover {
+  transform: scale(1.24) rotate(-6deg) translateY(-8px);
+  filter: drop-shadow(0 12px 20px rgba(0,0,0,.55));
+}
+
+/* Liquid Glass: igual que el modo "Vidrio" (ver :root[data-tema="vidrio"]
+   más arriba) pero independiente del modo de color -- funciona encima de
+   Oscuro, Claro o Vidrio, mezclando el panel actual con transparencia en
+   vez de fijar un color propio, para que no choque con ningún tema. */
+:root[data-liquid-glass="1"] .card,
+:root[data-liquid-glass="1"] .kpi,
+:root[data-liquid-glass="1"] .modal-box,
+:root[data-liquid-glass="1"] .login-box,
+:root[data-liquid-glass="1"] .panda-asistente,
+:root[data-liquid-glass="1"] .panda-sugerencias {
+  background: color-mix(in srgb, var(--panel) 55%, transparent) !important;
+  backdrop-filter: blur(26px) saturate(170%);
+  -webkit-backdrop-filter: blur(26px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), var(--shadow);
+}
 .panda-chat-accion-btn:disabled { opacity: .6; cursor: default; }

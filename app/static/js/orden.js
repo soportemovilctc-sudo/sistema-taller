@@ -403,7 +403,7 @@ function inicializarServicioRapido() {
   }
 
   function cerrarModal() {
-    overlay.style.display = "none";
+    cerrarModalConEfecto(overlay);
   }
 
   function guardarModal() {

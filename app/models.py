@@ -103,6 +103,16 @@ MASCOTAS_DISPONIBLES = [
     {"valor": "raton", "nombre": "Ratón"},
 ]
 
+# "Efectos de ventana" (ver Usuario.efecto_cierre_ventana y los demás
+# campos de abajo): aproximaciones con CSS/JS de los efectos de
+# minimizar/Dock/Liquid Glass de macOS, cada uno activable por separado.
+EFECTOS_CIERRE_VENTANA = [
+    {"valor": "escala", "nombre": "Escala (el de siempre)"},
+    {"valor": "genie", "nombre": "Genie"},
+    {"valor": "succion", "nombre": "Succión"},
+    {"valor": "ninguno", "nombre": "Ninguno (cierre instantáneo)"},
+]
+
 TIPOS_MOVIMIENTO_INVENTARIO = ["entrada", "salida", "ajuste"]
 TIPOS_MOVIMIENTO_FINANCIERO = ["ingreso", "gasto"]
 
@@ -154,6 +164,14 @@ class Usuario(Base):
     tema_acento = Column(String(30), nullable=False, default="azul")  # azul | cian | verde | purpura | naranja | personalizado
     tema_color_personalizado = Column(String(20), nullable=True)  # ej. "#2563eb", solo si tema_acento == personalizado
     mascota = Column(String(20), nullable=False, default="panda")  # panda | leon | raton
+
+    # Efectos de ventana (aproximaciones de macOS, ver EFECTOS_CIERRE_VENTANA):
+    # cada uno se puede activar o no por separado, igual que el resto de
+    # Apariencia -- son solo cosméticos, no afectan ningún dato ni cálculo.
+    efecto_cierre_ventana = Column(String(20), nullable=False, default="escala")  # ninguno | genie | escala | succion
+    animar_apertura_ventana = Column(Boolean, nullable=False, default=True)
+    dock_magnificacion = Column(Boolean, nullable=False, default=True)
+    liquid_glass = Column(Boolean, nullable=False, default=False)
 
 
 class Tecnico(Base):

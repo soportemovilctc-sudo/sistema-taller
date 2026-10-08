@@ -22,6 +22,7 @@ from app.database import get_db
 from app.models import (
     OrdenServicio, MovimientoFinanciero, Venta, DetalleVenta, Producto, Tecnico, Configuracion,
     ConfiguracionFacturacion, ESTADOS_ORDEN, FORMAS_PAGO, Servicio, OrdenServicioExtra,
+    CATEGORIA_DEPOSITO_BANCO,
 )
 from app.utils.calculations import to_decimal
 from app.utils.flash import flash
@@ -242,8 +243,11 @@ def reportes_index(
     if tipo == "ordenes" or tipo == "reparaciones":
         contexto["ordenes"] = _filtrar_ordenes(db, fecha_desde, fecha_hasta, tecnico_id, estado)
     elif tipo == "ingresos":
+        # Un Depósito Bancario (traslado de Caja Chica a Banco) se excluye:
+        # no es un ingreso real, es el mismo dinero cambiando de cuenta.
         q = db.query(MovimientoFinanciero).filter(
             MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
         )
         if fecha_desde:
             q = q.filter(MovimientoFinanciero.fecha >= fecha_desde)
@@ -251,8 +255,11 @@ def reportes_index(
             q = q.filter(MovimientoFinanciero.fecha <= fecha_hasta)
         contexto["movimientos"] = q.order_by(MovimientoFinanciero.fecha.desc()).all()
     elif tipo == "gastos":
+        # Mismo caso: el lado de Caja Chica de un Depósito Bancario no es un
+        # gasto real, es un traslado hacia Banco (ver /caja/conciliacion).
         q = db.query(MovimientoFinanciero).filter(
             MovimientoFinanciero.tipo == "gasto", MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
         )
         if fecha_desde:
             q = q.filter(MovimientoFinanciero.fecha >= fecha_desde)
@@ -409,6 +416,9 @@ def _datos_reporte(tipo, fecha_desde, fecha_hasta, tecnico_id, estado, db):
         q = db.query(MovimientoFinanciero).filter(
             MovimientoFinanciero.tipo == ("ingreso" if tipo == "ingresos" else "gasto"),
             MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+            # Depósito Bancario es un traslado de Caja Chica a Banco, no un
+            # ingreso/gasto real — se excluye también en este export.
+            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
         )
         if fecha_desde:
             q = q.filter(MovimientoFinanciero.fecha >= fecha_desde)

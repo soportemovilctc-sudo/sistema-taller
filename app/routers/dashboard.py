@@ -9,7 +9,7 @@ from sqlalchemy import func
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import OrdenServicio, MovimientoFinanciero, Venta, Producto, Configuracion, Tecnico
+from app.models import OrdenServicio, MovimientoFinanciero, Venta, Producto, Configuracion, Tecnico, CATEGORIA_DEPOSITO_BANCO
 from app.deps import login_required
 from app.routers.reportes import _utilidades_por_producto
 
@@ -35,9 +35,13 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
     ).scalar() or 0
 
     def suma_movimientos(tipo, desde):
+        # Un Depósito Bancario (traslado de Caja Chica a Banco) no es un
+        # ingreso ni un gasto real, así que no debe sumar aquí (ver también
+        # calcular_utilidad_neta en app/utils/caja_calculos.py).
         return db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
             MovimientoFinanciero.tipo == tipo, MovimientoFinanciero.fecha >= desde,
             MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
         ).scalar() or 0
 
     inicio_hoy = datetime.combine(hoy, datetime.min.time())
@@ -79,6 +83,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
         total = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
             MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.fecha.between(ini, fin),
             MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
         ).scalar() or 0
         serie_ingresos.append({"dia": d.strftime("%d/%m"), "total": float(total)})
 

@@ -263,6 +263,43 @@ def caja_ingreso_otro_crear(
     return RedirectResponse("/caja/registrar", status_code=303)
 
 
+def _registrar_deposito_bancario(
+    db: Session, monto_final: Decimal, descripcion: str, fecha_final: datetime,
+    usuario_nombre: str, referencia_caja_chica: str,
+) -> MovimientoFinanciero:
+    """Crea las dos filas vinculadas de un Depósito Bancario: la salida de
+    Caja Chica (gasto) y la entrada a Banco (ingreso), por el mismo monto y
+    cruzadas por movimiento_vinculado_id — para que editar o eliminar una
+    arrastre también a su pareja y nunca queden descuadradas ni huérfanas la
+    una de la otra. No es un gasto real: el efectivo no se pierde, se
+    traslada de una cuenta a otra (por eso calcular_utilidad_neta y los
+    reportes de Ingresos/Gastos excluyen esta categoría — ver
+    CATEGORIA_DEPOSITO_BANCO). Usan referencia distinta según de dónde se
+    registró (Cajera vs. Administrador) para que _puede_editar_movimiento
+    decida correctamente quién puede corregirlo después. No hace commit;
+    quien llama decide cuándo guardar."""
+    mov = MovimientoFinanciero(
+        tipo="gasto", categoria=CATEGORIA_DEPOSITO_BANCO, monto=monto_final,
+        descripcion=descripcion.strip(), usuario_nombre=usuario_nombre,
+        referencia=referencia_caja_chica, cuenta=CUENTA_CAJA_CHICA,
+        fecha=fecha_final,
+    )
+    db.add(mov)
+    db.flush()
+    registrar_asiento_para_movimiento(db, mov)
+
+    mov_banco = MovimientoFinanciero(
+        tipo="ingreso", categoria=CATEGORIA_DEPOSITO_BANCO, monto=monto_final,
+        descripcion=descripcion.strip(), usuario_nombre=usuario_nombre,
+        referencia="Depósito bancario de Caja Chica", cuenta=CUENTA_BANCO,
+        fecha=fecha_final, movimiento_vinculado_id=mov.id,
+    )
+    db.add(mov_banco)
+    db.flush()
+    mov.movimiento_vinculado_id = mov_banco.id
+    return mov
+
+
 @router.post("/caja/salida")
 def caja_salida_crear(
     request: Request, categoria: str = Form(...), monto: str = Form(...), descripcion: str = Form(""),
@@ -276,16 +313,15 @@ def caja_salida_crear(
     Banco (por ejemplo, una compra pagada con transferencia) — se elige en
     el formulario, con "cuenta". Depósito bancario es la única excepción:
     esa fila SIEMPRE sale de Caja Chica hacia Banco (es un traslado, no un
-    gasto), así que se ignora lo que venga en "cuenta" para esa categoría."""
+    gasto), así que se ignora lo que venga en "cuenta" para esa categoría
+    (el Administrador también puede registrar un Depósito bancario, pero
+    desde su propio apartado en /caja/conciliacion — ver
+    caja_deposito_admin_crear)."""
     if categoria not in CATEGORIAS_SALIDA_CAJA:
         flash(request, "Categoría no válida.", "error")
         return RedirectResponse("/caja/registrar", status_code=303)
 
-    if categoria == CATEGORIA_DEPOSITO_BANCO:
-        cuenta_final = CUENTA_CAJA_CHICA
-    elif cuenta in (CUENTA_CAJA_CHICA, CUENTA_BANCO):
-        cuenta_final = cuenta
-    else:
+    if categoria != CATEGORIA_DEPOSITO_BANCO and cuenta not in (CUENTA_CAJA_CHICA, CUENTA_BANCO):
         flash(request, "Cuenta no válida.", "error")
         return RedirectResponse("/caja/registrar", status_code=303)
 
@@ -301,35 +337,57 @@ def caja_salida_crear(
     monto_final = monto_dec.quantize(Decimal("0.01"))
     fecha_final = fecha_mov or datetime.utcnow()
 
-    mov = MovimientoFinanciero(
-        tipo="gasto", categoria=categoria, monto=monto_final,
-        descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
-        referencia=REFERENCIA_CAJA, cuenta=cuenta_final,
-        fecha=fecha_final,
-    )
-    db.add(mov)
-    db.flush()
-    registrar_asiento_para_movimiento(db, mov)
-
     if categoria == CATEGORIA_DEPOSITO_BANCO:
-        # Un depósito bancario no es un gasto: el efectivo no se pierde, se
-        # traslada a Banco. A la salida de Caja Chica de arriba la acompaña
-        # esta entrada a Banco, vinculada con ella (movimiento_vinculado_id)
-        # para que editarla o eliminarla arrastre también a su pareja y
-        # nunca queden descuadradas ni huérfanas la una de la otra.
-        mov_banco = MovimientoFinanciero(
-            tipo="ingreso", categoria=categoria, monto=monto_final,
-            descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
-            referencia="Depósito bancario de Caja Chica", cuenta=CUENTA_BANCO,
-            fecha=fecha_final, movimiento_vinculado_id=mov.id,
+        _registrar_deposito_bancario(
+            db, monto_final, descripcion, fecha_final, usuario["nombre_completo"],
+            referencia_caja_chica=REFERENCIA_CAJA,
         )
-        db.add(mov_banco)
+    else:
+        mov = MovimientoFinanciero(
+            tipo="gasto", categoria=categoria, monto=monto_final,
+            descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
+            referencia=REFERENCIA_CAJA, cuenta=cuenta,
+            fecha=fecha_final,
+        )
+        db.add(mov)
         db.flush()
-        mov.movimiento_vinculado_id = mov_banco.id
+        registrar_asiento_para_movimiento(db, mov)
 
     db.commit()
     flash(request, "Salida de caja registrada correctamente.", "success")
     return RedirectResponse("/caja/registrar", status_code=303)
+
+
+@router.post("/caja/conciliacion/deposito")
+def caja_deposito_admin_crear(
+    request: Request, monto: str = Form(...), descripcion: str = Form(""), fecha: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    """Registrar un Depósito Bancario (traslado de Caja Chica a Banco)
+    directamente desde el apartado del Administrador en /caja/conciliacion
+    — antes solo se podía desde /caja/registrar, la pantalla de la Cajera.
+    Crea el mismo par de filas vinculadas que ese flujo (ver
+    _registrar_deposito_bancario), con una referencia propia para que solo
+    el Administrador pueda editarla o eliminarla después."""
+    try:
+        monto_dec = to_decimal(monto)
+        if monto_dec <= 0:
+            raise ValueError("El monto debe ser mayor a cero.")
+        fecha_mov = _resolver_fecha_mov(fecha)
+    except ValueError as e:
+        flash(request, str(e), "error")
+        return RedirectResponse("/caja/conciliacion", status_code=303)
+
+    monto_final = monto_dec.quantize(Decimal("0.01"))
+    fecha_final = fecha_mov or datetime.utcnow()
+
+    _registrar_deposito_bancario(
+        db, monto_final, descripcion, fecha_final, usuario["nombre_completo"],
+        referencia_caja_chica="Depósito bancario (Admin)",
+    )
+    db.commit()
+    flash(request, "Depósito bancario registrado correctamente.", "success")
+    return RedirectResponse("/caja/conciliacion", status_code=303)
 
 
 @router.get("/caja/comprobante/{mov_id}")
@@ -671,11 +729,19 @@ def caja_conciliacion(request: Request, db: Session = Depends(get_db), usuario=D
     ).order_by(MovimientoFinanciero.fecha.desc()).limit(50).all()
     total_egresos = sum((to_decimal(m.monto) for m in egresos), Decimal("0.00"))
 
+    # Depósitos bancarios recientes (traslados de Caja Chica a Banco): se
+    # lista solo el lado de Caja Chica de cada par, para que cada depósito
+    # aparezca una sola vez en vez de dos (ver _registrar_deposito_bancario).
+    depositos_recientes = db.query(MovimientoFinanciero).filter(
+        MovimientoFinanciero.categoria == CATEGORIA_DEPOSITO_BANCO, MovimientoFinanciero.cuenta == CUENTA_CAJA_CHICA,
+    ).order_by(MovimientoFinanciero.fecha.desc()).limit(20).all()
+
     return templates.TemplateResponse("caja/conciliacion.html", {
         "request": request, "usuario": usuario,
         "pendientes": pendientes, "conciliadas_recientes": conciliadas_recientes,
         "egresos": egresos, "total_egresos": total_egresos,
         "categorias_egreso": CATEGORIAS_EGRESO_MAYOR,
+        "depositos_recientes": depositos_recientes,
     })
 
 

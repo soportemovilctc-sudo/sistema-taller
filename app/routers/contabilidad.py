@@ -9,7 +9,7 @@ from sqlalchemy import func
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import MovimientoFinanciero
+from app.models import MovimientoFinanciero, CATEGORIA_DEPOSITO_BANCO
 from app.utils.calculations import to_decimal
 from app.utils.flash import flash
 from app.deps import roles_required
@@ -47,6 +47,11 @@ def contabilidad_index(
     query = db.query(MovimientoFinanciero).filter(
         MovimientoFinanciero.fecha.between(ini, fin),
         MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+        # Un Depósito Bancario es un traslado de Caja Chica a Banco, no un
+        # ingreso ni un gasto real — se excluye de Contabilidad para no
+        # inflar Ingresos y Gastos con el mismo monto (ver /caja/panel y
+        # /caja/conciliacion, que es donde sí se controla ese traslado).
+        MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
     )
     # La Cajera nunca debe ver movimientos de banco (transferencias/tarjeta
     # conciliadas como banco, egresos mayores) — solo Caja Chica. El Admin

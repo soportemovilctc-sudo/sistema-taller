@@ -16,7 +16,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 
-from app.models import MovimientoFinanciero, SaldoInicialMensual
+from app.models import MovimientoFinanciero, SaldoInicialMensual, CATEGORIA_DEPOSITO_BANCO
 from app.utils.calculations import to_decimal
 
 CUENTA_CAJA_CHICA = "caja_chica"
@@ -132,16 +132,26 @@ def calcular_liquidez(db: Session, anio: int | None = None, mes: int | None = No
 def calcular_utilidad_neta(db: Session, fecha_desde: datetime, fecha_hasta: datetime) -> dict:
     """Estado de resultados simple del período: Utilidad Neta = ingresos -
     egresos, sin importar la cuenta (caja chica o banco) ni los saldos
-    iniciales — es rentabilidad del negocio, no efectivo disponible."""
+    iniciales — es rentabilidad del negocio, no efectivo disponible.
+
+    Un Depósito Bancario (traslado de Caja Chica a Banco) NO es un ingreso
+    ni un gasto real — es el mismo dinero cambiando de cuenta — así que sus
+    dos filas vinculadas (categoria == CATEGORIA_DEPOSITO_BANCO) se excluyen
+    aquí para no inflar Ingresos y Egresos del período con el mismo monto a
+    la vez (sí se siguen contando en calcular_liquidez(), donde corresponde,
+    porque ahí sí importa que el efectivo salió de Caja Chica y entró a
+    Banco)."""
     ingresos = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
         MovimientoFinanciero.tipo == "ingreso",
         MovimientoFinanciero.fecha >= fecha_desde, MovimientoFinanciero.fecha <= fecha_hasta,
         MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+        MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
     ).scalar()
     egresos = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
         MovimientoFinanciero.tipo == "gasto",
         MovimientoFinanciero.fecha >= fecha_desde, MovimientoFinanciero.fecha <= fecha_hasta,
         MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+        MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
     ).scalar()
     ingresos = to_decimal(ingresos)
     egresos = to_decimal(egresos)

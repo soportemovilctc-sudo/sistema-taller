@@ -777,19 +777,33 @@ def caja_depositos_auditoria(request: Request, db: Session = Depends(get_db), us
             vistos.add(vinculado.id)
 
         anomalias = []
+        auto_corregible = False
         if not vinculado:
             anomalias.append("No tiene pareja vinculada (fila huérfana).")
         else:
+            montos_coinciden = to_decimal(m.monto) == to_decimal(vinculado.monto)
+            if not montos_coinciden:
+                anomalias.append(f"Los montos de la pareja no coinciden ({m.monto} vs {vinculado.monto}).")
             if vinculado.categoria != CATEGORIA_DEPOSITO_BANCO:
                 anomalias.append(f"La pareja ya no tiene la categoría \"Depósito bancario\" (tiene: \"{vinculado.categoria}\").")
-            if to_decimal(m.monto) != to_decimal(vinculado.monto):
-                anomalias.append(f"Los montos de la pareja no coinciden ({m.monto} vs {vinculado.monto}).")
-            cuentas = {m.cuenta, vinculado.cuenta}
-            if cuentas != {CUENTA_CAJA_CHICA, CUENTA_BANCO}:
-                anomalias.append(f"Las cuentas no son una de Caja Chica y una de Banco (son: {m.cuenta}, {vinculado.cuenta}).")
             tipos = {m.tipo, vinculado.tipo}
-            if tipos != {"gasto", "ingreso"}:
+            tipos_correctos = tipos == {"gasto", "ingreso"}
+            if not tipos_correctos:
                 anomalias.append(f"Los tipos no son un gasto y un ingreso (son: {m.tipo}, {vinculado.tipo}).")
+            cuentas = {m.cuenta, vinculado.cuenta}
+            cuentas_correctas = cuentas == {CUENTA_CAJA_CHICA, CUENTA_BANCO}
+            if not cuentas_correctas:
+                anomalias.append(f"Las cuentas no son una de Caja Chica y una de Banco (son: {m.cuenta}, {vinculado.cuenta}).")
+                # Caso seguro de corregir automáticamente: la pareja es
+                # correcta en todo (mismo monto, un gasto y un ingreso, y la
+                # categoría sigue siendo "Depósito bancario") y SOLO la
+                # cuenta quedó mal — un Depósito bancario siempre es gasto
+                # en Caja Chica + ingreso en Banco (es una regla fija, no
+                # depende de qué fila se haya guardado mal), así que no hace
+                # falta adivinar: la fila "gasto" se manda a Caja Chica y la
+                # fila "ingreso" se manda a Banco.
+                if montos_coinciden and tipos_correctos and vinculado.categoria == CATEGORIA_DEPOSITO_BANCO:
+                    auto_corregible = True
 
         lado_caja_chica = m if m.cuenta == CUENTA_CAJA_CHICA else (vinculado if vinculado and vinculado.cuenta == CUENTA_CAJA_CHICA else None)
         lado_banco = m if m.cuenta == CUENTA_BANCO else (vinculado if vinculado and vinculado.cuenta == CUENTA_BANCO else None)
@@ -802,6 +816,8 @@ def caja_depositos_auditoria(request: Request, db: Session = Depends(get_db), us
             "lado_banco": lado_banco,
             "otros": [x for x in (m, vinculado) if x and x is not lado_caja_chica and x is not lado_banco],
             "anomalias": anomalias,
+            "auto_corregible": auto_corregible,
+            "mov_id_para_corregir": m.id,
         })
 
     grupos.sort(key=lambda g: g["fecha"], reverse=True)
@@ -811,6 +827,54 @@ def caja_depositos_auditoria(request: Request, db: Session = Depends(get_db), us
         "request": request, "usuario": usuario,
         "grupos": grupos, "total_anomalos": total_anomalos,
     })
+
+
+@router.post("/caja/conciliacion/depositos/{mov_id}/corregir-cuenta")
+def caja_deposito_corregir_cuenta(mov_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    """Corrige el único caso de anomalía que se puede arreglar sin
+    adivinar: un par de Depósito Bancario con el mismo monto y un gasto +
+    un ingreso correctos, pero donde las dos filas quedaron con la misma
+    cuenta (las dos Caja Chica o las dos Banco) en vez de una de cada una
+    — ver caja_depositos_auditoria. La regla de un Depósito bancario es
+    fija: la fila "gasto" SIEMPRE es Caja Chica y la fila "ingreso"
+    SIEMPRE es Banco, así que no hace falta que el Administrador decida
+    cuál mover — se re-deriva de los tipos ya guardados. Si la fila no
+    cumple exactamente ese patrón (p. ej. falta la pareja, los montos no
+    coinciden o los tipos no son un gasto y un ingreso), no se toca nada:
+    esos casos sí necesitan que un humano decida qué pasó."""
+    mov = db.get(MovimientoFinanciero, mov_id)
+    if not mov or mov.categoria != CATEGORIA_DEPOSITO_BANCO:
+        flash(request, "Depósito no encontrado.", "error")
+        return RedirectResponse("/caja/conciliacion/depositos/auditoria", status_code=303)
+    vinculado = db.get(MovimientoFinanciero, mov.movimiento_vinculado_id) if mov.movimiento_vinculado_id else None
+    if not vinculado:
+        flash(request, "Esta fila no tiene pareja vinculada: no se puede corregir automáticamente.", "error")
+        return RedirectResponse("/caja/conciliacion/depositos/auditoria", status_code=303)
+
+    montos_coinciden = to_decimal(mov.monto) == to_decimal(vinculado.monto)
+    tipos_correctos = {mov.tipo, vinculado.tipo} == {"gasto", "ingreso"}
+    categoria_correcta = vinculado.categoria == CATEGORIA_DEPOSITO_BANCO
+    if not (montos_coinciden and tipos_correctos and categoria_correcta):
+        flash(request, "Esta fila no cumple el patrón seguro para corregir automáticamente (monto, tipo o categoría de la pareja no coinciden). Revísala a mano.", "error")
+        return RedirectResponse("/caja/conciliacion/depositos/auditoria", status_code=303)
+
+    gasto_row = mov if mov.tipo == "gasto" else vinculado
+    ingreso_row = vinculado if gasto_row is mov else mov
+    if gasto_row.cuenta == CUENTA_CAJA_CHICA and ingreso_row.cuenta == CUENTA_BANCO:
+        flash(request, "Esta fila ya está correcta (gasto en Caja Chica, ingreso en Banco).", "success")
+        return RedirectResponse("/caja/conciliacion/depositos/auditoria", status_code=303)
+
+    gasto_row.cuenta = CUENTA_CAJA_CHICA
+    ingreso_row.cuenta = CUENTA_BANCO
+    db.flush()
+    # El asiento del Libro Diario de un Depósito bancario siempre vive en la
+    # fila de Caja Chica del par (ver caja_movimiento_editar): se regenera
+    # con la cuenta ya corregida.
+    eliminar_asiento_de_movimiento(db, gasto_row.id)
+    registrar_asiento_para_movimiento(db, gasto_row)
+    db.commit()
+    flash(request, f"Depósito de {gasto_row.monto} corregido: #{gasto_row.id} quedó en Caja Chica (gasto) y #{ingreso_row.id} en Banco (ingreso).", "success")
+    return RedirectResponse("/caja/conciliacion/depositos/auditoria", status_code=303)
 
 
 @router.post("/caja/conciliacion/{mov_id}/validar")

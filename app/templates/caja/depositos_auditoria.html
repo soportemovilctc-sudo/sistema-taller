@@ -60,6 +60,13 @@
               {% for extra in g.otros %}
               <div class="help" style="margin-top:4px;">Fila suelta: #{{ extra.id }} — {{ extra.tipo }} / {{ extra.cuenta }} — {{ extra.monto|moneda(config_taller().moneda) }}</div>
               {% endfor %}
+              {% if g.auto_corregible %}
+              <form method="post" action="/caja/conciliacion/depositos/{{ g.mov_id_para_corregir }}/corregir-cuenta" style="margin-top:8px;" onsubmit="return confirm('¿Corregir este depósito? El lado \'gasto\' quedará en Caja Chica y el lado \'ingreso\' en Banco.');">
+                <button type="submit" class="btn btn-success btn-sm">Corregir automáticamente</button>
+              </form>
+              {% else %}
+              <div class="help" style="margin-top:6px;">Este caso no se puede corregir automáticamente — revísalo a mano.</div>
+              {% endif %}
             {% else %}
               <span class="badge badge-listo-para-entregar">OK</span>
             {% endif %}

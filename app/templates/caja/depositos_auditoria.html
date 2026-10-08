@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Caja · Auditoría de depósitos bancarios{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/caja/panel">Panel gerencial</a>
+  <a href="/caja/conciliacion" class="active">Conciliación y egresos</a>
+  <a href="/caja/informe">Informe mensual</a>
+  <a href="/caja/reporte">Reportes de caja chica</a>
+  <a href="/caja/libro-diario">Libro Diario</a>
+</div>
+
+<p class="help" style="margin-bottom:14px;">
+  <a href="/caja/conciliacion">← Volver a Conciliación y egresos</a>
+</p>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Auditoría de Depósitos bancarios</div>
+  <p class="help" style="margin-bottom:10px;">
+    Un depósito bien registrado siempre son dos filas: una salida de Caja Chica (gasto) y una entrada a Banco (ingreso), por el mismo monto. Si alguna quedó mal — de antes de que existiera este sistema de pares, o corregida a mano — aquí aparece marcada como <b>anómala</b>, con el detalle de qué está mal.
+  </p>
+  {% if total_anomalos %}
+  <div class="badge badge-cancelado" style="margin-bottom:10px;">{{ total_anomalos }} depósito{{ 's' if total_anomalos != 1 else '' }} con anomalías</div>
+  {% else %}
+  <div class="badge badge-listo-para-entregar" style="margin-bottom:10px;">Sin anomalías: todos los depósitos están bien formados.</div>
+  {% endif %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th><th>Monto</th>
+          <th>Lado Caja Chica</th><th>Lado Banco</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in grupos %}
+        <tr{% if g.anomalias %} style="background:rgba(239,68,68,0.08);"{% endif %}>
+          <td>{{ g.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ g.monto|moneda(config_taller().moneda) }}</td>
+          <td>
+            {% if g.lado_caja_chica %}
+              #{{ g.lado_caja_chica.id }} — {{ g.lado_caja_chica.tipo }} — {{ g.lado_caja_chica.referencia or '-' }}
+            {% else %}
+              <span class="text-muted">— no tiene —</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if g.lado_banco %}
+              #{{ g.lado_banco.id }} — {{ g.lado_banco.tipo }} — {{ g.lado_banco.referencia or '-' }}
+            {% else %}
+              <span class="text-muted">— no tiene —</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if g.anomalias %}
+              <span class="badge badge-cancelado">Anómalo</span>
+              <ul style="margin:6px 0 0 18px; padding:0;">
+                {% for a in g.anomalias %}<li>{{ a }}</li>{% endfor %}
+              </ul>
+              {% for extra in g.otros %}
+              <div class="help" style="margin-top:4px;">Fila suelta: #{{ extra.id }} — {{ extra.tipo }} / {{ extra.cuenta }} — {{ extra.monto|moneda(config_taller().moneda) }}</div>
+              {% endfor %}
+            {% else %}
+              <span class="badge badge-listo-para-entregar">OK</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">No hay depósitos bancarios registrados todavía.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

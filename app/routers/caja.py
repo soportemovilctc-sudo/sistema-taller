@@ -745,6 +745,74 @@ def caja_conciliacion(request: Request, db: Session = Depends(get_db), usuario=D
     })
 
 
+@router.get("/caja/conciliacion/depositos/auditoria")
+def caja_depositos_auditoria(request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    """Auditoría de TODOS los registros de Depósito Bancario (sin importar
+    cuenta), para detectar filas mal formadas de antes de que existiera el
+    sistema de pares vinculados (movimiento_vinculado_id, migración 0018) o
+    corregidas a mano: un depósito bien formado siempre es un par — un
+    "gasto" en Caja Chica y un "ingreso" en Banco, por el mismo monto,
+    cruzados entre sí. Si a una fila le falta su pareja, tiene un monto
+    distinto, o las dos quedaron del mismo lado (las dos en Caja Chica o
+    las dos en Banco, o las dos "gasto" o las dos "ingreso"), aquí se
+    marca como anómala — eso es lo que hay que corregir a mano."""
+    filas = db.query(MovimientoFinanciero).filter(
+        MovimientoFinanciero.categoria == CATEGORIA_DEPOSITO_BANCO,
+    ).order_by(MovimientoFinanciero.fecha.desc()).all()
+    por_id = {m.id: m for m in filas}
+
+    grupos = []
+    vistos = set()
+    for m in filas:
+        if m.id in vistos:
+            continue
+        vinculado = None
+        if m.movimiento_vinculado_id:
+            # Primero se busca entre las filas ya cargadas (misma categoría);
+            # si no aparece ahí, se busca suelta en la base — eso mismo ya es
+            # una anomalía (la pareja perdió la categoría "Depósito bancario").
+            vinculado = por_id.get(m.movimiento_vinculado_id) or db.get(MovimientoFinanciero, m.movimiento_vinculado_id)
+        vistos.add(m.id)
+        if vinculado:
+            vistos.add(vinculado.id)
+
+        anomalias = []
+        if not vinculado:
+            anomalias.append("No tiene pareja vinculada (fila huérfana).")
+        else:
+            if vinculado.categoria != CATEGORIA_DEPOSITO_BANCO:
+                anomalias.append(f"La pareja ya no tiene la categoría \"Depósito bancario\" (tiene: \"{vinculado.categoria}\").")
+            if to_decimal(m.monto) != to_decimal(vinculado.monto):
+                anomalias.append(f"Los montos de la pareja no coinciden ({m.monto} vs {vinculado.monto}).")
+            cuentas = {m.cuenta, vinculado.cuenta}
+            if cuentas != {CUENTA_CAJA_CHICA, CUENTA_BANCO}:
+                anomalias.append(f"Las cuentas no son una de Caja Chica y una de Banco (son: {m.cuenta}, {vinculado.cuenta}).")
+            tipos = {m.tipo, vinculado.tipo}
+            if tipos != {"gasto", "ingreso"}:
+                anomalias.append(f"Los tipos no son un gasto y un ingreso (son: {m.tipo}, {vinculado.tipo}).")
+
+        lado_caja_chica = m if m.cuenta == CUENTA_CAJA_CHICA else (vinculado if vinculado and vinculado.cuenta == CUENTA_CAJA_CHICA else None)
+        lado_banco = m if m.cuenta == CUENTA_BANCO else (vinculado if vinculado and vinculado.cuenta == CUENTA_BANCO else None)
+        fecha_orden = lado_caja_chica.fecha if lado_caja_chica else m.fecha
+
+        grupos.append({
+            "fecha": fecha_orden,
+            "monto": m.monto,
+            "lado_caja_chica": lado_caja_chica,
+            "lado_banco": lado_banco,
+            "otros": [x for x in (m, vinculado) if x and x is not lado_caja_chica and x is not lado_banco],
+            "anomalias": anomalias,
+        })
+
+    grupos.sort(key=lambda g: g["fecha"], reverse=True)
+    total_anomalos = sum(1 for g in grupos if g["anomalias"])
+
+    return templates.TemplateResponse("caja/depositos_auditoria.html", {
+        "request": request, "usuario": usuario,
+        "grupos": grupos, "total_anomalos": total_anomalos,
+    })
+
+
 @router.post("/caja/conciliacion/{mov_id}/validar")
 def caja_conciliacion_validar(mov_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
     mov = db.get(MovimientoFinanciero, mov_id)

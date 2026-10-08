@@ -221,6 +221,19 @@
       </div>
       {% if orden %}
       <p class="help">Total actual: <b>{{ orden.total|moneda(config_taller().moneda) }}</b> · Abonado: <b>{{ orden.abonado|moneda(config_taller().moneda) }}</b> · Saldo: <b>{{ orden.saldo|moneda(config_taller().moneda) }}</b><br>Los abonos se registran desde el detalle de la orden.</p>
+      {% else %}
+      <div class="field">
+        <label>Abono inicial (opcional — pago mixto)</label>
+        <p class="help" style="margin-bottom:8px;">Si el cliente paga algo ahora, escribe el monto en la(s) forma(s) de pago que use — por ejemplo, parte en efectivo y parte por transferencia — y se registra como el primer abono de la orden.</p>
+        <div class="form-row">
+          <div class="field"><label>Efectivo</label><input type="number" step="0.01" min="0" name="abono_efectivo" value="0"></div>
+          <div class="field"><label>Transferencia</label><input type="number" step="0.01" min="0" name="abono_transferencia" value="0"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Tarjeta</label><input type="number" step="0.01" min="0" name="abono_tarjeta" value="0"></div>
+          <div class="field"><label>Otro</label><input type="number" step="0.01" min="0" name="abono_otro" value="0"></div>
+        </div>
+      </div>
       {% endif %}
     </div>
   </div>

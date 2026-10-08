@@ -196,6 +196,10 @@ def ordenes_crear(
     cotizacion: str = Form("0"),
     recargo_pct: str = Form("0"),
     forma_pago: str = Form("Efectivo"),
+    abono_efectivo: str = Form("0"),
+    abono_transferencia: str = Form("0"),
+    abono_tarjeta: str = Form("0"),
+    abono_otro: str = Form("0"),
     fecha_orden: str = Form(""),
     fecha_entrega: str = Form(""),
     repuesto_producto_id: list[str] = Form([]),
@@ -357,15 +361,56 @@ def ordenes_crear(
         db.refresh(orden)
         recalcular_orden(orden)
 
+    # Abono inicial al crear la orden (opcional, pago mixto): hasta 4
+    # montos, uno por cada forma de pago (Efectivo/Transferencia/Tarjeta/
+    # Otro), para que un cliente pueda pagar parte en efectivo y parte por
+    # transferencia desde el mismo formulario de creación, en vez de tener
+    # que crear la orden primero y luego ir a registrar los abonos uno por
+    # uno. Cada monto se guarda como su propio Pago (igual que un abono
+    # normal, ver _aplicar_abono), así que la factura de la orden ya los
+    # reparte correctamente por cuenta cuando se emite (ver
+    # _desglose_pagos_orden en facturacion.py) — no se necesitó tocar esa
+    # lógica, ya sabía sumar varias formas de pago de un mismo abonado.
+    abonos_iniciales = [
+        ("Efectivo", abono_efectivo), ("Transferencia", abono_transferencia),
+        ("Tarjeta", abono_tarjeta), ("Otro", abono_otro),
+    ]
+    montos_iniciales = []
+    for forma, monto_raw in abonos_iniciales:
+        try:
+            monto_dec = to_decimal(monto_raw or 0)
+        except ValueError:
+            monto_dec = Decimal("0")
+        if monto_dec > 0:
+            montos_iniciales.append((forma, monto_dec))
+
+    abono_inicial_error = None
+    if montos_iniciales:
+        suma_abono_inicial = sum((m for _, m in montos_iniciales), Decimal("0.00"))
+        if suma_abono_inicial > to_decimal(orden.total):
+            abono_inicial_error = (
+                f"El abono inicial ({suma_abono_inicial}) no se registró porque suma más que el total de la orden "
+                f"({orden.total}). Corrígelo desde la orden ya creada."
+            )
+        else:
+            for forma, monto_dec in montos_iniciales:
+                _aplicar_abono(db, orden, monto_dec, forma, "Pago inicial al crear la orden", usuario["nombre_completo"])
+            db.flush()
+
     db.commit()
 
     if repuestos_con_error:
         flash(request, "No se pudieron agregar estos repuestos por falta de existencia: " + ", ".join(repuestos_con_error), "error")
+    if abono_inicial_error:
+        flash(request, abono_inicial_error, "error")
     mensaje = f"Orden {orden.numero_orden} creada correctamente."
     if repuestos_agregados:
         mensaje += f" Repuestos agregados: {', '.join(repuestos_agregados)}."
     if servicios_agregados:
         mensaje += f" Servicios agregados: {', '.join(servicios_agregados)}."
+    if montos_iniciales and not abono_inicial_error:
+        detalle_abono = ", ".join(f"{forma} {monto}" for forma, monto in montos_iniciales)
+        mensaje += f" Abono inicial registrado: {detalle_abono}."
     flash(request, mensaje, "success")
     return RedirectResponse(f"/ordenes/{orden.id}", status_code=303)
 

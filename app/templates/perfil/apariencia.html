@@ -43,7 +43,7 @@
         {% for m in mascotas_disponibles %}
         <label class="checkbox-chip">
           <input type="radio" name="mascota" value="{{ m.valor }}" {{ 'checked' if u.mascota == m.valor else '' }}>
-          {{ {'panda': '🐼', 'leon': '🦁', 'raton': '🐭'}.get(m.valor, '') }} {{ m.nombre }}
+          {{ {'panda': '🐼', 'leon': '🦁', 'raton': '🐭', 'robot': '🤖'}.get(m.valor, '') }} {{ m.nombre }}
         </label>
         {% endfor %}
       </div>

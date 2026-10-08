@@ -101,6 +101,7 @@ MASCOTAS_DISPONIBLES = [
     {"valor": "panda", "nombre": "Panda"},
     {"valor": "leon", "nombre": "León"},
     {"valor": "raton", "nombre": "Ratón"},
+    {"valor": "robot", "nombre": "Robot"},
 ]
 
 # "Efectos de ventana" (ver Usuario.efecto_cierre_ventana y los demás

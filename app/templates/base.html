@@ -151,6 +151,46 @@
        beginElement() al tocarla (un <img> no permite eso: su SVG queda
        aislado, sin acceso desde el JS de la página). -->
   {% set _mascota = usuario.mascota or 'panda' %}
+  {% if _mascota == 'robot' %}
+  <!-- Mascota "Robot": igual que panda/leon/raton no se puede dibujar a
+       mano en SVG (es un personaje con render foto-realista), así que es
+       una imagen -- misma idea que tuvo "Asistente" antes. Las reacciones
+       usan clases CSS sobre este div (ver REACCIONES_ROBOT en app.js) en
+       vez de beginElement(). A diferencia de Asistente: la hélice es una
+       tercera capa que gira SIEMPRE sola (animation infinite, no depende
+       de ninguna reacción) sobre su propio pivote en el buje, y la cara
+       cambia de neutral a sonriente mientras dura cualquier reacción (ver
+       ".reaccionando" en style.css, que activa la capa "feliz" encima de
+       la neutral). -->
+  <div id="pandaCajaMascota" class="panda-mascota mascota-robot" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" title="Arrástrame a donde quieras. Tócame para una sorpresa.">
+    <div class="robot-img">
+      <img class="robot-capa robot-capa-cuerpo robot-capa-neutral" src="{{ url_for('static', path='img/mascota-robot-cuerpo.png') }}" alt="Robot" draggable="false">
+      <img class="robot-capa robot-capa-cuerpo robot-capa-feliz" src="{{ url_for('static', path='img/mascota-robot-cuerpo-feliz.png') }}" alt="" draggable="false">
+      <img class="robot-capa robot-capa-helice" src="{{ url_for('static', path='img/mascota-robot-helice.png') }}" alt="" draggable="false">
+    </div>
+    <span class="robot-fx robot-fx-corazones" aria-hidden="true">
+      <span class="robot-pieza robot-corazon">💙</span>
+      <span class="robot-pieza robot-corazon">💙</span>
+      <span class="robot-pieza robot-corazon">💙</span>
+    </span>
+    <span class="robot-fx robot-fx-confeti" aria-hidden="true">
+      <span class="robot-pieza robot-confeti robot-confeti-1"></span>
+      <span class="robot-pieza robot-confeti robot-confeti-2"></span>
+      <span class="robot-pieza robot-confeti robot-confeti-3"></span>
+      <span class="robot-pieza robot-confeti robot-confeti-4"></span>
+      <span class="robot-pieza robot-confeti robot-confeti-5"></span>
+      <span class="robot-pieza robot-confeti robot-confeti-6"></span>
+    </span>
+    <span class="robot-fx robot-fx-mareo" aria-hidden="true">
+      <span class="robot-pieza robot-mareo-estrella">✦</span>
+      <span class="robot-pieza robot-mareo-estrella">✧</span>
+    </span>
+    <!-- brillito decorativo permanente (igual que panda/leon/raton): se
+         repite solo, no es una reaccion, para que se sienta viva incluso
+         sin tocarla. -->
+    <span class="robot-pieza robot-brillo" aria-hidden="true">✨</span>
+  </div>
+  {% else %}
   <svg id="pandaCajaMascota" class="panda-mascota" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
     <title>Arrástrame a donde quieras. Tócame para una sorpresa.</title>
     {% if _mascota == 'leon' %}
@@ -1090,6 +1130,7 @@
     </g>
     {% endif %}
   </svg>
+  {% endif %}
   {% endif %}
 </div>
 {% else %}

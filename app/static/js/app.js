@@ -322,7 +322,45 @@ function inicializarPandaMascota() {
     ["reaccionConfetiMov1", "reaccionConfetiGiro1", "reaccionConfetiOpacidad1", "reaccionConfetiMov2", "reaccionConfetiGiro2", "reaccionConfetiOpacidad2", "reaccionConfetiMov3", "reaccionConfetiGiro3", "reaccionConfetiOpacidad3"]
   ];
 
+  // La mascota "Robot" tampoco es un SVG dibujado a mano (es una imagen en
+  // capas: cuerpo + hélice), así que sus reacciones son clases CSS (ver
+  // ".reaccion-*" en style.css) igual que antes lo eran las de
+  // "Asistente" -- 9 reacciones genéricas de cuerpo completo (sin las
+  // que necesitaban brazos/manos, como "pulgar arriba" o "selfie", que no
+  // tienen sentido en una esfera sin extremidades).
+  var REACCIONES_ROBOT = [
+    "reaccion-salto", "reaccion-giro", "reaccion-baile", "reaccion-sorpresa",
+    "reaccion-risa", "reaccion-mareo", "reaccion-confeti", "reaccion-corazones",
+    "reaccion-celebrar"
+  ];
+  var DURACION_MAX_REACCION_ROBOT = 1300; // ms: la más larga (corazones) dura 1.3s
+
+  function dispararReaccionRobot() {
+    var clase = REACCIONES_ROBOT[Math.floor(Math.random() * REACCIONES_ROBOT.length)];
+    // Quita cualquier reacción anterior y fuerza un reflow antes de volver
+    // a agregar la clase, para que la animación CSS se pueda repetir aunque
+    // toque la misma reacción dos veces seguidas (si no, el navegador no
+    // detecta el "cambio" de clase y no la vuelve a reproducir).
+    REACCIONES_ROBOT.forEach(function (c) { panda.classList.remove(c); });
+    panda.classList.remove("reaccionando");
+    void panda.offsetWidth;
+    panda.classList.add(clase);
+    // "reaccionando" es la clase genérica que style.css usa para mostrar
+    // la cara feliz (no puede buscar "reaccion-*" por patrón): va junto
+    // con la clase específica de arriba, todo el tiempo que dure.
+    panda.classList.add("reaccionando");
+    clearTimeout(panda._reaccionTimeout);
+    panda._reaccionTimeout = setTimeout(function () {
+      panda.classList.remove(clase);
+      panda.classList.remove("reaccionando");
+    }, DURACION_MAX_REACCION_ROBOT);
+  }
+
   function dispararReaccionAleatoria() {
+    if (panda.dataset.mascota === "robot") {
+      dispararReaccionRobot();
+      return;
+    }
     var elegida = REACCIONES[Math.floor(Math.random() * REACCIONES.length)];
     elegida.forEach(function (id) {
       var el = document.getElementById(id);
@@ -431,7 +469,7 @@ function inicializarPandaMascota() {
   // ---------- Globo del asistente (se crea una sola vez, se reutiliza para
   // el consejo de presión larga Y para los avisos espontáneos/reacciones) ----------
 
-  var EMOJI_MASCOTA = { panda: "🐼", leon: "🦁", raton: "🐭" };
+  var EMOJI_MASCOTA = { panda: "🐼", leon: "🦁", raton: "🐭", robot: "🤖" };
   var emojiMascota = EMOJI_MASCOTA[panda.dataset.mascota] || "🐼";
 
   var globo = document.createElement("div");

@@ -1011,3 +1011,200 @@ html, body {
 }
 
 .panda-chat-accion-btn:disabled { opacity: .6; cursor: default; }
+
+/* ============================================================
+   Mascota "Robot" (imagen, no SVG dibujado a mano)
+   ============================================================
+   Usa el mismo contenedor .panda-mascota (posicion fija, arrastre,
+   respiracion, caminata autonoma) que ya comparten panda/leon/raton -- esas
+   reglas de arriba siguen aplicando tal cual, solo se ajusta aqui el
+   tamaño/proporcion (el recorte de la imagen es 420x514, una esfera con
+   helice arriba).
+
+   Las "reacciones" (ver REACCIONES_ROBOT en app.js) NO se animan sobre
+   este contenedor raiz (chocaria con la respiracion/caminata de arriba,
+   que tambien animan su transform): se animan sobre .robot-img (el hijo),
+   igual que panda/leon/raton animan sub-elementos de su SVG con
+   beginElement() sin tocar el transform del root. */
+.panda-mascota.mascota-robot {
+  width: 78px;
+  height: 96px;
+  right: 20px; bottom: 15px;
+}
+@media (max-width: 900px) {
+  .panda-mascota.mascota-robot { width: 63px; height: 77px; right: 13px; bottom: 10px; }
+}
+.robot-img {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+/* Las tres capas (cuerpo neutral, cuerpo feliz, helice) salen del mismo
+   recorte/escala (420x514) del PNG original, asi que coinciden pixel a
+   pixel sin necesitar ningun ajuste individual de posicion. */
+.robot-capa {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+/* Cara: neutral por defecto, sonriente mientras dura cualquier reaccion
+   (".reaccionando", agregada junto con la clase "reaccion-*" especifica
+   -- ver dispararReaccionRobot() en app.js, ya que CSS no puede buscar
+   clases por patron "reaccion-*"). La capa feliz va encima en el DOM, asi
+   que con opacity:1 tapa a la neutral sin necesitar tocarla. */
+.robot-capa-feliz {
+  opacity: 0;
+  transition: opacity .15s linear;
+}
+.reaccionando .robot-capa-feliz {
+  opacity: 1;
+}
+/* Helice: gira SIEMPRE, sola, sin depender de ninguna reaccion -- sobre
+   su propio pivote (centro del buje, calculado sobre el pixel exacto
+   donde se recorto del resto de la imagen: 209.85,28.70 de 420x514 =
+   49.96%,5.58%). Como el circulo de corte esta centrado en ese mismo
+   pivote, la helice puede girar 360° sin que se note la costura con el
+   cuerpo (el borde circular coincide consigo mismo en cualquier angulo). */
+.robot-capa-helice {
+  transform-origin: 49.96% 5.58%;
+  animation: robot-helice-gira 2.2s linear infinite;
+  will-change: transform;
+}
+@keyframes robot-helice-gira {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.robot-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+.robot-pieza { position: absolute; display: inline-block; line-height: 1; }
+
+/* Brillito decorativo permanente (misma idea que panda/leon/raton): se
+   repite solo cada ~4.4s, no es una reaccion. */
+.robot-brillo {
+  top: -4px; right: 6px;
+  font-size: 15px;
+  opacity: 0;
+  animation: robot-brillo-parpadeo 4.4s ease-in-out infinite;
+}
+@keyframes robot-brillo-parpadeo {
+  0%, 50% { opacity: 0; transform: scale(.6); }
+  58% { opacity: .9; transform: scale(1); }
+  66% { opacity: .3; transform: scale(.8); }
+  74% { opacity: .9; transform: scale(1); }
+  82%, 100% { opacity: 0; transform: scale(.6); }
+}
+
+/* ----- Reacciones que mueven todo el cuerpo (sobre .robot-img) ----- */
+.reaccion-salto .robot-img { animation: robot-salto .7s cubic-bezier(.34,1.56,.64,1); }
+@keyframes robot-salto {
+  0%   { transform: translateY(0) scale(1); }
+  35%  { transform: translateY(-22px) scale(1.06,.94); }
+  55%  { transform: translateY(-22px) scale(1.06,.94); }
+  75%  { transform: translateY(4px) scale(.96,1.05); }
+  100% { transform: translateY(0) scale(1); }
+}
+.reaccion-giro .robot-img { animation: robot-giro .8s ease-in-out; }
+@keyframes robot-giro {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.08); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.reaccion-baile .robot-img { animation: robot-baile .9s ease-in-out; }
+@keyframes robot-baile {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  20% { transform: rotate(-9deg) translateY(-4px); }
+  40% { transform: rotate(8deg) translateY(0); }
+  60% { transform: rotate(-7deg) translateY(-6px); }
+  80% { transform: rotate(6deg) translateY(0); }
+}
+.reaccion-sorpresa .robot-img { animation: robot-sorpresa .55s ease-out; }
+@keyframes robot-sorpresa {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.16,.88); }
+  55% { transform: scale(.94,1.1); }
+  100% { transform: scale(1); }
+}
+.reaccion-risa .robot-img { animation: robot-risa .6s ease-in-out; }
+@keyframes robot-risa {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  15% { transform: translateY(-3px) rotate(-3deg); }
+  30% { transform: translateY(0) rotate(3deg); }
+  45% { transform: translateY(-3px) rotate(-3deg); }
+  60% { transform: translateY(0) rotate(3deg); }
+  75% { transform: translateY(-2px) rotate(-2deg); }
+}
+
+/* ----- Mareo: el cuerpo se tambalea + estrellitas orbitando la cabeza --- */
+.reaccion-mareo .robot-img { animation: robot-mareo-cuerpo 1.1s ease-in-out; }
+@keyframes robot-mareo-cuerpo {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+.reaccion-mareo .robot-fx-mareo { opacity: 1; }
+.reaccion-mareo .robot-mareo-estrella { top: -6%; font-size: 13px; color: #ffe066; animation: robot-mareo-orbita 1.1s linear; }
+.reaccion-mareo .robot-mareo-estrella:nth-child(2) { animation-delay: .15s; color: #fff; }
+@keyframes robot-mareo-orbita {
+  0%   { left: 50%; transform: translate(-50%,0) rotate(0deg); opacity: 0; }
+  15%  { opacity: 1; }
+  50%  { left: 88%; transform: translate(-50%,-6px) rotate(180deg); }
+  85%  { opacity: 1; }
+  100% { left: 50%; transform: translate(-50%,0) rotate(360deg); opacity: 0; }
+}
+
+/* ----- Corazones: flotan hacia arriba y se desvanecen ----- */
+.reaccion-corazones .robot-fx-corazones { opacity: 1; }
+.reaccion-corazones .robot-corazon { bottom: 38%; font-size: 15px; animation: robot-corazon-subir 1.3s ease-out; }
+.reaccion-corazones .robot-corazon:nth-child(1) { left: 10%; animation-delay: 0s; }
+.reaccion-corazones .robot-corazon:nth-child(2) { left: 50%; margin-left: -8px; animation-delay: .12s; font-size: 18px; }
+.reaccion-corazones .robot-corazon:nth-child(3) { left: 82%; animation-delay: .22s; }
+@keyframes robot-corazon-subir {
+  0% { transform: translateY(0) scale(.4); opacity: 0; }
+  20% { opacity: 1; transform: translateY(-10px) scale(1); }
+  100% { transform: translateY(-70px) scale(.8); opacity: 0; }
+}
+
+/* ----- Confeti: estalla en varias direcciones ----- */
+.reaccion-confeti .robot-fx-confeti,
+.reaccion-celebrar .robot-fx-confeti { opacity: 1; }
+.reaccion-confeti .robot-confeti,
+.reaccion-celebrar .robot-confeti {
+  top: 18%; left: 50%; width: 6px; height: 10px; border-radius: 1px;
+  animation: robot-confeti-estalla 1.1s ease-out;
+}
+.robot-confeti-1 { background: #ef4444; --dx: -46px; --dy: -34px; animation-delay: 0s; }
+.robot-confeti-2 { background: #22c55e; --dx: 40px; --dy: -40px; animation-delay: .04s; }
+.robot-confeti-3 { background: #3b82f6; --dx: -58px; --dy: 10px; animation-delay: .08s; }
+.robot-confeti-4 { background: #eab308; --dx: 54px; --dy: 4px; animation-delay: .02s; }
+.robot-confeti-5 { background: #a855f7; --dx: -20px; --dy: -54px; animation-delay: .1s; }
+.robot-confeti-6 { background: #f97316; --dx: 20px; --dy: -58px; animation-delay: .06s; }
+@keyframes robot-confeti-estalla {
+  0%   { transform: translate(0,0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) rotate(260deg); opacity: 0; }
+}
+
+/* ----- Celebrar: salto grande + confeti a la vez (combina dos reglas de
+   arriba: anima .robot-img con su propio keyframe, y comparte el overlay
+   de confeti con la reaccion "confeti") ----- */
+.reaccion-celebrar .robot-img { animation: robot-celebrar .9s cubic-bezier(.34,1.56,.64,1); }
+@keyframes robot-celebrar {
+  0%   { transform: translateY(0) rotate(0deg) scale(1); }
+  30%  { transform: translateY(-26px) rotate(-6deg) scale(1.08,.95); }
+  55%  { transform: translateY(-26px) rotate(6deg) scale(1.08,.95); }
+  80%  { transform: translateY(2px) rotate(-3deg) scale(.97,1.04); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}

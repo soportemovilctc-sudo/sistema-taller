@@ -327,13 +327,16 @@ function inicializarPandaMascota() {
   // ".reaccion-*" en style.css) igual que antes lo eran las de
   // "Asistente" -- 9 reacciones genéricas de cuerpo completo (sin las
   // que necesitaban brazos/manos, como "pulgar arriba" o "selfie", que no
-  // tienen sentido en una esfera sin extremidades).
+  // tienen sentido en una esfera sin extremidades) MÁS "confundido" y
+  // "enojado": estas dos no solo mueven el cuerpo, también cambian la
+  // cara (ver .robot-capa-confundido/.robot-capa-enojado en style.css),
+  // calcadas de las expresiones del GIF que mandó Ricardo.
   var REACCIONES_ROBOT = [
     "reaccion-salto", "reaccion-giro", "reaccion-baile", "reaccion-sorpresa",
     "reaccion-risa", "reaccion-mareo", "reaccion-confeti", "reaccion-corazones",
-    "reaccion-celebrar"
+    "reaccion-celebrar", "reaccion-confundido", "reaccion-enojado"
   ];
-  var DURACION_MAX_REACCION_ROBOT = 1300; // ms: la más larga (corazones) dura 1.3s
+  var DURACION_MAX_REACCION_ROBOT = 1700; // ms: la más larga (confundido/enojado) dura 1.7s
 
   function dispararReaccionRobot() {
     var clase = REACCIONES_ROBOT[Math.floor(Math.random() * REACCIONES_ROBOT.length)];

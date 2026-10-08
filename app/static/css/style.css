@@ -1027,12 +1027,12 @@ html, body {
    igual que panda/leon/raton animan sub-elementos de su SVG con
    beginElement() sin tocar el transform del root. */
 .panda-mascota.mascota-robot {
-  width: 78px;
-  height: 96px;
+  width: 61px;
+  height: 75px;
   right: 20px; bottom: 15px;
 }
 @media (max-width: 900px) {
-  .panda-mascota.mascota-robot { width: 63px; height: 77px; right: 13px; bottom: 10px; }
+  .panda-mascota.mascota-robot { width: 49px; height: 60px; right: 13px; bottom: 10px; }
 }
 .robot-img {
   display: block;
@@ -1066,6 +1066,20 @@ html, body {
   transition: opacity .15s linear;
 }
 .reaccionando .robot-capa-feliz {
+  opacity: 1;
+}
+/* Confundido/Enojado: expresiones propias (no "sonriente generico" como
+   las 9 de arriba), asi que van encima de la capa feliz en el DOM y se
+   activan con su propia clase especifica -- taponan a la feliz sin
+   necesitar apagarla. */
+.robot-capa-confundido, .robot-capa-enojado {
+  opacity: 0;
+  transition: opacity .15s linear;
+}
+.reaccion-confundido .robot-capa-confundido {
+  opacity: 1;
+}
+.reaccion-enojado .robot-capa-enojado {
   opacity: 1;
 }
 /* Helice: gira SIEMPRE, sola, sin depender de ninguna reaccion -- sobre
@@ -1207,4 +1221,55 @@ html, body {
   55%  { transform: translateY(-26px) rotate(6deg) scale(1.08,.95); }
   80%  { transform: translateY(2px) rotate(-3deg) scale(.97,1.04); }
   100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+
+/* ----- Confundido: la cara cambia a "?" (ver .robot-capa-confundido
+   arriba) + un ligero vaivén de cabeza ladeada, como dudando, mientras
+   dos garabatos ("?" y "~") flotan a los costados. ----- */
+.reaccion-confundido .robot-img { animation: robot-confundido-cuerpo 1.7s ease-in-out; }
+@keyframes robot-confundido-cuerpo {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  20% { transform: rotate(-7deg) translateY(-2px); }
+  50% { transform: rotate(5deg) translateY(0); }
+  75% { transform: rotate(-4deg) translateY(-1px); }
+}
+.reaccion-confundido .robot-fx-confundido { opacity: 1; }
+.reaccion-confundido .robot-garabato {
+  top: 22%; font-size: 15px; font-weight: 700; color: #334155;
+  animation: robot-garabato-flota 1.7s ease-in-out;
+}
+.reaccion-confundido .robot-garabato-1 { left: -10px; animation-delay: 0s; }
+.reaccion-confundido .robot-garabato-2 { right: -8px; left: auto; top: 8%; animation-delay: .25s; }
+@keyframes robot-garabato-flota {
+  0%   { opacity: 0; transform: translateY(6px) rotate(-8deg) scale(.6); }
+  20%  { opacity: 1; }
+  50%  { transform: translateY(-6px) rotate(8deg) scale(1.05); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px) rotate(-6deg) scale(.8); }
+}
+
+/* ----- Enojado: la cara cambia a ">< " (ver .robot-capa-enojado arriba)
+   + una vibrada corta de enojo, con rayos rojos parpadeando al lado. --- */
+.reaccion-enojado .robot-img { animation: robot-enojado-cuerpo .5s ease-in-out 2; }
+@keyframes robot-enojado-cuerpo {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  20% { transform: translateX(-3px) rotate(-4deg); }
+  40% { transform: translateX(3px) rotate(4deg); }
+  60% { transform: translateX(-2px) rotate(-3deg); }
+  80% { transform: translateX(2px) rotate(3deg); }
+}
+.reaccion-enojado .robot-fx-enojado { opacity: 1; animation: robot-fx-aparecer 1.7s ease; }
+.reaccion-enojado .robot-rayo {
+  top: 10%; font-size: 16px; color: #ef4444;
+  animation: robot-rayo-parpadea .5s ease-in-out infinite;
+}
+.reaccion-enojado .robot-rayo-1 { right: -6px; left: auto; }
+.reaccion-enojado .robot-rayo-2 { right: -14px; left: auto; top: 26%; animation-delay: .15s; font-size: 13px; }
+@keyframes robot-rayo-parpadea {
+  0%, 100% { opacity: .5; transform: scale(.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+@keyframes robot-fx-aparecer {
+  0%, 100% { opacity: 0; }
+  15%, 85% { opacity: 1; }
 }

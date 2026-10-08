@@ -166,6 +166,8 @@
     <div class="robot-img">
       <img class="robot-capa robot-capa-cuerpo robot-capa-neutral" src="{{ url_for('static', path='img/mascota-robot-cuerpo.png') }}" alt="Robot" draggable="false">
       <img class="robot-capa robot-capa-cuerpo robot-capa-feliz" src="{{ url_for('static', path='img/mascota-robot-cuerpo-feliz.png') }}" alt="" draggable="false">
+      <img class="robot-capa robot-capa-cuerpo robot-capa-confundido" src="{{ url_for('static', path='img/mascota-robot-cuerpo-confundido.png') }}" alt="" draggable="false">
+      <img class="robot-capa robot-capa-cuerpo robot-capa-enojado" src="{{ url_for('static', path='img/mascota-robot-cuerpo-enojado.png') }}" alt="" draggable="false">
       <img class="robot-capa robot-capa-helice" src="{{ url_for('static', path='img/mascota-robot-helice.png') }}" alt="" draggable="false">
     </div>
     <span class="robot-fx robot-fx-corazones" aria-hidden="true">
@@ -184,6 +186,18 @@
     <span class="robot-fx robot-fx-mareo" aria-hidden="true">
       <span class="robot-pieza robot-mareo-estrella">✦</span>
       <span class="robot-pieza robot-mareo-estrella">✧</span>
+    </span>
+    <!-- Confundido/Enojado: las 2 expresiones extra del GIF que mandó
+         Ricardo (la cara ya cambia sola -- ver .robot-capa-confundido y
+         .robot-capa-enojado arriba --, esto son solo los garabatos/rayos
+         flotantes junto a la cabeza que acompañan a cada una). -->
+    <span class="robot-fx robot-fx-confundido" aria-hidden="true">
+      <span class="robot-pieza robot-garabato robot-garabato-1">?</span>
+      <span class="robot-pieza robot-garabato robot-garabato-2">~</span>
+    </span>
+    <span class="robot-fx robot-fx-enojado" aria-hidden="true">
+      <span class="robot-pieza robot-rayo robot-rayo-1">⚡</span>
+      <span class="robot-pieza robot-rayo robot-rayo-2">⚡</span>
     </span>
     <!-- brillito decorativo permanente (igual que panda/leon/raton): se
          repite solo, no es una reaccion, para que se sienta viva incluso

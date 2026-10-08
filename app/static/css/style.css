@@ -1035,6 +1035,20 @@ html, body {
 }
 .asistente-img {
   display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+/* Las dos capas (cuerpo sin brazo + brazo suelto) se superponen exacto,
+   pixel a pixel, porque ambos PNG salieron del mismo lienzo original
+   (363x760) -- por eso comparten el mismo encuadre object-fit/position
+   que antes tenia la imagen unica. */
+.asistente-capa {
+  position: absolute;
+  inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -1042,6 +1056,13 @@ html, body {
   pointer-events: none;
   -webkit-user-drag: none;
   user-select: none;
+}
+/* Pivote del hombro (brazo derecho levantado), calculado sobre el pixel
+   exacto donde se corto el brazo del resto de la imagen (146,193 de
+   363x760 = 40.2%,25.4%). Girar la capa del brazo sobre este punto es
+   articulacion real (no una simulacion de todo el cuerpo). */
+.asistente-capa-brazo {
+  transform-origin: 40.2% 25.4%;
 }
 .asistente-fx {
   position: absolute;
@@ -1302,5 +1323,26 @@ html, body {
   0%, 36%, 100% { opacity: 0; }
   42% { opacity: .8; }
   50% { opacity: 0; }
+}
+
+/* Saludo: a diferencia de las demas reacciones (que mueven TODO el cuerpo
+   como si fuera una sola pieza), esta mueve solo la capa del brazo
+   derecho -- un giro real sobre el pivote del hombro (.asistente-capa-
+   brazo, definido arriba), igual que un brazo articulado de verdad. El
+   cuerpo recibe ademas un vaivenes muy sutil para que no se sienta
+   congelado mientras el brazo saluda. */
+.reaccion-saludo .asistente-img { animation: asistente-saludo-cuerpo 1.8s ease-in-out; }
+@keyframes asistente-saludo-cuerpo {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.reaccion-saludo .asistente-capa-brazo { animation: asistente-saludo-brazo 1.8s ease-in-out; }
+@keyframes asistente-saludo-brazo {
+  0%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(-16deg); }
+  32% { transform: rotate(6deg); }
+  49% { transform: rotate(-18deg); }
+  66% { transform: rotate(6deg); }
+  83% { transform: rotate(-10deg); }
 }
 .panda-chat-accion-btn:disabled { opacity: .6; cursor: default; }

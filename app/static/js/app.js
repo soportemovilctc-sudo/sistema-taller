@@ -335,7 +335,12 @@ function inicializarPandaMascota() {
     "reaccion-celebrar", "reaccion-cafe",
     // "Props" extra (no son poses reales del personaje, son iconos que
     // aparecen junto a él, igual que la taza de café -- ver style.css).
-    "reaccion-laptop", "reaccion-telefono", "reaccion-idea", "reaccion-pulgar", "reaccion-selfie"
+    "reaccion-laptop", "reaccion-telefono", "reaccion-idea", "reaccion-pulgar", "reaccion-selfie",
+    // Saludo: a diferencia de todas las anteriores (que mueven el cuerpo
+    // completo como una sola pieza), esta gira de verdad solo el brazo
+    // derecho sobre el hombro -- articulación real, no simulada (ver
+    // .asistente-capa-brazo en style.css).
+    "reaccion-saludo"
   ];
   var DURACION_MAX_REACCION_ASISTENTE = 2800; // ms: la más larga (café/laptop) dura 2.4-2.6s
 

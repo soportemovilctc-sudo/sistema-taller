@@ -161,7 +161,19 @@
        de este div, ocultos hasta que la clase de la reacción los activa
        (ver ".mascota-asistente" en style.css). -->
   <div id="pandaCajaMascota" class="panda-mascota mascota-asistente" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" title="Arrástrame a donde quieras. Tócame para una sorpresa.">
-    <img class="asistente-img" src="{{ url_for('static', path='img/mascota-asistente.png') }}" alt="Asistente" draggable="false">
+    <!-- "asistente-img" sigue siendo el contenedor que las 15 reacciones
+         de siempre animan como cuerpo completo (translate/scale/rotate) --
+         eso no cambia. Lo nuevo: adentro ya NO hay una sola imagen, sino
+         dos capas recortadas del mismo PNG original (cuerpo sin el brazo
+         derecho + el brazo derecho solo), superpuestas en el mismo lugar
+         pixel a pixel. Esto permite que "reaccion-saludo" gire SOLO el
+         brazo (de verdad, con transform: rotate sobre su propio pivote en
+         el hombro) sin tocar el resto del cuerpo -- articulacion real, no
+         simulada, usando unicamente la imagen que ya teniamos. -->
+    <div class="asistente-img">
+      <img class="asistente-capa asistente-capa-cuerpo" src="{{ url_for('static', path='img/mascota-asistente-cuerpo.png') }}" alt="" draggable="false">
+      <img class="asistente-capa asistente-capa-brazo" src="{{ url_for('static', path='img/mascota-asistente-brazo.png') }}" alt="Asistente" draggable="false">
+    </div>
     <span class="asistente-fx asistente-fx-estrellas" aria-hidden="true">
       <span class="asistente-pieza asistente-estrella">✦</span>
       <span class="asistente-pieza asistente-estrella">✦</span>

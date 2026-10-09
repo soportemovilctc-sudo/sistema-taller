@@ -7,8 +7,7 @@ Esta migración SOLO deshace el cambio de esquema de 0025 (quita las
 columnas condicion/accesorios de servicios_rapidos). El código de
 app/models.py, app/routers/ordenes.py, app/routers/servicio_rapido.py,
 app/templates/ordenes/form.html y app/static/js/orden.js vuelve en este
-mismo commit a ser exactamente el de antes de 0025 (ver commit que agregó
-0025 vs. este).
+mismo commit a ser exactamente el de antes de 0025.
 
 Se agrega una migración nueva en vez de borrar 0025 porque, para cuando
 Ricardo pidió el cambio, ya pudo haber corrido en producción (Railway) y
@@ -19,15 +18,23 @@ si una base de datos nunca llegó a aplicar 0025, al llegar a "head" aplica
 0025 y 0026 seguidas (agrega y enseguida quita las columnas, sin dejar
 rastro); si ya estaba en 0025, solo aplica 0026 (quita las columnas).
 
-Revision ID: 0026_revierte_condicion_accesorios_servicio_rapido
-Revises: 0025_servicio_rapido_condicion_accesorios
+NOTA: este archivo se llamó originalmente
+"0026_revierte_condicion_accesorios_servicio_rapido" (revision ID de 50
+caracteres), igual que el 0025 original -- ver la nota en
+0025_sr_condicion_accesorios.py: ambos nombres largos tumbaron los dos
+servicios en producción porque no caben en el VARCHAR(32) de
+alembic_version.version_num en Postgres. Se renombró a
+"0026_revierte_sr_cond_acc" (25 caracteres).
+
+Revision ID: 0026_revierte_sr_cond_acc
+Revises: 0025_sr_condicion_accesorios
 Create Date: 2026-10-09
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0026_revierte_condicion_accesorios_servicio_rapido"
-down_revision = "0025_servicio_rapido_condicion_accesorios"
+revision = "0026_revierte_sr_cond_acc"
+down_revision = "0025_sr_condicion_accesorios"
 branch_labels = None
 depends_on = None
 

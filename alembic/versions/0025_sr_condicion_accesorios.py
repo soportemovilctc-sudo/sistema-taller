@@ -16,14 +16,26 @@ marcados en el formulario al aplicarse -- solo se sobrescriben cuando la
 plantilla sí trae algo guardado (ver app/static/js/orden.js: aplicarChips
 / aplicarServicio).
 
-Revision ID: 0025_servicio_rapido_condicion_accesorios
+NOTA: este archivo se llamó originalmente
+"0025_servicio_rapido_condicion_accesorios" (revision ID de 41
+caracteres). Eso tumbó los dos servicios en producción: la tabla
+alembic_version de Postgres guarda version_num en VARCHAR(32), y Postgres
+rechazó el UPDATE con "value too long for type character varying(32)" --
+la migración completa (que corre en una sola transacción, ver
+alembic/env.py: run_migrations_online) se revertía sola en cada arranque,
+dejando la app sin levantar (502 "Application failed to respond") en bucle.
+Se renombró a "0025_sr_condicion_accesorios" (28 caracteres) para que
+quepa. Como la transacción se revertía completa, nunca llegó a tocar el
+esquema real -- no hizo falta corregir datos, solo el nombre.
+
+Revision ID: 0025_sr_condicion_accesorios
 Revises: 0024_quita_mascota_asistente
 Create Date: 2026-10-09
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0025_servicio_rapido_condicion_accesorios"
+revision = "0025_sr_condicion_accesorios"
 down_revision = "0024_quita_mascota_asistente"
 branch_labels = None
 depends_on = None

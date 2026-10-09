@@ -36,8 +36,37 @@ def _opciones_formulario(db: Session):
         .order_by(MarcaEquipo.orden, MarcaEquipo.nombre)
         .all()
     )
+
+    # Para que Marca/Modelo muestren primero lo que más se repite en el
+    # historial de este taller (pedido de Ricardo para agilizar crear una
+    # orden), se cuenta cuántas órdenes ha tenido cada marca y cada
+    # combinación marca+modelo, y se reordenan las listas por esa
+    # frecuencia -- sin tocar el catálogo en sí (orden/alfabético) cuando
+    # todavía no hay historial o hay empate.
+    conteo_marcas = dict(
+        db.query(OrdenServicio.marca, func.count(OrdenServicio.id))
+        .filter(OrdenServicio.marca != "")
+        .group_by(OrdenServicio.marca)
+        .all()
+    )
+    conteo_modelos = {}
+    for marca, modelo, cantidad in (
+        db.query(OrdenServicio.marca, OrdenServicio.modelo, func.count(OrdenServicio.id))
+        .filter(OrdenServicio.marca != "", OrdenServicio.modelo != "")
+        .group_by(OrdenServicio.marca, OrdenServicio.modelo)
+        .all()
+    ):
+        conteo_modelos.setdefault(marca, {})[modelo] = cantidad
+
+    marcas_catalogo = sorted(
+        marcas_catalogo,
+        key=lambda m: (-conteo_marcas.get(m.nombre, 0), m.orden, m.nombre),
+    )
     marca_modelos_map = {
-        m.nombre: sorted([mo.nombre for mo in m.modelos if mo.activo])
+        m.nombre: sorted(
+            [mo.nombre for mo in m.modelos if mo.activo],
+            key=lambda nombre: (-conteo_modelos.get(m.nombre, {}).get(nombre, 0), nombre),
+        )
         for m in marcas_catalogo
     }
     servicios_rapidos = (

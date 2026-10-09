@@ -6,49 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
   inicializarMarcaModelo();
   inicializarServicioRapido();
   inicializarValidacionEnvio();
-  inicializarAtajosCondicion();
 });
-
-// Marca exactamente los valores dados en un grid de chips (checkbox-chip),
-// desmarcando primero el resto. Si algún valor no existe todavía como chip
-// en ese grid, lo crea ya marcado (igual que "+ Agregar", pero en lote).
-// La usan tanto el botón "Sin daños visibles" como aplicar un Servicio
-// rápido que trae su propia Condición/Accesorios guardados.
-function aplicarChips(gridId, valores) {
-  var grid = document.getElementById(gridId);
-  if (!grid) return;
-  var lista = (valores || []).filter(Boolean);
-  var checkboxes = Array.prototype.slice.call(grid.querySelectorAll("input[type=checkbox]"));
-  var fieldName = checkboxes.length ? checkboxes[0].name : (gridId === "condicionGrid" ? "condicion" : "accesorios");
-  checkboxes.forEach(function (chk) { chk.checked = false; });
-  lista.forEach(function (valor) {
-    var existente = checkboxes.filter(function (chk) { return chk.value.toLowerCase() === valor.toLowerCase(); })[0];
-    if (existente) {
-      existente.checked = true;
-      return;
-    }
-    var label = document.createElement("label");
-    label.className = "checkbox-chip";
-    var checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.name = fieldName;
-    checkbox.value = valor;
-    checkbox.checked = true;
-    label.appendChild(checkbox);
-    label.appendChild(document.createTextNode(" " + valor));
-    grid.appendChild(label);
-    checkboxes.push(checkbox);
-  });
-}
-
-// Botón de un clic para el caso más común: equipo recibido en buen estado.
-function inicializarAtajosCondicion() {
-  var btn = document.getElementById("condicionSinDanos");
-  if (!btn) return;
-  btn.addEventListener("click", function () {
-    aplicarChips("condicionGrid", ["Sin daños visibles"]);
-  });
-}
 
 // Antes de enviar el formulario, verifica que los campos obligatorios de
 // marca, modelo y condición física estén completos. Si falta algo, se
@@ -410,21 +368,7 @@ function inicializarServicioRapido() {
     if (campoCot) { campoCot.value = s.cotizacion || 0; dispararInput(campoCot); }
     if (campoPct) { campoPct.value = s.recargo_pct || 0; dispararInput(campoPct); }
 
-    // Condición/Accesorios son opcionales en la plantilla: si no trae nada
-    // guardado, no se toca lo que ya esté marcado en la orden.
-    if (s.condicion && s.condicion.length) aplicarChips("condicionGrid", s.condicion);
-    if (s.accesorios && s.accesorios.length) aplicarChips("accesoriosGrid", s.accesorios);
-
     preview.textContent = 'Aplicado: "' + s.nombre + '".';
-  }
-
-  function marcarChipsModal(gridId, valores) {
-    var grid = document.getElementById(gridId);
-    if (!grid) return;
-    var set = (valores || []).map(function (v) { return v.toLowerCase(); });
-    grid.querySelectorAll("input[type=checkbox]").forEach(function (chk) {
-      chk.checked = set.indexOf(chk.value.toLowerCase()) !== -1;
-    });
   }
 
   function abrirModal(modoNuevo, servicio) {
@@ -442,8 +386,6 @@ function inicializarServicioRapido() {
       campoDias.value = servicio.dias_plazo || 0;
       campoCotizacion.value = servicio.cotizacion || 0;
       campoRecargo.value = servicio.recargo_pct || 0;
-      marcarChipsModal("srCondicionGrid", servicio.condicion);
-      marcarChipsModal("srAccesoriosGrid", servicio.accesorios);
     } else {
       idEnEdicion = null;
       titulo.textContent = "Nuevo servicio rápido";
@@ -455,8 +397,6 @@ function inicializarServicioRapido() {
       campoDias.value = 0;
       campoCotizacion.value = 0;
       campoRecargo.value = 0;
-      marcarChipsModal("srCondicionGrid", []);
-      marcarChipsModal("srAccesoriosGrid", []);
     }
     overlay.style.display = "flex";
     campoNombre.focus();
@@ -483,12 +423,6 @@ function inicializarServicioRapido() {
     datos.append("dias_plazo", campoDias.value || "0");
     datos.append("cotizacion", campoCotizacion.value || "0");
     datos.append("recargo_pct", campoRecargo.value || "0");
-    document.querySelectorAll("#srCondicionGrid input[type=checkbox]:checked").forEach(function (chk) {
-      datos.append("condicion", chk.value);
-    });
-    document.querySelectorAll("#srAccesoriosGrid input[type=checkbox]:checked").forEach(function (chk) {
-      datos.append("accesorios", chk.value);
-    });
 
     var url = modo === "editar" ? ("/servicios-rapidos/" + idEnEdicion + "/editar") : "/servicios-rapidos";
     btnGuardar.disabled = true;

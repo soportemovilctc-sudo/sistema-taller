@@ -768,12 +768,7 @@ class ServicioRapido(Base):
     """Plantilla de 'servicio rápido': un conjunto de datos predefinidos
     (falla, estado físico, observaciones, trabajo, plazo y precio) que el
     técnico puede aplicar con un clic al crear o editar una orden, en vez
-    de escribir todo el diagnóstico a mano cada vez.
-
-    condicion/accesorios son opcionales: si la plantilla no los trae (""),
-    al aplicarla NO se toca lo que el usuario ya haya marcado en el
-    formulario -- solo se sobrescribe cuando la plantilla sí trae algo
-    guardado (ver orden.js: aplicarServicio)."""
+    de escribir todo el diagnóstico a mano cada vez."""
     __tablename__ = "servicios_rapidos"
 
     id = Column(Integer, primary_key=True)
@@ -783,8 +778,6 @@ class ServicioRapido(Base):
     estado_fisico = Column(Text, default="")
     observaciones = Column(Text, default="")
     trabajo_realizado = Column(Text, default="")
-    condicion = Column(Text, default="")
-    accesorios = Column(Text, default="")
 
     dias_plazo = Column(Integer, default=0)
     cotizacion = Column(Numeric(10, 2), default=0)
@@ -795,12 +788,6 @@ class ServicioRapido(Base):
 
     __table_args__ = (UniqueConstraint("nombre", name="uq_servicios_rapidos_nombre"),)
 
-    def lista_condicion(self):
-        return [c for c in (self.condicion or "").split(",") if c]
-
-    def lista_accesorios(self):
-        return [a for a in (self.accesorios or "").split(",") if a]
-
     def a_dict(self):
         return {
             "id": self.id,
@@ -809,8 +796,6 @@ class ServicioRapido(Base):
             "estado_fisico": self.estado_fisico or "",
             "observaciones": self.observaciones or "",
             "trabajo_realizado": self.trabajo_realizado or "",
-            "condicion": self.lista_condicion(),
-            "accesorios": self.lista_accesorios(),
             "dias_plazo": self.dias_plazo or 0,
             "cotizacion": float(self.cotizacion or 0),
             "recargo_pct": float(self.recargo_pct or 0),

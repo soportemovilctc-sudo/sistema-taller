@@ -24,7 +24,7 @@
       </div>
     </div>
     <div class="help" id="srPreview"></div>
-    <p class="help">Al aplicar, se sobrescriben Estado físico, Observaciones, Falla reportada, Reparación/Trabajo, Fecha de entrega, Cotización y Recargo con los datos de la plantilla. Si la plantilla también trae guardados Condición física y/o Accesorios, se marcan solos; si no, se dejan igual que como estén.</p>
+    <p class="help">Al aplicar, se sobrescriben Estado físico, Observaciones, Falla reportada, Reparación/Trabajo, Fecha de entrega, Cotización y Recargo con los datos de la plantilla.</p>
   </div>
 
   <div class="grid cols-2">
@@ -113,9 +113,6 @@
 
       <div class="field">
         <label>Condición física / estado al recibir *</label>
-        <div class="add-chip-row" style="margin-bottom:8px;">
-          <button type="button" id="condicionSinDanos" class="btn btn-outline btn-sm">&#10003; Sin daños visibles (1 clic)</button>
-        </div>
         <div class="checkbox-grid" id="condicionGrid">
           {% set cond_actuales = orden.lista_condicion() if orden else [] %}
           {% for c in condiciones_disponibles %}
@@ -334,24 +331,6 @@
     <div class="field"><label>Nombre</label><input type="text" id="srNombre" placeholder="Ej: Puesto / revisión sin reparar"></div>
     <div class="field"><label>Falla reportada</label><textarea id="srFalla"></textarea></div>
     <div class="field"><label>Estado físico al recibir</label><textarea id="srEstadoFisico"></textarea></div>
-    <div class="field">
-      <label>Condición física (opcional)</label>
-      <p class="help" style="margin-top:-4px; margin-bottom:6px;">Si la dejas vacía, aplicar esta plantilla no toca lo que ya esté marcado en Condición de la orden.</p>
-      <div class="checkbox-grid" id="srCondicionGrid">
-        {% for c in condiciones_disponibles %}
-        <label class="checkbox-chip"><input type="checkbox" value="{{ c }}"> {{ c }}</label>
-        {% endfor %}
-      </div>
-    </div>
-    <div class="field">
-      <label>Accesorios (opcional)</label>
-      <p class="help" style="margin-top:-4px; margin-bottom:6px;">Si lo dejas vacío, aplicar esta plantilla no toca lo que ya esté marcado en Accesorios de la orden.</p>
-      <div class="checkbox-grid" id="srAccesoriosGrid">
-        {% for a in accesorios_disponibles %}
-        <label class="checkbox-chip"><input type="checkbox" value="{{ a }}"> {{ a }}</label>
-        {% endfor %}
-      </div>
-    </div>
     <div class="field"><label>Observaciones / Notas</label><textarea id="srObservaciones"></textarea></div>
     <div class="field"><label>Reparación / Trabajo</label><textarea id="srTrabajo"></textarea></div>
     <div class="form-row">

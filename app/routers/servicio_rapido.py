@@ -50,8 +50,6 @@ def servicios_rapidos_crear(
     estado_fisico: str = Form(""),
     observaciones: str = Form(""),
     trabajo_realizado: str = Form(""),
-    condicion: list[str] = Form([]),
-    accesorios: list[str] = Form([]),
     dias_plazo: str = Form("0"),
     cotizacion: str = Form("0"),
     recargo_pct: str = Form("0"),
@@ -71,7 +69,6 @@ def servicios_rapidos_crear(
     servicio = ServicioRapido(
         nombre=nombre, falla_reportada=falla_reportada, estado_fisico=estado_fisico,
         observaciones=observaciones, trabajo_realizado=trabajo_realizado,
-        condicion=",".join(c for c in condicion if c), accesorios=",".join(a for a in accesorios if a),
         dias_plazo=dias, cotizacion=cot, recargo_pct=pct, orden=maximo_orden,
     )
     db.add(servicio)
@@ -87,8 +84,6 @@ def servicios_rapidos_editar(
     estado_fisico: str = Form(""),
     observaciones: str = Form(""),
     trabajo_realizado: str = Form(""),
-    condicion: list[str] = Form([]),
-    accesorios: list[str] = Form([]),
     dias_plazo: str = Form("0"),
     cotizacion: str = Form("0"),
     recargo_pct: str = Form("0"),
@@ -114,8 +109,6 @@ def servicios_rapidos_editar(
     servicio.estado_fisico = estado_fisico
     servicio.observaciones = observaciones
     servicio.trabajo_realizado = trabajo_realizado
-    servicio.condicion = ",".join(c for c in condicion if c)
-    servicio.accesorios = ",".join(a for a in accesorios if a)
     servicio.dias_plazo = dias
     servicio.cotizacion = cot
     servicio.recargo_pct = pct

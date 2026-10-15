@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Caja #{{ turno.id }} · Apertura y cierre{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+{% set r = resumen %}
+
+<p class="help" style="margin-bottom:14px;"><a href="/caja/turnos">← Volver a Apertura y cierre</a></p>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">
+    Caja #{{ turno.id }} del {{ fecha_apertura_local.strftime('%d/%m/%Y') }}
+    {% if abierta %}<span class="badge badge-en-reparacion">Abierta</span>{% else %}<span class="badge badge-entregado">Cerrada</span>{% endif %}
+    {% if turno.cerrada_tarde %}<span class="badge badge-alta">Cerrada otro día</span>{% endif %}
+  </div>
+  <div class="grid cols-2">
+    <div>
+      <b>Apertura:</b> {{ a_hora_local(turno.fecha_apertura).strftime('%d/%m/%Y %I:%M %p') }} — {{ turno.abierta_por }}
+      {% if turno.notas_apertura %}<div class="help">Notas: {{ turno.notas_apertura }}</div>{% endif %}
+    </div>
+    <div>
+      <b>Cierre:</b>
+      {% if turno.fecha_cierre %}{{ a_hora_local(turno.fecha_cierre).strftime('%d/%m/%Y %I:%M %p') }} — {{ turno.cerrada_por }}{% else %}todavía abierta{% endif %}
+      {% if turno.notas_cierre %}<div class="help">Notas: {{ turno.notas_cierre }}</div>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-blue"><div class="kpi-label">Efectivo inicial</div><div class="kpi-value">{{ turno.monto_inicial|moneda(moneda) }}</div></div>
+  {% if abierta %}
+  <div class="kpi accent-green"><div class="kpi-label">Efectivo que debería haber ahora</div><div class="kpi-value">{{ r.efectivo_esperado|moneda(moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Cobrado en el turno</div><div class="kpi-value">{{ r.total_cobrado|moneda(moneda) }}</div></div>
+  {% else %}
+  <div class="kpi accent-blue"><div class="kpi-label">Esperado / Contado</div><div class="kpi-value" style="font-size:20px;">{{ turno.efectivo_esperado|moneda(moneda) }} / {{ turno.efectivo_contado|moneda(moneda) }}</div></div>
+  <div class="kpi {{ 'accent-green' if turno.diferencia == 0 else ('accent-orange' if turno.diferencia > 0 else 'accent-red') }}">
+    <div class="kpi-label">{{ 'Cuadra' if turno.diferencia == 0 else ('Sobrante' if turno.diferencia > 0 else 'Faltante') }}</div>
+    <div class="kpi-value">{{ turno.diferencia|moneda(moneda) }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid cols-2" style="align-items:start; margin-bottom:18px;">
+  <div class="card">
+    <div class="card-title">Cálculo del efectivo</div>
+    <table>
+      <tr><td>Efectivo inicial</td><td style="text-align:right;">{{ r.monto_inicial|moneda(moneda) }}</td></tr>
+      <tr><td>+ Abonos y pagos de órdenes en efectivo ({{ r.pagos_efectivo|length }})</td><td style="text-align:right;">{{ r.total_pagos_efectivo|moneda(moneda) }}</td></tr>
+      <tr><td>+ Otros ingresos en efectivo ({{ r.ingresos_efectivo|length }})</td><td style="text-align:right;">{{ r.total_ingresos_efectivo|moneda(moneda) }}</td></tr>
+      <tr><td>− Salidas de caja ({{ r.salidas_efectivo|length }})</td><td style="text-align:right;">{{ r.total_salidas_efectivo|moneda(moneda) }}</td></tr>
+      <tr><td style="font-weight:700;">= Efectivo esperado {{ '(calculado ahora)' if not abierta else '' }}</td><td style="text-align:right; font-weight:700;">{{ r.efectivo_esperado|moneda(moneda) }}</td></tr>
+    </table>
+    {% if not abierta and turno.efectivo_esperado is not none and r.efectivo_esperado != turno.efectivo_esperado %}
+    <p class="help" style="margin-top:8px;">El esperado guardado al cerrar fue {{ turno.efectivo_esperado|moneda(moneda) }}; cambió porque después se modificó algún registro de este turno. El administrador puede guardar la caja de nuevo para actualizar la diferencia.</p>
+    {% endif %}
+    <p class="help" style="margin-top:8px;">Las facturas de órdenes no se suman aquí: ese dinero ya se contó cuando entró el abono o pago de la orden.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Cobrado por forma de pago</div>
+    <table>
+      {% for metodo, monto in r.cobrado_por_metodo %}
+      <tr><td>{{ metodo }}</td><td style="text-align:right;">{{ monto|moneda(moneda) }}</td></tr>
+      {% else %}
+      <tr><td colspan="2" class="empty-state">Sin cobros en este turno.</td></tr>
+      {% endfor %}
+      {% if r.cobrado_por_metodo %}
+      <tr><td style="font-weight:700;">Total</td><td style="text-align:right; font-weight:700;">{{ r.total_cobrado|moneda(moneda) }}</td></tr>
+      {% endif %}
+    </table>
+    <p class="help" style="margin-top:8px;">Ventas del POS: {{ r.ventas_pos|length }} ({{ r.total_ventas_pos|moneda(moneda) }}) · Facturas emitidas: {{ r.facturas|length }} ({{ r.total_facturado|moneda(moneda) }})</p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Abonos y pagos de órdenes</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Hora</th><th>Orden</th><th>Forma de pago</th><th>Monto</th><th>Registró</th><th>Nota</th></tr></thead>
+      <tbody>
+        {% for p in r.pagos %}
+        <tr>
+          <td>{{ a_hora_local(p.fecha).strftime('%d/%m %I:%M %p') }}</td>
+          <td>{% if p.orden %}<a href="/ordenes/{{ p.orden_id }}">{{ p.orden.numero_orden }}</a>{% else %}-{% endif %}</td>
+          <td>{{ p.forma_pago }}</td>
+          <td>{{ p.monto|moneda(moneda) }}</td>
+          <td>{{ p.usuario_nombre or '-' }}</td>
+          <td>{{ p.observacion or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">Sin abonos en este turno.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Cobros, ventas y salidas de caja</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Hora</th><th>Tipo</th><th>Categoría</th><th>Cuenta</th><th>Forma de pago</th><th>Monto</th><th>Descripción</th></tr></thead>
+      <tbody>
+        {% for m in r.movimientos %}
+        <tr{% if m.excluir_de_contabilidad %} style="opacity:.55;"{% endif %}>
+          <td>{{ a_hora_local(m.fecha).strftime('%d/%m %I:%M %p') }}</td>
+          <td>{{ 'Ingreso' if m.tipo == 'ingreso' else 'Salida' }}</td>
+          <td>{{ m.categoria }}</td>
+          <td>{{ 'Caja Chica' if m.cuenta == 'caja_chica' else 'Banco' }}</td>
+          <td>{{ m.metodo_pago or '-' }}</td>
+          <td>{{ m.monto|moneda(moneda) }}</td>
+          <td>{{ m.descripcion or '' }}{% if m.excluir_de_contabilidad %} <span class="help">(anulado)</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty-state">Sin movimientos en este turno.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="grid cols-2" style="align-items:start; margin-bottom:18px;">
+  <div class="card">
+    <div class="card-title">Ventas del Punto de Venta</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Venta</th><th>Hora</th><th>Forma de pago</th><th>Total</th></tr></thead>
+        <tbody>
+          {% for v in r.ventas_pos %}
+          <tr><td>{{ v.numero_venta }}</td><td>{{ a_hora_local(v.fecha).strftime('%I:%M %p') }}</td><td>{{ v.forma_pago }}</td><td>{{ v.total|moneda(moneda) }}</td></tr>
+          {% else %}
+          <tr><td colspan="4" class="empty-state">Sin ventas del POS.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Facturas emitidas</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Documento</th><th>Cliente</th><th>Total</th></tr></thead>
+        <tbody>
+          {% for f in r.facturas %}
+          <tr>
+            <td><a href="/facturas/{{ f.id }}">{{ f.numero_documento }}</a> <span class="help">{{ f.tipo }}</span></td>
+            <td>{{ f.cliente_nombre }}</td>
+            <td>{{ f.total|moneda(moneda) }}{% if f.anulada %} <span class="badge badge-cancelado">Anulada</span>{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="empty-state">Sin facturas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="grid cols-2" style="align-items:start; margin-bottom:18px;">
+  {% if puede_editar %}
+  <div class="card">
+    <div class="card-title">{{ 'Corregir esta caja (administrador)' if not abierta else 'Editar apertura' }}</div>
+    <form method="post" action="/caja/turnos/{{ turno.id }}/editar">
+      <div class="field"><label>Efectivo inicial</label><input type="number" step="0.01" min="0" name="monto_inicial" value="{{ '%.2f'|format(turno.monto_inicial or 0) }}" required></div>
+      <div class="field"><label>Notas de apertura</label><textarea name="notas_apertura">{{ turno.notas_apertura or '' }}</textarea></div>
+      {% if not abierta %}
+      <div class="field"><label>Efectivo contado</label><input type="number" step="0.01" min="0" name="efectivo_contado" value="{{ '%.2f'|format(turno.efectivo_contado or 0) }}" required></div>
+      <div class="field"><label>Notas de cierre</label><textarea name="notas_cierre">{{ turno.notas_cierre or '' }}</textarea></div>
+      <div class="field"><label>Motivo de la corrección *</label><input type="text" name="motivo" required placeholder="Queda guardado en la bitácora"></div>
+      {% endif %}
+      <button type="submit" class="btn btn-primary">Guardar cambios</button>
+    </form>
+  </div>
+  {% else %}
+  <div class="card">
+    <div class="card-title">Corregir esta caja</div>
+    <p class="help">Esta caja ya está cerrada: solo el administrador puede corregirla o reabrirla.</p>
+  </div>
+  {% endif %}
+
+  {% if es_admin and not abierta %}
+  <div class="card">
+    <div class="card-title">Reabrir caja (administrador)</div>
+    {% if puede_reabrir %}
+    <p class="help">Vuelve a abrir esta caja para que se sigan registrando cobros en ella. Después habrá que cerrarla de nuevo con un conteo nuevo. El cierre anterior queda guardado en la bitácora.</p>
+    <form method="post" action="/caja/turnos/{{ turno.id }}/reabrir" onsubmit="return confirm('¿Reabrir esta caja?');">
+      <div class="field"><label>Motivo *</label><input type="text" name="motivo" required></div>
+      <button type="submit" class="btn btn-warning">Reabrir caja</button>
+    </form>
+    {% elif hay_otra_abierta %}
+    <p class="help">Hay otra caja abierta en este momento. Para reabrir esta, primero hay que cerrar la otra.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title">Bitácora</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Acción</th><th>Usuario</th><th>Detalle</th></tr></thead>
+      <tbody>
+        {% for e in turno.eventos %}
+        <tr>
+          <td>{{ a_hora_local(e.fecha).strftime('%d/%m/%Y %I:%M %p') }}</td>
+          <td>{{ {'apertura': 'Apertura', 'cierre': 'Cierre', 'reapertura': 'Reapertura', 'edicion': 'Corrección'}.get(e.accion, e.accion) }}</td>
+          <td>{{ e.usuario_nombre }}</td>
+          <td>{{ e.detalle }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

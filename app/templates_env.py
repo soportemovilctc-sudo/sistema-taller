@@ -100,3 +100,13 @@ templates.env.globals["get_flashes"] = obtener_flashes
 templates.env.globals["config_taller"] = obtener_config_actual
 templates.env.globals["notificaciones_taller"] = obtener_notificaciones
 templates.env.globals["version_estatico"] = version_estatico
+
+
+def estado_caja():
+    """Estado de la apertura de caja para el aviso de la barra superior
+    (ver app/utils/turnos_caja.py). Nunca lanza error."""
+    from app.utils.turnos_caja import estado_caja_para_plantilla
+    return estado_caja_para_plantilla()
+
+
+templates.env.globals["estado_caja"] = estado_caja

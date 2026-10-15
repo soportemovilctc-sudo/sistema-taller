@@ -25,6 +25,7 @@ from app.utils.pdf_ticket import generar_ticket_orden
 from app.utils.flash import flash
 from app.utils.notificaciones import enviar_whatsapp
 from app.deps import login_required, roles_required
+from app.utils.turnos_caja import verificar_caja
 
 router = APIRouter()
 
@@ -387,7 +388,15 @@ def ordenes_crear(
     abono_inicial_error = None
     if montos_iniciales:
         suma_abono_inicial = sum((m for _, m in montos_iniciales), Decimal("0.00"))
-        if suma_abono_inicial > to_decimal(orden.total):
+        mensaje_caja = verificar_caja(db)
+        if mensaje_caja:
+            # La orden se crea igual (crear órdenes no requiere caja abierta);
+            # solo el abono queda sin registrar.
+            abono_inicial_error = (
+                f"La orden se creó, pero el abono inicial ({suma_abono_inicial}) NO se registró. {mensaje_caja} "
+                "Después regístralo desde la orden."
+            )
+        elif suma_abono_inicial > to_decimal(orden.total):
             abono_inicial_error = (
                 f"El abono inicial ({suma_abono_inicial}) no se registró porque suma más que el total de la orden "
                 f"({orden.total}). Corrígelo desde la orden ya creada."
@@ -779,6 +788,17 @@ def ordenes_cambiar_estado(
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
+    destino = redirect_to if redirect_to.startswith("/") else f"/ordenes/{orden_id}"
+    # Marcar ENTREGADO con saldo pendiente registra un pago automático (un
+    # cobro), así que requiere la caja abierta igual que un abono.
+    if (
+        orden and nuevo_estado == "ENTREGADO" and orden.estado != "ENTREGADO"
+        and orden.saldo and orden.saldo > 0
+    ):
+        mensaje_caja = verificar_caja(db)
+        if mensaje_caja:
+            flash(request, f"No se marcó como ENTREGADO porque tiene saldo pendiente por cobrar. {mensaje_caja}", "error")
+            return RedirectResponse(destino, status_code=303)
     if orden and nuevo_estado in ESTADOS_ORDEN:
         monto_pago_automatico, monto_revertido = _aplicar_cambio_estado(db, orden, nuevo_estado, observacion, usuario["nombre_completo"])
         db.commit()
@@ -801,6 +821,10 @@ def ordenes_registrar_abono(
     orden = db.get(OrdenServicio, orden_id)
     if not orden:
         return RedirectResponse("/ordenes", status_code=303)
+    mensaje_caja = verificar_caja(db)
+    if mensaje_caja:
+        flash(request, mensaje_caja, "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
     try:
         monto_validado = _aplicar_abono(db, orden, monto, forma_pago, observacion, usuario["nombre_completo"])
     except (ValueError, InvalidOperation) as e:

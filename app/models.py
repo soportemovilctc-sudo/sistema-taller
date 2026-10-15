@@ -233,6 +233,12 @@ class Configuracion(Base):
     twilio_whatsapp_from = Column(String(40), default="")  # ej: whatsapp:+14155238886
     notificar_whatsapp_automatico = Column(Boolean, default=True, nullable=False)
 
+    # --- Apertura y cierre de caja (ver TurnoCaja) ---
+    # A partir de este momento (guardado en UTC) es obligatorio tener la caja
+    # abierta para registrar cobros, abonos, facturas y ventas del POS. Si
+    # está vacío, el bloqueo no aplica y el sistema funciona como antes.
+    caja_obligatoria_desde = Column(DateTime, nullable=True)
+
 
 class OrdenServicio(Base):
     __tablename__ = "ordenes_servicio"
@@ -417,6 +423,9 @@ class Pago(Base):
     forma_pago = Column(String(20), default="Efectivo")
     usuario_nombre = Column(String(150))
     observacion = Column(Text, default="")
+    # Turno de caja (apertura) en el que se recibió este abono; se llena solo
+    # (ver app/utils/turnos_caja.py). Vacío en los abonos de antes del módulo.
+    turno_caja_id = Column(Integer, nullable=True, index=True)
 
     orden = relationship("OrdenServicio", back_populates="pagos")
 
@@ -483,6 +492,7 @@ class Venta(Base):
     monto_recibido = Column(Numeric(10, 2), default=0)
     cambio = Column(Numeric(10, 2), default=0)
     usuario_nombre = Column(String(150))
+    turno_caja_id = Column(Integer, nullable=True, index=True)  # ver TurnoCaja
 
     cliente = relationship("Cliente", back_populates="ventas")
     orden = relationship("OrdenServicio")
@@ -558,6 +568,10 @@ class MovimientoFinanciero(Base):
     # Si este ingreso viene de una Factura (ver CATEGORIA_VENTA_FACTURADA):
     # permite, por ejemplo, excluirlo también si esa factura se anula.
     factura_id = Column(Integer, ForeignKey("facturas.id"), nullable=True)
+
+    # Turno de caja (apertura) en el que se registró; se llena solo (ver
+    # app/utils/turnos_caja.py). Vacío en los movimientos de antes del módulo.
+    turno_caja_id = Column(Integer, nullable=True, index=True)
 
 
 class SaldoInicialMensual(Base):
@@ -759,6 +773,7 @@ class Factura(Base):
 
     usuario_nombre = Column(String(150))
     creado_en = Column(DateTime, default=datetime.utcnow)
+    turno_caja_id = Column(Integer, nullable=True, index=True)  # ver TurnoCaja
 
     orden = relationship("OrdenServicio", back_populates="facturas")
     venta = relationship("Venta")
@@ -800,3 +815,60 @@ class ServicioRapido(Base):
             "cotizacion": float(self.cotizacion or 0),
             "recargo_pct": float(self.recargo_pct or 0),
         }
+
+
+# ---------------------------------------------------------------------------
+# Apertura y cierre de caja (turnos). Cada apertura agrupa, desde ese momento
+# hasta su cierre, todo lo que mueve dinero: abonos de órdenes, cobros de
+# Caja, ventas del POS, facturas y salidas de caja (ver la columna
+# turno_caja_id en Pago, MovimientoFinanciero, Venta y Factura, que se llena
+# sola en app/utils/turnos_caja.py). NO reemplaza ni modifica el registro
+# contable: Liquidez, Contabilidad y Reportes siguen calculándose igual que
+# antes; esto es una capa encima para controlar el efectivo de cada turno.
+# ---------------------------------------------------------------------------
+TURNO_ABIERTO = "abierta"
+TURNO_CERRADO = "cerrada"
+
+
+class TurnoCaja(Base):
+    __tablename__ = "turnos_caja"
+
+    id = Column(Integer, primary_key=True)
+    estado = Column(String(10), nullable=False, default=TURNO_ABIERTO, index=True)
+
+    fecha_apertura = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    abierta_por = Column(String(150), default="")
+    monto_inicial = Column(Numeric(10, 2), nullable=False, default=0)  # efectivo contado al abrir
+    notas_apertura = Column(Text, default="")
+
+    fecha_cierre = Column(DateTime, nullable=True)
+    cerrada_por = Column(String(150), nullable=True)
+    # Arqueo: lo que el sistema calcula que debería haber en efectivo, lo
+    # que la cajera contó, y la diferencia (contado - esperado: positiva es
+    # sobrante, negativa es faltante). Se guardan al cerrar.
+    efectivo_esperado = Column(Numeric(10, 2), nullable=True)
+    efectivo_contado = Column(Numeric(10, 2), nullable=True)
+    diferencia = Column(Numeric(10, 2), nullable=True)
+    notas_cierre = Column(Text, default="")
+    # Se cerró otro día después del que se abrió (se olvidó cerrar).
+    cerrada_tarde = Column(Boolean, nullable=False, default=False)
+
+    eventos = relationship(
+        "TurnoCajaEvento", back_populates="turno", cascade="all,delete-orphan",
+        order_by="TurnoCajaEvento.fecha",
+    )
+
+
+class TurnoCajaEvento(Base):
+    """Bitácora de cada turno: apertura, cierre, reapertura y ediciones
+    (quién, cuándo y qué cambió)."""
+    __tablename__ = "turnos_caja_eventos"
+
+    id = Column(Integer, primary_key=True)
+    turno_id = Column(Integer, ForeignKey("turnos_caja.id"), nullable=False, index=True)
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow)
+    accion = Column(String(20), nullable=False)  # apertura | cierre | reapertura | edicion
+    usuario_nombre = Column(String(150), default="")
+    detalle = Column(Text, default="")
+
+    turno = relationship("TurnoCaja", back_populates="eventos")

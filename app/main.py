@@ -13,6 +13,12 @@ from app import models
 from app.security import hash_password
 
 from app.routers import auth, dashboard, clientes, ordenes, tecnicos, inventario, pos, contabilidad, reportes, configuracion, api, catalogo, facturacion, servicio_rapido, servicios, caja
+from app.routers import turnos_caja
+from app.utils.turnos_caja import registrar_vinculacion_automatica
+
+# Cada abono, cobro, venta y factura NUEVO queda guardado bajo la caja que
+# esté abierta en ese momento (ver app/utils/turnos_caja.py).
+registrar_vinculacion_automatica()
 
 app = FastAPI(title="Sistema de Taller", version="1.0.0")
 
@@ -116,6 +122,7 @@ app.include_router(tecnicos.router)
 app.include_router(inventario.router)
 app.include_router(servicios.router)
 app.include_router(pos.router)
+app.include_router(turnos_caja.router)
 app.include_router(caja.router)
 app.include_router(contabilidad.router)
 app.include_router(reportes.router)

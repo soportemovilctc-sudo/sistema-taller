@@ -17,6 +17,7 @@ from app.utils.numbering import generar_numero_venta, generar_numero_factura
 from app.utils.calculations import to_decimal, aplicar_impuesto
 from app.utils.libro_diario import registrar_asiento_para_movimiento
 from app.utils.caja_calculos import CUENTA_CAJA_CHICA, CUENTA_BANCO
+from app.utils.turnos_caja import verificar_caja
 from app.deps import login_required
 
 router = APIRouter()
@@ -50,6 +51,9 @@ def pos_index(request: Request, db: Session = Depends(get_db), usuario=Depends(l
 
 @router.post("/pos/vender")
 def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db), usuario=Depends(login_required)):
+    mensaje_caja = verificar_caja(db)
+    if mensaje_caja:
+        return JSONResponse({"ok": False, "mensaje": mensaje_caja}, status_code=400)
     if not venta_in.items:
         return JSONResponse({"ok": False, "mensaje": "El carrito está vacío."}, status_code=400)
 

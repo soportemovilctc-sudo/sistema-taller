@@ -23,6 +23,7 @@ from app.utils.pdf import generar_pdf_factura, construir_contexto_pdf_factura
 from app.utils.pdf_ticket import generar_ticket_factura
 from app.utils.libro_diario import registrar_asiento_para_movimiento, eliminar_asiento_de_movimiento
 from app.utils.caja_calculos import CUENTA_CAJA_CHICA, CUENTA_BANCO
+from app.utils.turnos_caja import verificar_caja
 # Se reutilizan las mismas funciones que ya usan "Repuestos utilizados" y
 # "Servicios agregados" al editar una orden, para no duplicar la lógica de
 # descontar inventario y registrar la venta (ver ordenes.py). Ya no generan
@@ -243,6 +244,10 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
     if not orden:
         flash(request, "Orden no encontrada.", "error")
         return RedirectResponse("/ordenes", status_code=303)
+    mensaje_caja = verificar_caja(db)
+    if mensaje_caja:
+        flash(request, mensaje_caja, "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
     cfg = get_or_create_cfg_facturacion(db)
     tecnicos = db.query(Tecnico).filter(Tecnico.activo == True).order_by(Tecnico.nombre).all()  # noqa: E712
 
@@ -284,6 +289,10 @@ def factura_crear(
     if not orden:
         flash(request, "Orden no encontrada.", "error")
         return RedirectResponse("/ordenes", status_code=303)
+    mensaje_caja = verificar_caja(db)
+    if mensaje_caja:
+        flash(request, mensaje_caja, "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
     if tipo not in ("interno", "fiscal"):
         tipo = "interno"
 

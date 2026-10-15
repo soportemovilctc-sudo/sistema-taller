@@ -49,6 +49,18 @@ from app.utils.caja_calculos import (
 from app.utils.libro_diario import registrar_asiento_para_movimiento, eliminar_asiento_de_movimiento
 from app.utils.flash import flash
 from app.utils.pdf import generar_pdf_informe_caja
+from app.utils.turnos_caja import verificar_caja
+
+
+def _bloqueo_por_caja_cerrada(request: Request, db: Session):
+    """Cobros, otros ingresos y salidas de caja de la Cajera requieren la
+    caja abierta (ver Apertura y cierre, app/utils/turnos_caja.py). Devuelve
+    la redirección con el aviso, o None si se puede continuar."""
+    mensaje = verificar_caja(db)
+    if mensaje:
+        flash(request, mensaje, "error")
+        return RedirectResponse("/caja/registrar", status_code=303)
+    return None
 from app.deps import roles_required
 
 # Categorías que la Cajera registra ella misma desde /caja/registrar (todas
@@ -184,6 +196,9 @@ def caja_registrar_crear(
     fecha: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
+    bloqueo = _bloqueo_por_caja_cerrada(request, db)
+    if bloqueo:
+        return bloqueo
     if metodo_pago not in METODOS_PAGO_CAJA:
         flash(request, "Método de pago no válido.", "error")
         return RedirectResponse("/caja/registrar", status_code=303)
@@ -240,6 +255,9 @@ def caja_ingreso_otro_crear(
     """Otros ingresos de caja chica que no vienen de un cobro con método de
     pago (por ejemplo, dinero que no corresponde a una orden). Accesible
     también a la Cajera, no solo al Administrador."""
+    bloqueo = _bloqueo_por_caja_cerrada(request, db)
+    if bloqueo:
+        return bloqueo
     try:
         monto_dec = to_decimal(monto)
         if monto_dec <= 0:
@@ -317,6 +335,9 @@ def caja_salida_crear(
     (el Administrador también puede registrar un Depósito bancario, pero
     desde su propio apartado en /caja/conciliacion — ver
     caja_deposito_admin_crear)."""
+    bloqueo = _bloqueo_por_caja_cerrada(request, db)
+    if bloqueo:
+        return bloqueo
     if categoria not in CATEGORIAS_SALIDA_CAJA:
         flash(request, "Categoría no válida.", "error")
         return RedirectResponse("/caja/registrar", status_code=303)

@@ -63,7 +63,11 @@
         Punto de Venta
       </a>
       {% if usuario.rol in ['admin', 'vendedor'] %}
-      <a class="nav-link {{ 'active' if request.url.path.startswith('/caja') else '' }}" href="/caja">
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/caja/turnos') else '' }}" href="/caja/turnos">
+        <svg class="ic-svg" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0"/><circle cx="12" cy="15.5" r="1.6"/></svg>
+        Apertura y cierre
+      </a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/caja') and not request.url.path.startswith('/caja/turnos') else '' }}" href="/caja">
         <svg class="ic-svg" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 11h18"/><circle cx="12" cy="15.5" r="1.8"/><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"/></svg>
         Caja
       </a>
@@ -136,6 +140,17 @@
           {% else %}
             ⚠ Quedan solo <b>{{ _notif.factura_alerta.restantes }}</b> facturas fiscales disponibles en tu rango autorizado (hasta {{ _notif.factura_alerta.rango_fin }}). <a href="/configuracion/facturacion">Actualiza tu rango</a> antes de que se agote.
           {% endif %}
+        </div>
+      {% endif %}
+      {% set _caja = estado_caja() %}
+      {% if _caja.bloqueado and not request.url.path.startswith('/caja/turnos') %}
+        <div class="flash flash-warning">
+          {{ _caja.mensaje }}
+          {% if usuario.rol in ['admin', 'vendedor'] %}<a href="/caja/turnos" class="btn btn-primary btn-sm" style="margin-left:8px;">Ir a Apertura y cierre</a>{% endif %}
+        </div>
+      {% elif usuario.rol == 'admin' and not _caja.obligatoria and _caja.obligatoria_desde %}
+        <div class="flash flash-info">
+          A partir del <b>{{ _caja.obligatoria_desde.strftime('%d/%m/%Y a las %I:%M %p') }}</b> será obligatorio abrir caja para cobrar, abonar, facturar y vender. <a href="/caja/turnos">Ver Apertura y cierre</a>
         </div>
       {% endif %}
       {% for f in get_flashes(request) %}

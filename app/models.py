@@ -348,6 +348,10 @@ class OrdenRepuesto(Base):
     subtotal = Column(Numeric(10, 2), nullable=False)
     fecha = Column(DateTime, default=datetime.utcnow)
     usuario_nombre = Column(String(150))
+    # Costo del producto en el momento de usarlo (para el costo de ventas
+    # de los Estados Financieros). Se llena solo, ver
+    # app/utils/inventario_costos.py. Vacío en los registros anteriores.
+    costo_unitario = Column(Numeric(10, 2), nullable=True)
 
     orden = relationship("OrdenServicio", back_populates="repuestos")
     producto = relationship("Producto")
@@ -473,6 +477,11 @@ class MovimientoInventario(Base):
     fecha = Column(DateTime, default=datetime.utcnow)
     usuario_nombre = Column(String(150))
     motivo = Column(Text, default="")
+    # Desde el módulo de Ajustes de inventario (se llenan solos, ver
+    # app/utils/inventario_costos.py; vacíos en los movimientos anteriores):
+    existencia_anterior = Column(Integer, nullable=True)
+    costo_unitario = Column(Numeric(10, 2), nullable=True)  # costo del producto en ese momento
+    ajuste_id = Column(Integer, nullable=True, index=True)  # AjusteInventario que lo generó
 
     producto = relationship("Producto", back_populates="movimientos")
 
@@ -508,6 +517,7 @@ class DetalleVenta(Base):
     cantidad = Column(Integer, nullable=False)
     precio_unitario = Column(Numeric(10, 2), nullable=False)
     subtotal = Column(Numeric(10, 2), nullable=False)
+    costo_unitario = Column(Numeric(10, 2), nullable=True)  # ver OrdenRepuesto.costo_unitario
 
     venta = relationship("Venta", back_populates="detalles")
     producto = relationship("Producto")
@@ -872,3 +882,103 @@ class TurnoCajaEvento(Base):
     detalle = Column(Text, default="")
 
     turno = relationship("TurnoCaja", back_populates="eventos")
+
+
+# ---------------------------------------------------------------------------
+# Ajustes de inventario: un ajuste es un documento (AJ-000001) que cambia la
+# existencia de uno o varios productos a la vez, con un motivo. Cada línea
+# genera su MovimientoInventario (tipo "ajuste", con ajuste_id) y queda
+# valorada al costo del producto en ese momento, para los reportes en
+# lempiras y el Estado de Resultados (pérdida o sobrante por ajuste). No
+# genera movimientos de dinero: un ajuste no es entrada ni salida de caja.
+# ---------------------------------------------------------------------------
+MOTIVOS_AJUSTE_INVENTARIO = [
+    "Conteo físico", "Merma / daño", "Robo o pérdida", "Error de registro",
+    "Devolución de cliente", "Devolución a proveedor", "Uso interno / garantía", "Otro",
+]
+MOTIVO_REVERSION_AJUSTE = "Reversión de ajuste"
+
+
+class AjusteInventario(Base):
+    __tablename__ = "ajustes_inventario"
+
+    id = Column(Integer, primary_key=True)
+    numero = Column(String(20), unique=True, nullable=False, index=True)
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    usuario_nombre = Column(String(150), default="")
+    motivo = Column(String(60), nullable=False)
+    observacion = Column(Text, default="")
+    origen = Column(String(12), nullable=False, default="manual")  # manual | excel | reversion
+
+    unidades_entrada = Column(Integer, nullable=False, default=0)   # suma de lo que subió
+    unidades_salida = Column(Integer, nullable=False, default=0)    # suma de lo que bajó
+    valor_entrada = Column(Numeric(12, 2), nullable=False, default=0)
+    valor_salida = Column(Numeric(12, 2), nullable=False, default=0)
+
+    revierte_a_id = Column(Integer, nullable=True)     # si este ajuste deshace otro
+    revertido_por_id = Column(Integer, nullable=True)  # si otro ajuste deshizo este
+
+    detalles = relationship(
+        "AjusteInventarioDetalle", back_populates="ajuste", cascade="all,delete-orphan",
+        order_by="AjusteInventarioDetalle.id",
+    )
+
+    @property
+    def valor_neto(self):
+        return (self.valor_entrada or 0) - (self.valor_salida or 0)
+
+
+class AjusteInventarioDetalle(Base):
+    __tablename__ = "ajustes_inventario_detalle"
+
+    id = Column(Integer, primary_key=True)
+    ajuste_id = Column(Integer, ForeignKey("ajustes_inventario.id"), nullable=False, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id"), nullable=False, index=True)
+    producto_codigo = Column(String(50), default="")   # copia al momento del ajuste
+    producto_nombre = Column(String(150), default="")
+    existencia_anterior = Column(Integer, nullable=False)
+    existencia_nueva = Column(Integer, nullable=False)
+    diferencia = Column(Integer, nullable=False)        # positiva sube, negativa baja
+    costo_unitario = Column(Numeric(10, 2), nullable=False, default=0)
+    valor = Column(Numeric(12, 2), nullable=False, default=0)  # diferencia x costo (con signo)
+
+    ajuste = relationship("AjusteInventario", back_populates="detalles")
+    producto = relationship("Producto")
+
+
+# ---------------------------------------------------------------------------
+# Datos del Balance General que el sistema no registra por sí solo: activos
+# fijos (equipo, herramientas, mobiliario...), otros activos, deudas con
+# proveedores, préstamos, aportes de capital y retiros del dueño. Solo los
+# registra el administrador (ver app/routers/estados_financieros.py). Son
+# registros informativos para los Estados Financieros: NO mueven Caja ni
+# Banco ni cambian ningún otro dato del sistema.
+# ---------------------------------------------------------------------------
+TIPOS_PARTIDA_BALANCE = {
+    "activo_fijo": "Activo fijo (equipo, herramientas, mobiliario, vehículo)",
+    "otro_activo": "Otro activo (cuentas por cobrar, depósitos en garantía...)",
+    "cuenta_por_pagar": "Cuenta por pagar (proveedores)",
+    "prestamo": "Préstamo",
+    "otro_pasivo": "Otro pasivo",
+    "capital": "Aporte de capital del dueño",
+    "retiro": "Retiro del dueño",
+}
+
+
+class PartidaBalance(Base):
+    __tablename__ = "partidas_balance"
+
+    id = Column(Integer, primary_key=True)
+    tipo = Column(String(20), nullable=False, index=True)  # ver TIPOS_PARTIDA_BALANCE
+    descripcion = Column(String(200), nullable=False)
+    monto = Column(Numeric(12, 2), nullable=False, default=0)
+    fecha = Column(Date, nullable=False)                  # desde cuándo cuenta
+    fecha_baja = Column(Date, nullable=True)              # desde cuándo ya no (vendido, pagado...)
+    vida_util_meses = Column(Integer, nullable=False, default=0)  # solo activos fijos; 0 = no se deprecia
+    notas = Column(Text, default="")
+    usuario_nombre = Column(String(150), default="")
+    creado_en = Column(DateTime, default=datetime.utcnow)
+    actualizado_en = Column(DateTime, default=datetime.utcnow)
+
+    def vigente_en(self, dia) -> bool:
+        return self.fecha <= dia and (self.fecha_baja is None or self.fecha_baja > dia)

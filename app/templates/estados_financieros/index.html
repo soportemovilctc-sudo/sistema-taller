@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Estados financieros · {{ vistas[vista] }}{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+{% macro cifra(v) -%}
+  {%- if v is none -%}{%- elif v < 0 -%}<span style="color:var(--danger, #c0392b);">({{ '{:,.2f}'.format(0 - v) }})</span>{%- else -%}{{ '{:,.2f}'.format(v) }}{%- endif -%}
+{%- endmacro %}
+
+<div class="pill-tabs">
+  {% for clave, nombre in vistas.items() %}
+  <a href="/estados-financieros?vista={{ clave }}&{{ qs }}" class="{{ 'active' if clave == vista else '' }}">{{ nombre }}</a>
+  {% endfor %}
+  <a href="/estados-financieros/datos-balance">Datos del balance</a>
+</div>
+
+<form method="get" action="/estados-financieros" class="card" style="margin-bottom:18px;">
+  <input type="hidden" name="vista" value="{{ vista }}">
+  <div class="form-row" style="align-items:flex-end; margin-bottom:0;">
+    <div class="field" style="flex:0 0 auto; margin-bottom:0;">
+      <label>Período</label>
+      <select name="modo" id="selModo">
+        <option value="mes" {{ 'selected' if sel.modo == 'mes' else '' }}>Un mes completo</option>
+        <option value="rango" {{ 'selected' if sel.modo == 'rango' else '' }}>Fechas personalizadas</option>
+      </select>
+    </div>
+    <div class="field js-modo-mes" style="flex:0 0 auto; margin-bottom:0;">
+      <label>Mes</label>
+      <select name="mes">{% for n, nombre in meses %}<option value="{{ n }}" {{ 'selected' if sel.mes == n else '' }}>{{ nombre }}</option>{% endfor %}</select>
+    </div>
+    <div class="field js-modo-mes" style="flex:0 0 auto; margin-bottom:0;">
+      <label>Año</label>
+      <select name="anio">{% for a in anios %}<option value="{{ a }}" {{ 'selected' if sel.anio == a else '' }}>{{ a }}</option>{% endfor %}</select>
+    </div>
+    <div class="field js-modo-rango" style="flex:0 0 auto; margin-bottom:0;"><label>Desde</label><input type="date" name="desde" value="{{ sel.desde }}" max="{{ hoy_iso }}"></div>
+    <div class="field js-modo-rango" style="flex:0 0 auto; margin-bottom:0;"><label>Hasta</label><input type="date" name="hasta" value="{{ sel.hasta }}"></div>
+    <div class="field" style="flex:0 0 auto; margin-bottom:0;"><button type="submit" class="btn btn-primary">Ver</button></div>
+    <div class="field" style="flex:1; margin-bottom:0; text-align:right;">
+      <a href="/estados-financieros/exportar/excel?{{ qs }}" class="btn btn-success btn-sm">Exportar a Excel</a>
+      <a href="/estados-financieros/exportar/pdf?{{ qs }}" class="btn btn-outline btn-sm">Exportar a PDF</a>
+    </div>
+  </div>
+  <p class="help" style="margin:8px 0 0;">El Excel y el PDF incluyen los cuatro estados del período elegido.</p>
+</form>
+
+{% set r = estados.resultados %}
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-blue"><div class="kpi-label">Ingresos (sin ISV)</div><div class="kpi-value">{{ r.total_ingresos|moneda(moneda) }}</div></div>
+  <div class="kpi {{ 'accent-green' if r.utilidad_bruta >= 0 else 'accent-red' }}"><div class="kpi-label">Utilidad bruta · margen {{ r.margen_bruto }}%</div><div class="kpi-value">{{ r.utilidad_bruta|moneda(moneda) }}</div></div>
+  <div class="kpi {{ 'accent-green' if r.utilidad_neta >= 0 else 'accent-red' }}"><div class="kpi-label">Utilidad neta · margen {{ r.margen_neto }}%</div><div class="kpi-value">{{ r.utilidad_neta|moneda(moneda) }}</div></div>
+</div>
+
+<div class="card">
+  <div style="text-align:center; margin-bottom:14px;">
+    <div style="font-weight:700; font-size:18px;">{{ nombre_taller }}</div>
+    <div style="font-weight:700; font-size:16px;">{{ estado.titulo }}</div>
+    <div class="help">{{ estado.periodo }} · cifras en {{ moneda }}</div>
+  </div>
+  <div class="table-wrap">
+    <table style="max-width:820px; margin:0 auto;">
+      <tbody>
+        {% for l in estado.lineas %}
+          {% if l.tipo == 'titulo' %}
+          <tr><td colspan="2" style="padding-left:{{ 8 + 22 * l.nivel }}px; font-weight:700; {{ 'background:var(--primary, #1F4E78); color:#fff;' if l.nivel == 0 else '' }}">{{ l.etiqueta }}</td></tr>
+          {% else %}
+          <tr style="{{ 'font-weight:700;' if l.tipo in ['subtotal', 'total'] else '' }}{{ 'font-size:15px; background:rgba(31,78,120,.08);' if l.tipo == 'total' else '' }}">
+            <td style="padding-left:{{ 8 + 22 * l.nivel }}px;">
+              {{ l.etiqueta }}
+              {% if l.nota %}<div class="help" style="font-weight:400;">{{ l.nota }}</div>{% endif %}
+            </td>
+            <td style="text-align:right; white-space:nowrap; {{ 'border-top:1px solid currentColor;' if l.tipo == 'subtotal' else '' }}{{ 'border-top:1px solid currentColor; border-bottom:3px double currentColor;' if l.tipo == 'total' else '' }}">{{ cifra(l.monto) }}</td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if vista == 'balance' %}
+    {% set b = estados.balance %}
+    <p class="help" style="text-align:center; margin-top:10px;">
+      {% if (b.total_activo - b.total_pasivo - b.total_patrimonio)|abs < 0.01 %}Cuadra: Activo = Pasivo + Patrimonio.{% else %}No cuadra: revisa los datos.{% endif %}
+      Para agregar equipo, préstamos, deudas o capital usa <a href="/estados-financieros/datos-balance">Datos del balance</a>.
+    </p>
+  {% endif %}
+  {% if estado.notas %}
+  <div style="max-width:820px; margin:14px auto 0;">
+    <b>Notas</b>
+    <ul style="margin:6px 0 0 18px; padding:0;">{% for n in estado.notas %}<li class="help">{{ n }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var modo = document.getElementById("selModo");
+  function mostrar() {
+    var esMes = modo.value === "mes";
+    document.querySelectorAll(".js-modo-mes").forEach(function (el) { el.style.display = esMes ? "" : "none"; });
+    document.querySelectorAll(".js-modo-rango").forEach(function (el) { el.style.display = esMes ? "none" : ""; });
+  }
+  modo.addEventListener("change", mostrar);
+  mostrar();
+})();
+</script>
+{% endblock %}

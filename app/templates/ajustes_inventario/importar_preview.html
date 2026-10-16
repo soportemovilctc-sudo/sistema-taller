@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Vista previa del ajuste{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Vista previa: {{ nombre_archivo }}</div>
+  <p class="help">Motivo: <b>{{ motivo }}</b>{% if observacion %} · {{ observacion }}{% endif %} · La cantidad del Excel es {{ 'la existencia final' if modo_excel == 'final' else 'cuánto sumar o restar' }}. Todavía no se ha cambiado nada.</p>
+  <div class="grid cols-3" style="margin:12px 0;">
+    <div class="kpi accent-green"><div class="kpi-label">Se van a ajustar</div><div class="kpi-value">{{ total_ok }}</div><div class="help">Suben {{ unidades_entrada }} u. ({{ valor_entrada|moneda(moneda) }}) · Bajan {{ unidades_salida }} u. ({{ valor_salida|moneda(moneda) }})</div></div>
+    <div class="kpi accent-blue"><div class="kpi-label">Sin cambio</div><div class="kpi-value">{{ total_sin_cambio }}</div></div>
+    <div class="kpi {{ 'accent-red' if total_error else 'accent-blue' }}"><div class="kpi-label">Con error (no se aplican)</div><div class="kpi-value">{{ total_error }}</div></div>
+  </div>
+  {% if total_ok %}
+  <form method="post" action="/ajustes-inventario/importar/confirmar" onsubmit="return confirm('¿Aplicar el ajuste a {{ total_ok }} producto(s)?');">
+    <input type="hidden" name="lineas_json" value="{{ lineas_json }}">
+    <input type="hidden" name="motivo" value="{{ motivo }}">
+    <input type="hidden" name="observacion" value="{{ observacion }}">
+    <button type="submit" class="btn btn-primary">Aplicar ajuste a {{ total_ok }} producto(s)</button>
+    <a href="/ajustes-inventario/importar" class="btn btn-outline">Cancelar</a>
+    {% if total_error %}<span class="help" style="margin-left:8px;">Las filas con error se ignoran; corrígelas y súbelas en otro ajuste si hace falta.</span>{% endif %}
+  </form>
+  {% else %}
+  <p>No hay ningún producto que cambie. <a href="/ajustes-inventario/importar">Volver a subir</a></p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fila</th><th>Código</th><th>Producto</th><th>Hay</th><th>Queda</th><th>Diferencia</th><th>Valor</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for f in filas %}
+        <tr{% if f.estado == 'error' %} style="background:rgba(239,68,68,0.08);"{% endif %}>
+          <td>{{ f.fila }}</td>
+          <td>{{ f.codigo }}</td>
+          <td>{{ f.nombre }}</td>
+          <td>{{ f.anterior if f.anterior is not none else '-' }}</td>
+          <td>{{ f.nueva if f.nueva is not none else '-' }}</td>
+          <td>{% if f.diferencia is not none %}{{ '+' if f.diferencia > 0 else '' }}{{ f.diferencia }}{% else %}-{% endif %}</td>
+          <td>{{ f.valor|moneda(moneda) if f.valor is not none else '-' }}</td>
+          <td>
+            {% if f.estado == 'ok' %}<span class="badge badge-listo-para-entregar">Se ajusta</span>
+            {% elif f.estado == 'sin_cambio' %}<span class="badge badge-entregado">Sin cambio</span>
+            {% else %}<span class="badge badge-cancelado">Error</span> <span class="help">{{ f.mensaje }}</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty-state">El archivo no tiene filas con cantidad.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

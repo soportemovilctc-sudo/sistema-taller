@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Reporte de ajustes de inventario{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+{% set t = datos.total %}
+<div class="pill-tabs">
+  <a href="/ajustes-inventario">Historial</a>
+  <a href="/ajustes-inventario/nuevo">Nuevo ajuste</a>
+  <a href="/ajustes-inventario/importar">Importar desde Excel</a>
+  <a href="/ajustes-inventario/reporte" class="active">Reportes</a>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">
+    Reporte de ajustes de inventario
+    <span class="actions">
+      <a href="/ajustes-inventario/reporte/excel?desde={{ desde }}&amp;hasta={{ hasta }}&amp;motivo={{ motivo|urlencode }}&amp;q={{ q|urlencode }}" class="btn btn-success btn-sm">Exportar a Excel</a>
+    </span>
+  </div>
+  <form method="get" action="/ajustes-inventario/reporte" class="form-row" style="align-items:flex-end;">
+    <div class="field" style="flex:0 0 auto;"><label>Desde</label><input type="date" name="desde" value="{{ desde }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="flex:0 0 auto;"><label>Hasta</label><input type="date" name="hasta" value="{{ hasta }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="flex:0 0 auto;">
+      <label>Motivo</label>
+      <select name="motivo">
+        <option value="">Todos</option>
+        {% for m in motivos %}<option value="{{ m }}" {{ 'selected' if m == motivo else '' }}>{{ m }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Producto</label><input type="text" name="q" value="{{ q }}" placeholder="Código o nombre"></div>
+    <div class="field" style="flex:0 0 auto;"><button type="submit" class="btn btn-outline">Ver</button></div>
+  </form>
+  <p class="help">Incluye los ajustes de este apartado y los ajustes rápidos de un solo producto. Valores al costo del producto en el momento del ajuste.{% if datos.hay_aproximados %} Los ajustes rápidos anteriores a este apartado no guardaban el costo ni la existencia previa: se calculan con el costo actual y el movimiento anterior del producto (marcados como aproximados).{% endif %}</p>
+</div>
+
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-green"><div class="kpi-label">Subieron (sobrantes)</div><div class="kpi-value">{{ t.unidades_entrada }} u.</div><div class="help">{{ t.valor_entrada|moneda(moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Bajaron (pérdidas)</div><div class="kpi-value">{{ t.unidades_salida }} u.</div><div class="help">{{ t.valor_salida|moneda(moneda) }}</div></div>
+  <div class="kpi {{ 'accent-red' if t.valor_neto < 0 else 'accent-blue' }}"><div class="kpi-label">Efecto neto en inventario</div><div class="kpi-value">{{ t.valor_neto|moneda(moneda) }}</div><div class="help">{{ t.unidades_neto }} unidades netas</div></div>
+</div>
+
+{% macro tabla_grupos(titulo, columna, grupos) %}
+<div class="card">
+  <div class="card-title">{{ titulo }}</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>{{ columna }}</th><th>Suben (u.)</th><th>Bajan (u.)</th><th>Valor +</th><th>Valor −</th><th>Neto</th></tr></thead>
+      <tbody>
+        {% for g in grupos %}
+        <tr>
+          <td>{{ g.clave }}</td><td>{{ g.unidades_entrada }}</td><td>{{ g.unidades_salida }}</td>
+          <td>{{ g.valor_entrada|moneda(config_taller().moneda) }}</td><td>{{ g.valor_salida|moneda(config_taller().moneda) }}</td>
+          <td style="font-weight:600; color:{{ 'var(--danger)' if g.valor_neto < 0 else 'inherit' }};">{{ g.valor_neto|moneda(config_taller().moneda) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">Sin ajustes en este periodo.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endmacro %}
+
+<div class="grid cols-2" style="align-items:start; margin-bottom:18px;">
+  {{ tabla_grupos("Por motivo", "Motivo", datos.por_motivo) }}
+  {{ tabla_grupos("Por categoría", "Categoría", datos.por_categoria) }}
+</div>
+<div style="margin-bottom:18px;">{{ tabla_grupos("Por producto (los que más pérdida tienen primero)", "Producto", datos.por_producto) }}</div>
+{% if datos.por_mes|length > 1 %}
+<div style="margin-bottom:18px;">{{ tabla_grupos("Por mes", "Mes", datos.por_mes) }}</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-title">Detalle de movimientos ({{ datos.filas|length }})</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Ajuste</th><th>Motivo</th><th>Producto</th><th>Diferencia</th><th>Costo</th><th>Valor</th><th>Usuario</th></tr></thead>
+      <tbody>
+        {% for f in datos.filas %}
+        <tr>
+          <td>{{ a_hora_local(f.fecha).strftime('%d/%m/%Y %I:%M %p') }}</td>
+          <td>{% if f.ajuste %}<a href="/ajustes-inventario/{{ f.ajuste.id }}">{{ f.ajuste.numero }}</a>{% else %}-{% endif %}</td>
+          <td>{{ f.motivo }}{% if f.detalle_motivo %}<div class="help">{{ f.detalle_motivo }}</div>{% endif %}</td>
+          <td>{{ f.codigo }} · {{ f.nombre }}</td>
+          <td style="color:{{ 'var(--danger)' if f.diferencia < 0 else 'var(--success)' }};">{{ '+' if f.diferencia > 0 else '' }}{{ f.diferencia }}</td>
+          <td>{{ f.costo_unitario|moneda(moneda) }}</td>
+          <td>{{ f.valor|moneda(moneda) }}{% if f.aproximado %} <span class="help" title="Calculado con datos actuales">(aprox.)</span>{% endif %}</td>
+          <td>{{ f.usuario }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty-state">Sin ajustes en este periodo.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Datos del balance{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="pill-tabs">
+  <a href="/estados-financieros?vista=resultados">Estado de Resultados</a>
+  <a href="/estados-financieros?vista=flujo">Flujo de Efectivo</a>
+  <a href="/estados-financieros?vista=balance">Balance General</a>
+  <a href="/estados-financieros?vista=patrimonio">Cambios en el Patrimonio</a>
+  <a href="/estados-financieros/datos-balance" class="active">Datos del balance</a>
+</div>
+
+<p class="help" style="margin-bottom:14px;">
+  Aquí registras lo que el sistema no puede saber por sí solo y que necesita el Balance General: el equipo y las herramientas del taller, lo que debes a proveedores, préstamos, el capital que pusiste y lo que retiras para ti.
+  Estos registros <b>no mueven Caja ni Banco</b>: solo se usan para los estados financieros.
+</p>
+
+{% set p = en_edicion %}
+<div class="card" style="margin-bottom:18px; max-width:760px;">
+  <div class="card-title">{{ 'Editar registro' if p else 'Agregar registro' }}</div>
+  <form method="post" action="{{ '/estados-financieros/datos-balance/' ~ p.id ~ '/editar' if p else '/estados-financieros/datos-balance' }}">
+    <div class="form-row">
+      <div class="field">
+        <label>Tipo *</label>
+        <select name="tipo" id="selTipo" required>
+          <option value="">Elige...</option>
+          {% for clave, nombre in tipos.items() %}<option value="{{ clave }}" {{ 'selected' if p and p.tipo == clave else '' }}>{{ nombre }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Descripción *</label><input type="text" name="descripcion" required maxlength="200" value="{{ p.descripcion if p else '' }}" placeholder="Ej: Estación de soldadura, préstamo Banco Atlántida..."></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Monto ({{ moneda }}) *</label><input type="number" step="0.01" min="0.01" name="monto" required value="{{ '%.2f'|format(p.monto) if p else '' }}"></div>
+      <div class="field"><label>Fecha *</label><input type="date" name="fecha" required value="{{ p.fecha.isoformat() if p else hoy_iso }}"></div>
+      <div class="field"><label>Fecha de baja (opcional)</label><input type="date" name="fecha_baja" value="{{ p.fecha_baja.isoformat() if p and p.fecha_baja else '' }}"><div class="help">Cuando se vendió, se pagó por completo o dejó de existir.</div></div>
+    </div>
+    <div class="form-row" id="filaVidaUtil">
+      <div class="field"><label>Vida útil (meses)</label><input type="number" min="0" step="1" name="vida_util_meses" value="{{ p.vida_util_meses if p else '0' }}"><div class="help">Solo activos fijos. Ej: 36 para 3 años. Con 0 no se deprecia.</div></div>
+    </div>
+    <div class="field"><label>Notas</label><textarea name="notas">{{ p.notas if p else '' }}</textarea></div>
+    <div class="help" style="margin-bottom:10px;">Si una deuda o préstamo baja porque fuiste pagando, edítalo y pon el saldo que queda (o agrega la fecha de baja cuando quede en cero).</div>
+    <button type="submit" class="btn btn-primary">{{ 'Guardar cambios' if p else 'Agregar' }}</button>
+    {% if p %}<a href="/estados-financieros/datos-balance" class="btn btn-outline">Cancelar</a>{% endif %}
+  </form>
+</div>
+
+{% for g in grupos %}
+<div class="card" style="margin-bottom:14px;">
+  <div class="card-title">{{ g.nombre }} <span class="help" style="font-weight:400;">— vigentes: {{ g.total|moneda(moneda) }}</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Descripción</th><th>Fecha</th><th>Baja</th>{% if g.clave == 'activo_fijo' %}<th>Vida útil</th>{% endif %}<th>Monto</th><th></th></tr></thead>
+      <tbody>
+        {% for x in g.filas %}
+        <tr{% if x.fecha_baja %} style="opacity:.6;"{% endif %}>
+          <td>{{ x.descripcion }}{% if x.notas %}<div class="help">{{ x.notas }}</div>{% endif %}</td>
+          <td>{{ x.fecha.strftime('%d/%m/%Y') }}</td>
+          <td>{{ x.fecha_baja.strftime('%d/%m/%Y') if x.fecha_baja else '-' }}</td>
+          {% if g.clave == 'activo_fijo' %}<td>{{ (x.vida_util_meses ~ ' meses') if x.vida_util_meses else 'No se deprecia' }}</td>{% endif %}
+          <td>{{ x.monto|moneda(moneda) }}</td>
+          <td style="white-space:nowrap;">
+            <a href="/estados-financieros/datos-balance?editar={{ x.id }}" class="btn btn-outline btn-sm">Editar</a>
+            <form method="post" action="/estados-financieros/datos-balance/{{ x.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar este registro? Si solo dejó de existir, mejor ponle fecha de baja.');">
+              <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card"><p class="empty-state">Todavía no hay registros. Empieza por el equipo del taller y el capital con que arrancaste.</p></div>
+{% endfor %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var tipo = document.getElementById("selTipo");
+  var fila = document.getElementById("filaVidaUtil");
+  function mostrar() { fila.style.display = tipo.value === "activo_fijo" ? "" : "none"; }
+  tipo.addEventListener("change", mostrar);
+  mostrar();
+})();
+</script>
+{% endblock %}

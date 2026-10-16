@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Importar ajuste de inventario{% endblock %}
+{% block content %}
+<div class="pill-tabs">
+  <a href="/ajustes-inventario">Historial</a>
+  <a href="/ajustes-inventario/nuevo">Nuevo ajuste</a>
+  <a href="/ajustes-inventario/importar" class="active">Importar desde Excel</a>
+  <a href="/ajustes-inventario/reporte">Reportes</a>
+</div>
+
+<div class="grid cols-2" style="align-items:start;">
+  <div class="card">
+    <div class="card-title">1. Descarga la plantilla</div>
+    <p class="help">Trae todos tus productos con su existencia actual. Escribe la cantidad solo en los que vas a ajustar; los que dejes en blanco se ignoran.</p>
+    <form method="get" action="/ajustes-inventario/plantilla" class="form-row" style="align-items:flex-end;">
+      <div class="field">
+        <label>Productos de</label>
+        <select name="categoria">
+          <option value="">Todas las categorías</option>
+          {% for c in categorias %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field" style="flex:0 0 auto;"><button type="submit" class="btn btn-success">Descargar plantilla (.xlsx)</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-title">2. Sube el archivo lleno</div>
+    <form method="post" action="/ajustes-inventario/importar" enctype="multipart/form-data">
+      <div class="field"><label>Archivo Excel *</label><input type="file" name="archivo" accept=".xlsx,.xlsm" required></div>
+      <div class="field">
+        <label>La columna «Cantidad» es...</label>
+        <label class="checkbox-chip" style="display:flex; margin-bottom:6px;"><input type="radio" name="modo_excel" value="final" checked> La existencia final (lo que conté)</label>
+        <label class="checkbox-chip" style="display:flex;"><input type="radio" name="modo_excel" value="diferencia"> Cuánto sumar o restar (+3, −2)</label>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Motivo *</label>
+          <select name="motivo" required>
+            <option value="">Elige el motivo...</option>
+            {% for m in motivos %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Observación</label><input type="text" name="observacion"></div>
+      <button type="submit" class="btn btn-primary">Ver vista previa</button>
+      <p class="help" style="margin-top:8px;">Todavía no se cambia nada: primero verás qué va a cambiar y cuánto vale.</p>
+    </form>
+  </div>
+</div>
+{% endblock %}

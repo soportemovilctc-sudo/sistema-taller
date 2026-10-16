@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Ajuste {{ ajuste.numero }}{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<p class="help" style="margin-bottom:14px;"><a href="/ajustes-inventario">← Volver al historial de ajustes</a></p>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">
+    Ajuste {{ ajuste.numero }}
+    {% if ajuste.revertido_por_id %}<span class="badge badge-cancelado">Revertido</span>{% endif %}
+    {% if ajuste.revierte_a_id %}<span class="badge badge-alta">Reversión</span>{% endif %}
+  </div>
+  <div class="grid cols-3">
+    <div><b>Fecha:</b> {{ a_hora_local(ajuste.fecha).strftime('%d/%m/%Y %I:%M %p') }}</div>
+    <div><b>Motivo:</b> {{ ajuste.motivo }}</div>
+    <div><b>Hecho por:</b> {{ ajuste.usuario_nombre }} · {{ {'manual': 'en pantalla', 'excel': 'desde Excel', 'reversion': 'reversión'}.get(ajuste.origen, ajuste.origen) }}</div>
+  </div>
+  {% if ajuste.observacion %}<p style="margin-top:10px;"><b>Observación:</b> {{ ajuste.observacion }}</p>{% endif %}
+  {% if revierte_a %}<p class="help">Este ajuste deshace el <a href="/ajustes-inventario/{{ revierte_a.id }}">{{ revierte_a.numero }}</a>.</p>{% endif %}
+  {% if revertido_por %}<p class="help">Este ajuste fue deshecho por el <a href="/ajustes-inventario/{{ revertido_por.id }}">{{ revertido_por.numero }}</a>.</p>{% endif %}
+</div>
+
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-green"><div class="kpi-label">Subieron</div><div class="kpi-value">{{ ajuste.unidades_entrada }} u.</div><div class="help">{{ ajuste.valor_entrada|moneda(moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Bajaron</div><div class="kpi-value">{{ ajuste.unidades_salida }} u.</div><div class="help">{{ ajuste.valor_salida|moneda(moneda) }}</div></div>
+  <div class="kpi {{ 'accent-red' if ajuste.valor_neto < 0 else 'accent-blue' }}"><div class="kpi-label">Valor neto del ajuste (al costo)</div><div class="kpi-value">{{ ajuste.valor_neto|moneda(moneda) }}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Productos ajustados ({{ ajuste.detalles|length }})</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Código</th><th>Producto</th><th>Antes</th><th>Después</th><th>Diferencia</th><th>Costo unitario</th><th>Valor</th></tr></thead>
+      <tbody>
+        {% for d in ajuste.detalles %}
+        <tr>
+          <td>{{ d.producto_codigo }}</td>
+          <td>{% if d.producto %}<a href="/inventario/{{ d.producto_id }}/movimiento">{{ d.producto_nombre }}</a>{% else %}{{ d.producto_nombre }}{% endif %}</td>
+          <td>{{ d.existencia_anterior }}</td>
+          <td>{{ d.existencia_nueva }}</td>
+          <td style="font-weight:600; color:{{ 'var(--danger)' if d.diferencia < 0 else 'var(--success)' }};">{{ '+' if d.diferencia > 0 else '' }}{{ d.diferencia }}</td>
+          <td>{{ d.costo_unitario|moneda(moneda) }}</td>
+          <td>{{ d.valor|moneda(moneda) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if not ajuste.revertido_por_id and not ajuste.revierte_a_id %}
+<div class="card" style="max-width:620px;">
+  <div class="card-title">Revertir este ajuste</div>
+  <p class="help">Si el ajuste se hizo por error, esto crea un ajuste nuevo que devuelve cada producto a como estaba (suma lo que se restó y resta lo que se sumó). Los dos quedan en el historial.</p>
+  <form method="post" action="/ajustes-inventario/{{ ajuste.id }}/revertir" onsubmit="return confirm('¿Revertir el ajuste {{ ajuste.numero }}?');">
+    <div class="field"><label>Nota (opcional)</label><input type="text" name="nota" placeholder="Ej: se ajustó el producto equivocado"></div>
+    <button type="submit" class="btn btn-warning">Revertir ajuste</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

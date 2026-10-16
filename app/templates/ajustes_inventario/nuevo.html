@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Nuevo ajuste de inventario{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="pill-tabs">
+  <a href="/ajustes-inventario">Historial</a>
+  <a href="/ajustes-inventario/nuevo" class="active">Nuevo ajuste</a>
+  <a href="/ajustes-inventario/importar">Importar desde Excel</a>
+  <a href="/ajustes-inventario/reporte">Reportes</a>
+</div>
+
+<form method="post" action="/ajustes-inventario/nuevo" id="formAjuste">
+  <div id="ajusteError" class="flash flash-error" style="display:none;"></div>
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-title">Nuevo ajuste de inventario</div>
+    <div class="form-row">
+      <div class="field" style="flex:0 0 260px;">
+        <label>Motivo *</label>
+        <select name="motivo" id="selectMotivo" required>
+          <option value="">Elige el motivo...</option>
+          {% for m in motivos %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Observación</label><input type="text" name="observacion" placeholder="Ej: pantallas golpeadas en el traslado, conteo de fin de mes..."></div>
+    </div>
+    <div class="field">
+      <label>Agregar producto</label>
+      <select id="pickerProducto" class="js-buscar-select" data-placeholder="Escribe el código o nombre del producto y presiona Enter...">
+        <option value="">Selecciona un producto...</option>
+        {% for p in productos %}
+        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" data-categoria="{{ p.categoria or '' }}">{{ p.codigo }} · {{ p.nombre }} (hay {{ p.existencia or 0 }})</option>
+        {% endfor %}
+      </select>
+      <div class="help">Agrega todos los productos que quieras; cada uno se puede subir, bajar o dejar en una existencia exacta.</div>
+    </div>
+    {% set categorias = productos|map(attribute='categoria')|select|unique|sort|list %}
+    <div class="form-row" style="align-items:flex-end; margin-bottom:0;">
+      <div class="field" style="flex:0 0 260px; margin-bottom:0;">
+        <label>Conteo físico: agregar varios de una vez</label>
+        <select id="selCategoriaMasiva">
+          <option value="__todas__">Todos los productos activos</option>
+          {% for c in categorias %}<option value="{{ c }}">Categoría: {{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field" style="flex:0 0 auto; margin-bottom:0;"><button type="button" id="btnAgregarCategoria" class="btn btn-outline btn-sm">Agregar todos</button></div>
+    </div>
+    <div class="help">Se agregan en modo «Dejar en (exacto)» para que escribas lo que contaste. Los que dejes en blanco no se tocan.</div>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-title">Productos del ajuste <span class="help" id="contadorProductos" style="font-weight:400;">(0)</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Producto</th><th>Hay</th><th>Costo</th><th>Tipo</th><th>Cantidad</th><th>Queda</th><th>Diferencia</th><th>Valor</th><th></th></tr>
+        </thead>
+        <tbody id="filasAjuste">
+          <tr id="filaVacia"><td colspan="9" class="empty-state">Todavía no agregas productos.</td></tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" style="text-align:right; font-weight:700;">Totales</td>
+            <td colspan="3">
+              Suben: <b id="totUnidadesMas">0</b> u. (<span id="totValorMas">{{ moneda }} 0.00</span>) ·
+              Bajan: <b id="totUnidadesMenos">0</b> u. (<span id="totValorMenos">{{ moneda }} 0.00</span>) ·
+              Neto: <b id="totNeto">{{ moneda }} 0.00</b>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div style="margin-top:14px;">
+      <button type="submit" class="btn btn-primary">Aplicar ajuste</button>
+      <a href="/ajustes-inventario" class="btn btn-outline">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var moneda = {{ config_taller().moneda|tojson }};
+  var picker = document.getElementById("pickerProducto");
+  var cuerpo = document.getElementById("filasAjuste");
+  var filaVacia = document.getElementById("filaVacia");
+  var motivo = document.getElementById("selectMotivo");
+  var errorBox = document.getElementById("ajusteError");
+  var form = document.getElementById("formAjuste");
+
+  function fmt(n) {
+    return moneda + " " + (Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function recalcularFila(tr) {
+    var hay = parseInt(tr.dataset.existencia, 10) || 0;
+    var costo = parseFloat(tr.dataset.costo) || 0;
+    var modo = tr.querySelector('select[name="modo"]').value;
+    var cant = parseInt(tr.querySelector('input[name="cantidad"]').value, 10);
+    tr.dataset.vacio = isNaN(cant) ? "1" : "";
+    if (isNaN(cant)) {
+      tr.dataset.diferencia = 0; tr.dataset.valor = 0; tr.dataset.negativo = "";
+      tr.querySelector(".c-queda").textContent = "—";
+      tr.querySelector(".c-queda").style.color = "";
+      tr.querySelector(".c-dif").textContent = "sin cambio";
+      tr.querySelector(".c-valor").textContent = "";
+      return;
+    }
+    if (cant < 0) cant = 0;
+    var queda = modo === "sumar" ? hay + cant : (modo === "restar" ? hay - cant : cant);
+    var dif = queda - hay;
+    tr.dataset.diferencia = dif;
+    tr.dataset.valor = dif * costo;
+    tr.dataset.negativo = queda < 0 ? "1" : "";
+    var celdaQueda = tr.querySelector(".c-queda");
+    celdaQueda.textContent = queda;
+    celdaQueda.style.color = queda < 0 ? "var(--danger)" : "";
+    tr.querySelector(".c-dif").textContent = (dif > 0 ? "+" : "") + dif;
+    tr.querySelector(".c-valor").textContent = fmt(dif * costo);
+  }
+
+  function recalcularTotales() {
+    var filas = cuerpo.querySelectorAll("tr.fila-ajuste");
+    var um = 0, un = 0, vm = 0, vn = 0;
+    filas.forEach(function (tr) {
+      var d = parseInt(tr.dataset.diferencia, 10) || 0;
+      var v = parseFloat(tr.dataset.valor) || 0;
+      if (d > 0) { um += d; vm += v; } else if (d < 0) { un += -d; vn += -v; }
+    });
+    document.getElementById("totUnidadesMas").textContent = um;
+    document.getElementById("totUnidadesMenos").textContent = un;
+    document.getElementById("totValorMas").textContent = fmt(vm);
+    document.getElementById("totValorMenos").textContent = fmt(vn);
+    document.getElementById("totNeto").textContent = fmt(vm - vn);
+    document.getElementById("contadorProductos").textContent = "(" + filas.length + ")";
+    filaVacia.style.display = filas.length ? "none" : "";
+  }
+
+  function agregarProducto(opcion, modoForzado, sinFoco) {
+    var existente = cuerpo.querySelector('tr.fila-ajuste[data-id="' + opcion.value + '"]');
+    if (existente) {
+      if (!sinFoco) existente.querySelector('input[name="cantidad"]').focus();
+      return;
+    }
+    var tr = document.createElement("tr");
+    tr.className = "fila-ajuste";
+    tr.dataset.id = opcion.value;
+    tr.dataset.existencia = opcion.dataset.existencia;
+    tr.dataset.costo = opcion.dataset.costo;
+    var modoInicial = modoForzado || (motivo.value === "Conteo físico" ? "final" : "restar");
+    tr.innerHTML =
+      '<td><input type="hidden" name="producto_id"><b class="c-codigo"></b><div class="help c-nombre"></div></td>' +
+      '<td>' + (parseInt(opcion.dataset.existencia, 10) || 0) + '</td>' +
+      '<td>' + fmt(parseFloat(opcion.dataset.costo) || 0) + '</td>' +
+      '<td><select name="modo" style="min-width:150px;">' +
+        '<option value="restar">Bajar (−)</option>' +
+        '<option value="sumar">Subir (+)</option>' +
+        '<option value="final">Dejar en (exacto)</option>' +
+      '</select></td>' +
+      '<td><input type="number" name="cantidad" min="0" step="1" style="width:90px;"></td>' +
+      '<td class="c-queda"></td><td class="c-dif"></td><td class="c-valor"></td>' +
+      '<td><button type="button" class="btn btn-outline btn-sm c-quitar">Quitar</button></td>';
+    tr.querySelector('input[name="producto_id"]').value = opcion.value;
+    tr.querySelector(".c-codigo").textContent = opcion.dataset.codigo;
+    tr.querySelector(".c-nombre").textContent = opcion.dataset.nombre;
+    tr.querySelector('select[name="modo"]').value = modoInicial;
+    cuerpo.appendChild(tr);
+    recalcularFila(tr);
+    recalcularTotales();
+    if (!sinFoco) tr.querySelector('input[name="cantidad"]').focus();
+  }
+
+  document.getElementById("btnAgregarCategoria").addEventListener("click", function () {
+    var cat = document.getElementById("selCategoriaMasiva").value;
+    var agregados = 0;
+    Array.prototype.forEach.call(picker.options, function (op) {
+      if (!op.value) return;
+      if (cat !== "__todas__" && op.dataset.categoria !== cat) return;
+      agregarProducto(op, "final", true);
+      agregados++;
+    });
+    if (!motivo.value) motivo.value = "Conteo físico";
+    var primero = cuerpo.querySelector('tr.fila-ajuste input[name="cantidad"]');
+    if (primero) primero.focus();
+  });
+
+  picker.addEventListener("change", function () {
+    if (!picker.value) return;
+    var opcion = picker.options[picker.selectedIndex];
+    agregarProducto(opcion);
+    picker.value = "";
+    picker.dispatchEvent(new Event("change"));
+  });
+
+  cuerpo.addEventListener("input", function (e) {
+    var tr = e.target.closest("tr.fila-ajuste");
+    if (tr) { recalcularFila(tr); recalcularTotales(); }
+  });
+  cuerpo.addEventListener("change", function (e) {
+    var tr = e.target.closest("tr.fila-ajuste");
+    if (tr) { recalcularFila(tr); recalcularTotales(); }
+  });
+  cuerpo.addEventListener("click", function (e) {
+    if (!e.target.classList.contains("c-quitar")) return;
+    e.target.closest("tr.fila-ajuste").remove();
+    recalcularTotales();
+  });
+
+  form.addEventListener("submit", function (e) {
+    var problemas = [];
+    var todas = cuerpo.querySelectorAll("tr.fila-ajuste");
+    var filas = Array.prototype.filter.call(todas, function (tr) { return !tr.dataset.vacio; });
+    if (!motivo.value) problemas.push("elige el motivo");
+    if (!filas.length) problemas.push(todas.length ? "escribe la cantidad de al menos un producto" : "agrega al menos un producto");
+    var negativos = Array.prototype.filter.call(filas, function (tr) { return tr.dataset.negativo; });
+    if (negativos.length) problemas.push("hay productos que quedarían en negativo (en rojo)");
+    if (problemas.length) {
+      e.preventDefault();
+      errorBox.textContent = "Antes de aplicar: " + problemas.join("; ") + ".";
+      errorBox.style.display = "block";
+      errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    var total = document.getElementById("totNeto").textContent;
+    if (!confirm("¿Aplicar el ajuste a " + filas.length + " producto(s)? Valor neto: " + total)) { e.preventDefault(); return; }
+    // Las filas que quedaron en blanco no se envían (no se tocan).
+    Array.prototype.forEach.call(todas, function (tr) {
+      if (tr.dataset.vacio) tr.querySelectorAll("input, select").forEach(function (el) { el.disabled = true; });
+    });
+  });
+})();
+</script>
+{% endblock %}

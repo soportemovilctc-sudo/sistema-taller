@@ -11,6 +11,11 @@
   <p class="help" style="font-size:13px; margin-top:-4px;">
     Busca un producto por código o nombre y ajusta su existencia directamente aquí, sin tener que abrirlo desde la lista de Inventario.
   </p>
+  {% if usuario.rol == 'admin' %}
+  <div class="flash flash-info">Para ajustar varios productos a la vez, importar un conteo desde Excel o ver reportes en lempiras, usa <a href="/ajustes-inventario">Ajustes de inventario</a>.</div>
+  {% else %}
+  <p class="help">Aquí puedes registrar entradas de mercadería. Las salidas y los ajustes solo los puede hacer el administrador.</p>
+  {% endif %}
   <form method="get" style="margin:14px 0;">
     <input type="text" name="q" value="{{ q }}" placeholder="Buscar por código o nombre..." autofocus>
   </form>

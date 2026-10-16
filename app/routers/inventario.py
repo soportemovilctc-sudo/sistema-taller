@@ -392,6 +392,9 @@ def inventario_registrar_movimiento(
     if cantidad <= 0:
         flash(request, "La cantidad debe ser mayor a cero.", "error")
         return RedirectResponse(f"/inventario/{producto_id}/movimiento", status_code=303)
+    if tipo in ("salida", "ajuste") and usuario.get("rol") != "admin":
+        flash(request, "Solo el administrador puede hacer salidas o ajustes de inventario. Las entradas sí se pueden registrar.", "error")
+        return RedirectResponse(f"/inventario/{producto_id}/movimiento", status_code=303)
 
     if tipo == "entrada":
         nueva_existencia = producto.existencia + cantidad
@@ -411,6 +414,7 @@ def inventario_registrar_movimiento(
 
     movimiento = MovimientoInventario(
         producto_id=producto.id, tipo=tipo, cantidad=cantidad, existencia_resultante=nueva_existencia,
+        existencia_anterior=producto.existencia or 0,
         usuario_nombre=usuario["nombre_completo"], motivo=motivo,
     )
     producto.existencia = nueva_existencia
@@ -452,6 +456,9 @@ def inventario_ajustes_procesar(
     if cantidad <= 0:
         flash(request, "La cantidad debe ser mayor a cero.", "error")
         return RedirectResponse(destino, status_code=303)
+    if tipo in ("salida", "ajuste") and usuario.get("rol") != "admin":
+        flash(request, "Solo el administrador puede hacer salidas o ajustes de inventario. Las entradas sí se pueden registrar.", "error")
+        return RedirectResponse(destino, status_code=303)
 
     if tipo == "entrada":
         nueva_existencia = producto.existencia + cantidad
@@ -471,6 +478,7 @@ def inventario_ajustes_procesar(
 
     movimiento = MovimientoInventario(
         producto_id=producto.id, tipo=tipo, cantidad=cantidad, existencia_resultante=nueva_existencia,
+        existencia_anterior=producto.existencia or 0,
         usuario_nombre=usuario["nombre_completo"], motivo=motivo,
     )
     producto.existencia = nueva_existencia

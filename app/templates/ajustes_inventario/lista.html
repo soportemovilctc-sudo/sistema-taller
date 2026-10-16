@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Ajustes de inventario{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="pill-tabs">
+  <a href="/ajustes-inventario" class="active">Historial</a>
+  <a href="/ajustes-inventario/nuevo">Nuevo ajuste</a>
+  <a href="/ajustes-inventario/importar">Importar desde Excel</a>
+  <a href="/ajustes-inventario/reporte">Reportes</a>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    Historial de ajustes de inventario
+    <span class="actions">
+      <a href="/ajustes-inventario/nuevo" class="btn btn-primary btn-sm">+ Nuevo ajuste</a>
+    </span>
+  </div>
+  <form method="get" action="/ajustes-inventario" class="form-row" style="align-items:flex-end;">
+    <div class="field" style="flex:0 0 auto;"><label>Desde</label><input type="date" name="desde" value="{{ desde }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="flex:0 0 auto;"><label>Hasta</label><input type="date" name="hasta" value="{{ hasta }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="flex:0 0 auto;">
+      <label>Motivo</label>
+      <select name="motivo">
+        <option value="">Todos</option>
+        {% for m in motivos %}<option value="{{ m }}" {{ 'selected' if m == motivo else '' }}>{{ m }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Producto o número</label><input type="text" name="q" value="{{ q }}" placeholder="Código, nombre o AJ-000001"></div>
+    <div class="field" style="flex:0 0 auto;"><button type="submit" class="btn btn-outline">Buscar</button></div>
+    {% if hay_filtro %}<div class="field" style="flex:0 0 auto;"><a href="/ajustes-inventario" class="btn btn-outline btn-sm">Quitar filtro</a></div>{% endif %}
+  </form>
+  {% if not hay_filtro %}<p class="help">Se muestran los últimos 100. Usa los filtros para buscar más atrás. Los ajustes rápidos de un solo producto aparecen en Reportes.</p>{% endif %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Ajuste</th><th>Fecha</th><th>Motivo</th><th>Productos</th><th>Unidades +</th><th>Unidades −</th><th>Valor +</th><th>Valor −</th><th>Neto</th><th>Hecho por</th></tr>
+      </thead>
+      <tbody>
+        {% for a in ajustes %}
+        <tr style="cursor:pointer;" onclick="window.location='/ajustes-inventario/{{ a.id }}'">
+          <td><a href="/ajustes-inventario/{{ a.id }}">{{ a.numero }}</a>
+            {% if a.origen == 'excel' %}<span class="help">Excel</span>{% endif %}
+            {% if a.revertido_por_id %}<span class="badge badge-cancelado">Revertido</span>{% endif %}
+          </td>
+          <td>{{ a_hora_local(a.fecha).strftime('%d/%m/%Y %I:%M %p') }}</td>
+          <td>{{ a.motivo }}</td>
+          <td>{{ a.detalles|length }}</td>
+          <td>{{ a.unidades_entrada }}</td>
+          <td>{{ a.unidades_salida }}</td>
+          <td>{{ a.valor_entrada|moneda(moneda) }}</td>
+          <td>{{ a.valor_salida|moneda(moneda) }}</td>
+          <td style="font-weight:600; color:{{ 'var(--danger)' if a.valor_neto < 0 else 'inherit' }};">{{ a.valor_neto|moneda(moneda) }}</td>
+          <td>{{ a.usuario_nombre }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="empty-state">No hay ajustes {{ 'con esos filtros' if hay_filtro else 'todavía' }}.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

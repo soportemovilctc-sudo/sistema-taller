@@ -24,7 +24,7 @@ from app.utils.calculations import to_decimal
 from app.utils.turnos_caja import (
     turno_abierto, calcular_resumen_turno, caja_obligatoria_activa, es_turno_de_dia_anterior,
     fecha_local, hoy_local, a_hora_local, inicio_dia_local_en_utc, local_a_utc,
-    ultimo_efectivo_contado,
+    ultimo_efectivo_contado, resumen_por_dia,
 )
 
 router = APIRouter()
@@ -77,6 +77,9 @@ def turnos_index(
 ):
     actual = turno_abierto(db)
     resumen_actual = calcular_resumen_turno(db, actual) if actual else None
+    # Primero lo del día: con la caja abierta, siempre se muestra "hoy"
+    # aunque todavía no tenga movimientos.
+    dias_actual = resumen_por_dia(resumen_actual, incluir_dia=hoy_local()) if actual else []
 
     query = db.query(TurnoCaja)
     fecha_desde = _parse_fecha(desde)
@@ -93,7 +96,7 @@ def turnos_index(
     cfg = db.get(Configuracion, 1)
     return templates.TemplateResponse("caja/turnos.html", {
         "request": request, "usuario": usuario,
-        "actual": actual, "resumen_actual": resumen_actual,
+        "actual": actual, "resumen_actual": resumen_actual, "dias_actual": dias_actual,
         "actual_de_dia_anterior": bool(actual and es_turno_de_dia_anterior(actual)),
         "historial": historial, "hay_filtro": hay_filtro,
         "desde": desde, "hasta": hasta, "estado": estado,
@@ -194,9 +197,11 @@ def turnos_detalle(
         return RedirectResponse(URL_TURNOS, status_code=303)
     es_admin = usuario.get("rol") == "admin"
     abierta = turno.estado == TURNO_ABIERTO
+    resumen = calcular_resumen_turno(db, turno)
     return templates.TemplateResponse("caja/turno_detalle.html", {
         "request": request, "usuario": usuario, "turno": turno,
-        "resumen": calcular_resumen_turno(db, turno),
+        "resumen": resumen,
+        "dias": resumen_por_dia(resumen, incluir_dia=hoy_local() if abierta else None),
         "abierta": abierta,
         "puede_editar": abierta or es_admin,
         "puede_reabrir": es_admin and not abierta and turno_abierto(db) is None,

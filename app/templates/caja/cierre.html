@@ -17,22 +17,24 @@
   {% endif %}
 </form>
 
+<h3 style="margin:4px 0 10px;">Cierre del día {{ cierre.dia.strftime('%d/%m/%Y') }} <span class="help" style="font-weight:400;">— solo lo de ese día</span></h3>
 <div class="grid cols-3" style="margin-bottom:18px;">
-  <div class="kpi accent-blue"><div class="kpi-label">Saldo Anterior</div><div class="kpi-value">{{ saldo_anterior|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Total Efectivo del día (cuadre de caja física)</div><div class="kpi-value">{{ cierre.total_efectivo|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Salidas de caja del día</div><div class="kpi-value">{{ cierre.total_egresos|moneda(config_taller().moneda) }}</div></div>
   <div class="kpi {{ 'accent-green' if cierre.saldo_neto_dia >= 0 else 'accent-red' }}"><div class="kpi-label">Movimiento neto del día</div><div class="kpi-value">{{ cierre.saldo_neto_dia|moneda(config_taller().moneda) }}</div></div>
-  <div class="kpi accent-green"><div class="kpi-label">Saldo en Caja al cierre de ese día</div><div class="kpi-value">{{ saldo_a_fecha.saldo_en_caja|moneda(config_taller().moneda) }}</div></div>
-</div>
-
-<div class="grid cols-3" style="margin-bottom:18px;">
-  <div class="kpi accent-green"><div class="kpi-label">Total Efectivo (cuadre de caja física)</div><div class="kpi-value">{{ cierre.total_efectivo|moneda(config_taller().moneda) }}</div></div>
-  <div class="kpi accent-red"><div class="kpi-label">Salidas de caja (egresos del día)</div><div class="kpi-value">{{ cierre.total_egresos|moneda(config_taller().moneda) }}</div></div>
-  <div class="kpi accent-blue"><div class="kpi-label">Saldo en Caja (acumulado del mes, a hoy)</div><div class="kpi-value">{{ saldo.caja_chica_actual|moneda(config_taller().moneda) }}</div></div>
 </div>
 
 <div class="grid cols-3" style="margin-bottom:18px;">
   <div class="kpi accent-blue"><div class="kpi-label">Total Transferencias del día</div><div class="kpi-value">{{ cierre.total_transferencia|moneda(config_taller().moneda) }}</div></div>
   <div class="kpi accent-blue"><div class="kpi-label">Total Tarjeta (POS) del día</div><div class="kpi-value">{{ cierre.total_pos|moneda(config_taller().moneda) }}</div></div>
   <div class="kpi accent-blue"><div class="kpi-label">Total general del día</div><div class="kpi-value">{{ cierre.total_dia|moneda(config_taller().moneda) }}</div></div>
+</div>
+
+<h3 style="margin:4px 0 10px;">Saldos generales <span class="help" style="font-weight:400;">— lo acumulado en Caja Chica</span></h3>
+<div class="grid cols-3" style="margin-bottom:18px;">
+  <div class="kpi accent-blue"><div class="kpi-label">Saldo Anterior (al cierre del día antes)</div><div class="kpi-value">{{ saldo_anterior|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-green"><div class="kpi-label">Saldo en Caja al cierre de ese día</div><div class="kpi-value">{{ saldo_a_fecha.saldo_en_caja|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Saldo en Caja (acumulado del mes, a hoy)</div><div class="kpi-value">{{ saldo.caja_chica_actual|moneda(config_taller().moneda) }}</div></div>
 </div>
 
 <div class="grid cols-2" style="align-items:start; margin-bottom:18px;">

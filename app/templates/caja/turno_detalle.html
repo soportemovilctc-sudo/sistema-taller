@@ -2,6 +2,7 @@
 {% block title %}Caja #{{ turno.id }} · Apertura y cierre{% endblock %}
 {% block content %}
 {% set moneda = config_taller().moneda %}
+{% from "caja/_dia_caja.html" import bloque_dia, otros_dias %}
 {% set r = resumen %}
 
 <p class="help" style="margin-bottom:14px;"><a href="/caja/turnos">← Volver a Apertura y cierre</a></p>
@@ -25,6 +26,12 @@
   </div>
 </div>
 
+{% if dias %}
+{{ bloque_dia(dias[0], moneda, 'Cierre del día') }}
+{{ otros_dias(dias[1:], moneda) }}
+{% endif %}
+
+<h3 style="margin:4px 0 10px;">Total general de la caja <span class="help" style="font-weight:400;">— desde que se abrió, incluye el efectivo inicial</span></h3>
 <div class="grid cols-3" style="margin-bottom:18px;">
   <div class="kpi accent-blue"><div class="kpi-label">Efectivo inicial</div><div class="kpi-value">{{ turno.monto_inicial|moneda(moneda) }}</div></div>
   {% if abierta %}

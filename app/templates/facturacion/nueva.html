@@ -7,7 +7,7 @@
      <b>Técnico que recibió el equipo:</b> {{ orden.tecnico.nombre if orden.tecnico else 'Sin asignar' }}<br>
      <b>Total del servicio:</b> {{ orden.total|moneda(config_taller().moneda) }}</p>
 
-  <form method="post" action="/ordenes/{{ orden.id }}/factura/nueva">
+  <form method="post" action="/ordenes/{{ orden.id }}/factura/nueva" id="formFacturaNueva">
     <div class="field">
       <label>Tipo de documento</label>
       <select name="tipo">
@@ -86,12 +86,27 @@
     </div>
 
     <p class="help">El monto total que paga el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda (más el repuesto y/o el servicio de arriba, si agregas alguno).</p>
-    <button type="submit" class="btn btn-primary">Generar factura</button>
+    <button type="submit" class="btn btn-primary" id="btnGenerarFactura">Generar factura</button>
     <a href="/ordenes/{{ orden.id }}" class="btn btn-outline">Cancelar</a>
   </form>
 </div>
 {% endblock %}
 {% block scripts %}
+<script>
+  // Evita el doble clic: al enviar, el botón queda deshabilitado mientras
+  // el sistema genera la factura (ver factura_crear en facturacion.py).
+  (function () {
+    var form = document.getElementById("formFacturaNueva");
+    var boton = document.getElementById("btnGenerarFactura");
+    if (!form || !boton) return;
+    form.addEventListener("submit", function (e) {
+      if (e.defaultPrevented) return;
+      if (form.dataset.enviando) { e.preventDefault(); return; }
+      form.dataset.enviando = "1";
+      setTimeout(function () { boton.disabled = true; boton.textContent = "Generando factura..."; }, 0);
+    });
+  })();
+</script>
 <script>
   (function () {
     var selectProducto = document.getElementById("facturaRepuestoProducto");

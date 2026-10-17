@@ -1,0 +1,57 @@
+{# Bloque "Lo del día" de una caja: se muestra primero en Apertura y cierre
+   y en el detalle de cada caja, antes de los totales generales. #}
+{% macro bloque_dia(b, moneda, titulo) %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">{{ titulo }} <span class="help" style="font-weight:400;">— {{ b.dia.strftime('%d/%m/%Y') }}</span></div>
+  <div class="grid cols-3" style="margin-bottom:14px;">
+    <div class="kpi accent-blue"><div class="kpi-label">Cobrado del día (todas las formas de pago)</div><div class="kpi-value">{{ b.total_cobrado|moneda(moneda) }}</div></div>
+    <div class="kpi accent-green"><div class="kpi-label">Efectivo que entró del día</div><div class="kpi-value">{{ b.entradas_efectivo|moneda(moneda) }}</div></div>
+    <div class="kpi accent-red"><div class="kpi-label">Salidas de efectivo del día</div><div class="kpi-value">{{ b.salidas_efectivo|moneda(moneda) }}</div></div>
+  </div>
+  <div class="grid cols-2" style="align-items:start;">
+    <div>
+      <b>Cobrado por forma de pago</b>
+      <table style="margin-top:6px;">
+        {% for metodo, monto in b.cobrado_por_metodo %}
+        <tr><td>{{ metodo }}</td><td style="text-align:right;">{{ monto|moneda(moneda) }}</td></tr>
+        {% else %}
+        <tr><td colspan="2" class="empty-state">Todavía no hay cobros este día.</td></tr>
+        {% endfor %}
+        {% if b.cobrado_por_metodo %}
+        <tr><td style="font-weight:700;">Total del día</td><td style="text-align:right; font-weight:700;">{{ b.total_cobrado|moneda(moneda) }}</td></tr>
+        {% endif %}
+      </table>
+    </div>
+    <div>
+      <b>Resumen del día</b>
+      <table style="margin-top:6px;">
+        <tr><td>Abonos y pagos de órdenes</td><td style="text-align:right;">{{ b.abonos }}</td></tr>
+        <tr><td>Ventas del Punto de Venta</td><td style="text-align:right;">{{ b.ventas_pos }} · {{ b.total_ventas_pos|moneda(moneda) }}</td></tr>
+        <tr><td>Facturas emitidas</td><td style="text-align:right;">{{ b.facturas }} · {{ b.total_facturado|moneda(moneda) }}</td></tr>
+        <tr><td style="font-weight:700;">Neto en efectivo del día (entró − salió)</td><td style="text-align:right; font-weight:700;">{{ b.neto_efectivo|moneda(moneda) }}</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro otros_dias(dias, moneda) %}
+{% if dias %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">Otros días de esta caja <span class="help" style="font-weight:400;">— la caja quedó abierta más de un día</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Día</th><th>Cobrado</th><th>Efectivo que entró</th><th>Salidas</th><th>Neto efectivo</th></tr></thead>
+      <tbody>
+        {% for d in dias %}
+        <tr>
+          <td>{{ d.dia.strftime('%d/%m/%Y') }}</td><td>{{ d.total_cobrado|moneda(moneda) }}</td>
+          <td>{{ d.entradas_efectivo|moneda(moneda) }}</td><td>{{ d.salidas_efectivo|moneda(moneda) }}</td><td>{{ d.neto_efectivo|moneda(moneda) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endmacro %}

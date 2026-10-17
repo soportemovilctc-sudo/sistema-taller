@@ -1,7 +1,7 @@
 """Módulo de facturación: configuración (interna y fiscal SAR-Honduras),
 generación de facturas a partir de órdenes de servicio, listado, PDF
 (carta y tirilla 80mm) y anulación."""
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 
@@ -285,10 +285,27 @@ def factura_crear(
     cliente_rtn: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
-    orden = db.get(OrdenServicio, orden_id)
+    # La orden se bloquea (SELECT ... FOR UPDATE en Postgres) hasta terminar:
+    # si el botón "Generar factura" se presiona dos veces, la segunda
+    # petición espera a que termine la primera en vez de chocar con ella
+    # por el mismo número de factura (eso daba "Internal Server Error").
+    orden = db.query(OrdenServicio).filter(OrdenServicio.id == orden_id).with_for_update().first()
     if not orden:
         flash(request, "Orden no encontrada.", "error")
         return RedirectResponse("/ordenes", status_code=303)
+    reciente = (
+        db.query(Factura)
+        .filter(
+            Factura.orden_id == orden_id, Factura.anulada == False,  # noqa: E712
+            Factura.fecha_emision >= datetime.utcnow() - timedelta(minutes=2),
+        )
+        .order_by(Factura.id.desc())
+        .first()
+    )
+    if reciente:
+        db.rollback()
+        flash(request, f"La factura {reciente.numero_documento} de esta orden ya se había generado hace un momento (el botón se presionó dos veces). No se creó otra.", "success")
+        return RedirectResponse(f"/facturas/{reciente.id}", status_code=303)
     mensaje_caja = verificar_caja(db)
     if mensaje_caja:
         flash(request, mensaje_caja, "error")

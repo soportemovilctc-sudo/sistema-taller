@@ -265,3 +265,80 @@ def estado_caja_para_plantilla() -> dict:
             db.close()
     except Exception:
         return vacio
+
+
+# ---------------------------------------------------------------------------
+# Lo de cada día (para ver primero el cierre del día y después lo general)
+# ---------------------------------------------------------------------------
+def _bloque_dia(dia: date) -> dict:
+    return {
+        "dia": dia, "cobrado_por_metodo": {}, "total_cobrado": CERO,
+        "entradas_efectivo": CERO, "salidas_efectivo": CERO,
+        "abonos": 0, "ventas_pos": 0, "total_ventas_pos": CERO,
+        "facturas": 0, "total_facturado": CERO,
+    }
+
+
+def resumen_por_dia(resumen: dict, incluir_dia: date | None = None) -> list[dict]:
+    """Agrupa por día (hora de Honduras) lo que ya calculó
+    calcular_resumen_turno: lo cobrado por forma de pago, las entradas y
+    salidas de efectivo, ventas del POS y facturas. Del día más reciente al
+    más antiguo. `incluir_dia` agrega ese día aunque todavía no tenga nada
+    (por ejemplo "hoy", con la caja recién abierta)."""
+    dias: dict[date, dict] = {}
+    if incluir_dia is not None:
+        dias[incluir_dia] = _bloque_dia(incluir_dia)
+
+    def bloque(dt):
+        d = fecha_local(dt)
+        if d not in dias:
+            dias[d] = _bloque_dia(d)
+        return dias[d]
+
+    def sumar_cobro(b, metodo, monto):
+        b["cobrado_por_metodo"][metodo] = b["cobrado_por_metodo"].get(metodo, CERO) + monto
+        b["total_cobrado"] += monto
+
+    ids_pagos_efectivo = {p.id for p in resumen["pagos_efectivo"]}
+    ids_ingresos_efectivo = {m.id for m in resumen["ingresos_efectivo"]}
+    ids_salidas_efectivo = {m.id for m in resumen["salidas_efectivo"]}
+
+    for p in resumen["pagos"]:
+        b = bloque(p.fecha)
+        monto = to_decimal(p.monto)
+        sumar_cobro(b, _metodo_normalizado(p.forma_pago or "Efectivo"), monto)
+        b["abonos"] += 1
+        if p.id in ids_pagos_efectivo:
+            b["entradas_efectivo"] += monto
+    for m in resumen["movimientos"]:
+        if m.excluir_de_contabilidad:
+            continue
+        b = bloque(m.fecha)
+        monto = to_decimal(m.monto)
+        if m.tipo == "ingreso" and m.categoria not in (CATEGORIA_VENTA_FACTURADA, CATEGORIA_DEPOSITO_BANCO):
+            sumar_cobro(b, _metodo_normalizado(m.metodo_pago, m.cuenta), monto)
+        if m.id in ids_ingresos_efectivo:
+            b["entradas_efectivo"] += monto
+        if m.id in ids_salidas_efectivo:
+            b["salidas_efectivo"] += monto
+    for v in resumen["ventas_pos"]:
+        b = bloque(v.fecha)
+        b["ventas_pos"] += 1
+        b["total_ventas_pos"] += to_decimal(v.total)
+    for f in resumen["facturas"]:
+        b = bloque(f.fecha_emision)
+        if not f.anulada:
+            b["facturas"] += 1
+            b["total_facturado"] += to_decimal(f.total)
+
+    orden_metodos = ["Efectivo", "Transferencia", "Tarjeta", "Otro"]
+    resultado = []
+    for d in sorted(dias, reverse=True):
+        b = dias[d]
+        b["cobrado_por_metodo"] = sorted(
+            b["cobrado_por_metodo"].items(),
+            key=lambda par: orden_metodos.index(par[0]) if par[0] in orden_metodos else len(orden_metodos),
+        )
+        b["neto_efectivo"] = (b["entradas_efectivo"] - b["salidas_efectivo"]).quantize(Decimal("0.01"))
+        resultado.append(b)
+    return resultado

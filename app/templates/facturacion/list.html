@@ -1,73 +1,60 @@
 {% extends "base.html" %}
 {% block title %}Facturas{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="card-title">Facturas emitidas</div>
-  <form method="get" action="/facturas" class="form-row">
-    <div class="field">
-      <label>Tipo</label>
-      <select name="tipo" onchange="this.form.submit()">
-        <option value="" {{ 'selected' if not tipo else '' }}>Todas</option>
-        <option value="interno" {{ 'selected' if tipo == 'interno' else '' }}>Internas</option>
-        <option value="fiscal" {{ 'selected' if tipo == 'fiscal' else '' }}>Fiscales</option>
-      </select>
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Facturas</h1>
+      <div class="m-sub">{{ facturas|length }} factura{{ 's' if facturas|length != 1 else '' }}{% if tipo %} · {{ 'fiscales' if tipo == 'fiscal' else 'internas' }}{% endif %}{% if desde or hasta %} · {{ desde or '…' }} a {{ hasta or '…' }}{% endif %}</div>
     </div>
-    <div class="field">
-      <label>Desde</label>
-      <input type="date" name="desde" value="{{ desde }}">
-    </div>
-    <div class="field">
-      <label>Hasta</label>
-      <input type="date" name="hasta" value="{{ hasta }}">
-    </div>
-    <div class="field" style="align-self:flex-end;">
-      <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
-      {% if desde or hasta or tipo %}
-      <a href="/facturas" class="btn btn-outline btn-sm">Quitar filtros</a>
-      {% endif %}
-    </div>
-  </form>
-  <table>
-    <thead><tr><th>N.o Documento</th><th>Tipo</th><th>Origen</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Forma de pago</th><th>Estado</th><th></th></tr></thead>
-    <tbody>
-      {% for f in facturas %}
-      <tr>
-        <td>{{ f.numero_documento }}</td>
-        <td>{{ 'Fiscal' if f.tipo == 'fiscal' else 'Interno' }}</td>
-        <td>{% if f.orden %}<a href="/ordenes/{{ f.orden.id }}">Orden {{ f.orden.numero_orden }}</a>{% elif f.venta %}POS {{ f.venta.numero_venta }}{% else %}-{% endif %}</td>
-        <td>{{ f.cliente_nombre }}</td>
-        <td>{{ f.fecha_emision|fecha('%d/%m/%Y %H:%M') }}</td>
-        <td>{{ f.total|moneda(config_taller().moneda) }}</td>
-        <td>{{ f.forma_pago_mostrar }}</td>
-        <td>{{ 'ANULADA' if f.anulada else 'Vigente' }}</td>
-        <td><a href="/facturas/{{ f.id }}" class="btn btn-outline btn-sm">Ver</a></td>
-      </tr>
-      {% else %}
-      <tr><td colspan="9" class="empty-state">Aún no se ha emitido ninguna factura.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  </div>
 
   {% if facturas %}
-  <div class="card-title" style="margin-top:1.5rem;">Resumen por forma de pago</div>
-  <table>
-    <thead><tr><th>Forma de pago</th><th>Total</th></tr></thead>
-    <tbody>
-      {% for clave in orden_resumen_formas_pago %}
-      {% if resumen_formas_pago[clave] %}
-      <tr>
-        <td>{{ clave }}</td>
-        <td>{{ resumen_formas_pago[clave]|moneda(config_taller().moneda) }}</td>
-      </tr>
-      {% endif %}
-      {% endfor %}
-      <tr style="font-weight:600;">
-        <td>Total general</td>
-        <td>{{ total_general|moneda(config_taller().moneda) }}</td>
-      </tr>
-    </tbody>
-  </table>
-  <p class="help-text" style="margin-top:.5rem;">El resumen solo incluye facturas vigentes (no anuladas).</p>
+  <section class="m-stats" aria-label="Resumen" style="gap:44px; padding-bottom:22px; border-bottom:1px solid var(--border); margin-bottom:18px;">
+    <div><div class="m-label">Total vigente</div>{% set tg = total_general|moneda(moneda) %}<div class="m-hero">{{ tg[:-3] }}<small>{{ tg[-3:] }}</small></div></div>
+    {% for clave in orden_resumen_formas_pago %}{% if resumen_formas_pago[clave] %}
+    <div><div class="m-label">{{ clave }}</div><div class="m-val">{{ resumen_formas_pago[clave]|moneda(moneda) }}</div></div>
+    {% endif %}{% endfor %}
+  </section>
   {% endif %}
+
+  <form method="get" action="/facturas" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:8px;">
+    <div class="m-chips" role="group" aria-label="Tipo">
+      <a class="m-chip {{ 'on' if not tipo else '' }}" href="/facturas?desde={{ desde }}&hasta={{ hasta }}">Todas</a>
+      <a class="m-chip {{ 'on' if tipo == 'interno' else '' }}" href="/facturas?tipo=interno&desde={{ desde }}&hasta={{ hasta }}">Internas</a>
+      <a class="m-chip {{ 'on' if tipo == 'fiscal' else '' }}" href="/facturas?tipo=fiscal&desde={{ desde }}&hasta={{ hasta }}">Fiscales</a>
+    </div>
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <div class="field" style="margin:0 0 0 auto;"><label for="fDesde">Desde</label><input id="fDesde" type="date" name="desde" value="{{ desde }}"></div>
+    <div class="field" style="margin:0;"><label for="fHasta">Hasta</label><input id="fHasta" type="date" name="hasta" value="{{ hasta }}"></div>
+    <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+    {% if desde or hasta or tipo %}<a href="/facturas" class="btn btn-outline btn-sm">Quitar filtros</a>{% endif %}
+  </form>
+
+  <div class="table-wrap">
+    <table class="m-table">
+      <thead><tr><th>Documento</th><th>Cliente</th><th>Origen</th><th>Forma de pago</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        {% for f in facturas %}
+        <tr style="cursor:pointer;" onclick="window.location='/facturas/{{ f.id }}'">
+          <td style="white-space:nowrap;">
+            <a href="/facturas/{{ f.id }}" style="color:var(--text); font-weight:800;">{{ f.numero_documento }}</a>
+            <div class="m-muted" style="font-size:11.5px;">{{ 'Fiscal' if f.tipo == 'fiscal' else 'Interna' }} · {{ f.fecha_emision|fecha('%d/%m/%Y %I:%M %p') }}</div>
+          </td>
+          <td>{{ f.cliente_nombre }}</td>
+          <td>{% if f.orden %}<a href="/ordenes/{{ f.orden.id }}" onclick="event.stopPropagation();">{{ f.orden.numero_orden }}</a>{% elif f.venta %}<span class="m-muted">POS {{ f.venta.numero_venta }}</span>{% else %}<span class="m-muted">—</span>{% endif %}</td>
+          <td class="m-muted">{{ f.forma_pago_mostrar }}</td>
+          <td class="num" style="font-weight:800;">
+            {% if f.anulada %}<span class="m-bad" style="font-size:12px; font-weight:700;">ANULADA</span> <span style="text-decoration:line-through; color:var(--text-muted); font-weight:500;">{{ f.total|moneda(moneda) }}</span>{% else %}{{ f.total|moneda(moneda) }}{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">Aún no se ha emitido ninguna factura{% if desde or hasta or tipo %} con esos filtros{% endif %}.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if facturas %}<p class="help">Los totales solo incluyen facturas vigentes (no anuladas).</p>{% endif %}
 </div>
 {% endblock %}

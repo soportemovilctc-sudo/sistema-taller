@@ -9,7 +9,11 @@ from sqlalchemy import func
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import OrdenServicio, MovimientoFinanciero, Venta, Producto, Configuracion, Tecnico, CATEGORIA_DEPOSITO_BANCO
+from app.models import (
+    OrdenServicio, MovimientoFinanciero, Venta, Producto, Configuracion, Tecnico, Pago,
+    CATEGORIA_DEPOSITO_BANCO, CATEGORIA_VENTA_FACTURADA,
+)
+from app.utils.turnos_caja import hoy_local, inicio_dia_local_en_utc, turno_abierto, calcular_resumen_turno
 from app.deps import login_required
 from app.routers.reportes import _utilidades_por_producto
 
@@ -21,10 +25,15 @@ router = APIRouter()
 
 @router.get("/")
 def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
-    hoy = date.today()
+    # Días en hora de Honduras (el servidor está en UTC: con date.today()
+    # "hoy" cambiaba a las 6 de la tarde).
+    hoy = hoy_local()
     inicio_mes = hoy.replace(day=1)
+    inicio_hoy = inicio_dia_local_en_utc(hoy)
+    fin_hoy = inicio_dia_local_en_utc(hoy + timedelta(days=1))
+    inicio_mes_dt = inicio_dia_local_en_utc(inicio_mes)
 
-    recibidas_hoy = db.query(OrdenServicio).filter(func.date(OrdenServicio.fecha) == hoy).count()
+    recibidas_hoy = db.query(OrdenServicio).filter(OrdenServicio.fecha >= inicio_hoy, OrdenServicio.fecha < fin_hoy).count()
     en_diagnostico = db.query(OrdenServicio).filter(OrdenServicio.estado == "EN DIAGNOSTICO").count()
     en_reparacion = db.query(OrdenServicio).filter(OrdenServicio.estado == "EN REPARACION").count()
     listas = db.query(OrdenServicio).filter(OrdenServicio.estado == "LISTO PARA ENTREGAR").count()
@@ -44,15 +53,31 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
             MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
         ).scalar() or 0
 
-    inicio_hoy = datetime.combine(hoy, datetime.min.time())
-    inicio_mes_dt = datetime.combine(inicio_mes, datetime.min.time())
+    def cobrado_entre(desde, hasta):
+        """Dinero que entró (todas las formas de pago): abonos/pagos de
+        órdenes + cobros y ventas registrados en Caja/POS. Las facturas no
+        suman aquí porque su dinero ya entró con los abonos (misma regla que
+        el cierre de caja)."""
+        pagos = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(Pago.fecha >= desde, Pago.fecha < hasta).scalar() or 0
+        otros = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
+            MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha < hasta,
+            MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+            MovimientoFinanciero.categoria.notin_([CATEGORIA_VENTA_FACTURADA, CATEGORIA_DEPOSITO_BANCO]),
+        ).scalar() or 0
+        return Decimal(str(pagos)) + Decimal(str(otros))
+
+    cobrado_hoy = cobrado_entre(inicio_hoy, fin_hoy)
+    turno = turno_abierto(db)
+    efectivo_caja = calcular_resumen_turno(db, turno)["efectivo_esperado"] if turno else None
+    listas_entregar = (db.query(OrdenServicio).filter(OrdenServicio.estado == "LISTO PARA ENTREGAR")
+                       .order_by(OrdenServicio.fecha.asc()).limit(8).all())
 
     ingresos_dia = suma_movimientos("ingreso", inicio_hoy)
     gastos_dia = suma_movimientos("gasto", inicio_hoy)
     ingresos_mes = suma_movimientos("ingreso", inicio_mes_dt)
     gastos_mes = suma_movimientos("gasto", inicio_mes_dt)
 
-    ventas_hoy = db.query(func.coalesce(func.sum(Venta.total), 0)).filter(Venta.fecha >= inicio_hoy).scalar() or 0
+    ventas_hoy = db.query(func.coalesce(func.sum(Venta.total), 0)).filter(Venta.fecha >= inicio_hoy, Venta.fecha < fin_hoy).scalar() or 0
 
     stock_bajo = db.query(Producto).filter(
         Producto.estado == "activo", Producto.existencia <= Producto.stock_minimo
@@ -77,15 +102,10 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
     # Serie de últimos 7 días para el gráfico de ingresos
     dias = [hoy - timedelta(days=i) for i in range(6, -1, -1)]
     serie_ingresos = []
+    nombres_dia = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
     for d in dias:
-        ini = datetime.combine(d, datetime.min.time())
-        fin = datetime.combine(d, datetime.max.time())
-        total = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
-            MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.fecha.between(ini, fin),
-            MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
-            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
-        ).scalar() or 0
-        serie_ingresos.append({"dia": d.strftime("%d/%m"), "total": float(total)})
+        total = cobrado_entre(inicio_dia_local_en_utc(d), inicio_dia_local_en_utc(d + timedelta(days=1)))
+        serie_ingresos.append({"dia": "Hoy" if d == hoy else nombres_dia[d.weekday()], "fecha": d.strftime("%d/%m"), "total": float(total)})
 
     # Serie de últimos 6 meses: cuántas órdenes se recibieron cada mes
     # (para la gráfica de tendencia del dashboard).
@@ -187,7 +207,8 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
         "saldos_pendientes": saldos_pendientes,
         "ingresos_dia": ingresos_dia, "gastos_dia": gastos_dia,
         "ingresos_mes": ingresos_mes, "gastos_mes": gastos_mes,
-        "ventas_hoy": ventas_hoy,
+        "ventas_hoy": ventas_hoy, "cobrado_hoy": cobrado_hoy, "efectivo_caja": efectivo_caja,
+        "listas_entregar": listas_entregar, "hoy": hoy, "turno": turno,
         "stock_bajo": stock_bajo,
         "ordenes_recientes": ordenes_recientes,
         "serie_ingresos": serie_ingresos,

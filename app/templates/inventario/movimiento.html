@@ -1,45 +1,77 @@
 {% extends "base.html" %}
-{% block title %}Movimientos de {{ producto.nombre }}{% endblock %}
+{% block title %}Historial de {{ producto.codigo }}{% endblock %}
 {% block content %}
-<div class="grid cols-2">
-  <div class="card">
-    <div class="card-title">{{ producto.nombre }} <span class="badge badge-en-reparacion">{{ producto.codigo }}</span></div>
-    <p>Existencia actual: <b>{{ producto.existencia }}</b> · Stock mínimo: {{ producto.stock_minimo }}</p>
-    <form method="post" action="/inventario/{{ producto.id }}/movimiento">
-      <div class="field">
-        <label>Tipo de movimiento</label>
-        <select name="tipo">
-          <option value="entrada">Entrada (compra / ingreso de stock)</option>
-          <option value="salida">Salida (uso interno / merma)</option>
-          <option value="ajuste">Ajuste (fijar existencia exacta)</option>
-        </select>
-      </div>
-      <div class="field"><label>Cantidad</label><input type="number" min="1" name="cantidad" required></div>
-      <div class="field"><label>Motivo</label><input type="text" name="motivo" placeholder="Ej: compra a proveedor, uso en orden OS-000012..."></div>
-      <button type="submit" class="btn btn-primary">Registrar movimiento</button>
-    </form>
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <a href="/inventario" class="m-muted" style="font-size:13px;">← Inventario</a>
+      <h1 class="m-title" style="margin-top:6px;">{{ producto.nombre }}</h1>
+      <div class="m-sub">{{ producto.codigo }}{% if producto.categoria %} · {{ producto.categoria }}{% endif %}{% if producto.caja %} · {{ producto.caja }}{% endif %} · historial detallado (kardex)</div>
+    </div>
+    <div class="m-acciones">
+      {% if usuario.rol == 'admin' %}<a href="/compras/nueva?producto_id={{ producto.id }}" class="btn btn-primary">Pedir más (compra)</a>{% endif %}
+      <a href="/inventario/{{ producto.id }}/editar" class="btn btn-outline">Editar</a>
+    </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Historial de movimientos</div>
-    <div class="table-wrap">
-    <table>
-      <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Existencia resultante</th><th>Usuario</th></tr></thead>
+  <div class="m-stats" style="padding-bottom:22px; border-bottom:1px solid var(--border);">
+    <div><div class="m-label">Existencia</div><div class="m-hero {{ 'm-bad' if producto.existencia <= producto.stock_minimo else '' }}">{{ producto.existencia }}</div></div>
+    <div><div class="m-label">Costo (promedio)</div><div class="m-val">{{ k.costo|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Valor al costo</div><div class="m-val">{{ k.valor|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Precio de venta</div><div class="m-val">{{ producto.precio_venta|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Mínimo</div><div class="m-val">{{ producto.stock_minimo }}</div></div>
+  </div>
+
+  <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin:22px 0 6px;">
+    <div class="field" style="margin:0;"><label for="kdesde">Desde</label><input id="kdesde" type="date" name="desde" value="{{ k.desde }}"></div>
+    <div class="field" style="margin:0;"><label for="khasta">Hasta</label><input id="khasta" type="date" name="hasta" value="{{ k.hasta }}"></div>
+    <button class="btn btn-outline btn-sm" type="submit">Filtrar</button>
+    {% if k.desde or k.hasta %}<a href="/inventario/{{ producto.id }}/movimiento" class="btn btn-outline btn-sm">Ver todo</a>{% endif %}
+    <div class="m-muted" style="margin-left:auto; font-size:13px;">Saldo inicial <b style="color:var(--text);">{{ k.saldo_inicial }}</b> · Entraron <b class="m-ok">{{ k.entradas }}</b> · Salieron <b class="m-bad">{{ k.salidas }}</b> · Saldo final <b style="color:var(--text);">{{ k.saldo_final }}</b></div>
+  </form>
+
+  <div class="table-wrap">
+    <table class="m-table">
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Documento / motivo</th><th class="num">Entrada</th><th class="num">Salida</th><th class="num">Saldo</th><th class="num">Costo c/u</th><th class="num">Valor</th><th>Usuario</th></tr></thead>
       <tbody>
-        {% for m in movimientos %}
+        {% for f in k.filas %}
         <tr>
-          <td>{{ m.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
-          <td>{{ m.tipo }}</td>
-          <td>{{ m.cantidad }}</td>
-          <td>{{ m.existencia_resultante }}</td>
-          <td>{{ m.usuario_nombre }}</td>
+          <td class="m-muted" style="white-space:nowrap;">{{ f.fecha|hn }}</td>
+          <td style="font-weight:600;">{{ f.tipo }}</td>
+          <td>{{ f.documento }}</td>
+          <td class="num m-ok" style="font-weight:700;">{{ f.entrada or '' }}</td>
+          <td class="num m-bad" style="font-weight:700;">{{ f.salida or '' }}</td>
+          <td class="num" style="font-weight:800;">{{ f.saldo }}</td>
+          <td class="num m-muted">{{ f.costo|moneda(moneda) if f.costo is not none else '—' }}</td>
+          <td class="num">{{ f.valor|moneda(moneda) if f.valor is not none else '—' }}</td>
+          <td class="m-muted">{{ f.usuario }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="empty-state">Sin movimientos registrados.</td></tr>
+        <tr><td colspan="9" class="empty-state">Sin movimientos{% if k.desde or k.hasta %} en esas fechas{% endif %}.</td></tr>
         {% endfor %}
       </tbody>
     </table>
-    </div>
   </div>
+  {% if not k.cuadra %}<p class="help m-warn">La existencia guardada del producto ({{ producto.existencia }}) no coincide con el saldo del último movimiento. Revísalo con un ajuste de inventario (conteo físico).</p>{% endif %}
+
+  {% if usuario.rol == 'admin' %}
+  <details class="m-more">
+    <summary>Salida o ajuste manual de este producto</summary>
+    <form method="post" action="/inventario/{{ producto.id }}/movimiento" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-top:12px;">
+      <div class="field" style="margin:0;">
+        <label for="mtipo">Tipo</label>
+        <select id="mtipo" name="tipo">
+          <option value="salida">Salida (uso interno / merma)</option>
+          <option value="ajuste">Ajuste (dejar la existencia exacta)</option>
+        </select>
+      </div>
+      <div class="field" style="margin:0;"><label for="mcant">Cantidad</label><input id="mcant" type="number" min="1" name="cantidad" required style="width:110px;"></div>
+      <div class="field" style="margin:0; flex:1 1 240px;"><label for="mmot">Motivo</label><input id="mmot" type="text" name="motivo" placeholder="Ej: pantalla dañada en bodega"></div>
+      <button type="submit" class="btn btn-outline">Registrar</button>
+    </form>
+    <p class="help">Las unidades nuevas entran solo con una <a href="/compras">Compra</a>. Para corregir varios productos a la vez usa <a href="/ajustes-inventario">Ajustes de inventario</a>.</p>
+  </details>
+  {% endif %}
 </div>
 {% endblock %}

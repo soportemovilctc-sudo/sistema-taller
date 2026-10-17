@@ -3,159 +3,176 @@
 {% block content %}
 {% set moneda = config_taller().moneda %}
 {% from "caja/_dia_caja.html" import bloque_dia, otros_dias %}
-
-{% if usuario.rol == 'admin' %}
-<div class="card" style="margin-bottom:18px;">
-  <div class="card-title">Bloqueo por caja cerrada <span class="help" style="font-weight:400;">— solo el administrador ve esto</span></div>
-  {% if obligatoria_activa %}
-    <p><span class="badge badge-listo-para-entregar">Activo</span> Desde el {{ obligatoria_desde.strftime('%d/%m/%Y %I:%M %p') }}: sin caja abierta no se pueden registrar cobros ni abonos, emitir facturas, vender en el POS ni entregar órdenes con saldo pendiente. Crear órdenes sí se puede.</p>
-  {% elif obligatoria_desde %}
-    <p><span class="badge badge-esperando-aprobacion">Programado</span> Se activará solo el <b>{{ obligatoria_desde.strftime('%d/%m/%Y a las %I:%M %p') }}</b> (hora de Honduras). Hasta entonces todo funciona como antes; la caja se puede abrir y cerrar, pero no es obligatoria.</p>
-  {% else %}
-    <p><span class="badge badge-cancelado">Desactivado</span> Se puede cobrar, abonar, facturar y vender sin caja abierta.</p>
-  {% endif %}
-  <div class="form-row" style="align-items:flex-end; margin-bottom:0;">
-    {% if not obligatoria_activa %}
-    <form method="post" action="/caja/turnos/configuracion" class="field" style="flex:0 0 auto; margin-bottom:0;" onsubmit="return confirm('¿Activar el bloqueo desde este momento?');">
-      <input type="hidden" name="accion" value="activar_ahora">
-      <button type="submit" class="btn btn-outline btn-sm">Activar ahora</button>
-    </form>
-    {% endif %}
-    {% if obligatoria_desde %}
-    <form method="post" action="/caja/turnos/configuracion" class="field" style="flex:0 0 auto; margin-bottom:0;" onsubmit="return confirm('¿Desactivar el bloqueo? Se podrá cobrar y facturar sin caja abierta.');">
-      <input type="hidden" name="accion" value="desactivar">
-      <button type="submit" class="btn btn-outline btn-sm">Desactivar</button>
-    </form>
-    {% endif %}
-    <form method="post" action="/caja/turnos/configuracion" class="form-row" style="flex:1; align-items:flex-end; margin-bottom:0;">
-      <input type="hidden" name="accion" value="programar">
-      <div class="field" style="flex:0 0 auto; margin-bottom:0;"><label>Programar para</label><input type="datetime-local" name="fecha_hora" required></div>
-      <div class="field" style="flex:0 0 auto; margin-bottom:0;"><button type="submit" class="btn btn-outline btn-sm">Programar</button></div>
-    </form>
-  </div>
-</div>
-{% endif %}
+<div class="m-wrap">
 
 {% if actual %}
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Caja de hoy</h1>
+      <div class="m-sub">Caja #{{ actual.id }} · abierta {{ a_hora_local(actual.fecha_apertura).strftime('%d/%m/%Y %I:%M %p') }} por {{ actual.abierta_por }}</div>
+    </div>
+    <div class="m-acciones">
+      <a href="/caja/registrar" class="btn btn-outline">Registrar ingreso / salida</a>
+      <a href="/caja/turnos/{{ actual.id }}" class="btn btn-outline">Ver detalle</a>
+    </div>
+  </div>
+
   {% if actual_de_dia_anterior %}
   <div class="flash flash-warning">
     Esta caja se abrió el <b>{{ a_hora_local(actual.fecha_apertura).strftime('%d/%m/%Y') }}</b> y no se cerró. Ciérrala con el conteo del efectivo y después abre la caja de hoy.
   </div>
   {% endif %}
 
+  <section class="m-grid2" aria-label="Arqueo" style="align-items:start;">
+    <div>
+      <div class="m-label">Debe haber en la gaveta</div>
+      {% set esp = resumen_actual.efectivo_esperado|moneda(moneda) %}
+      <div class="m-hero {{ 'm-bad' if resumen_actual.efectivo_esperado < 0 else '' }}">{{ esp[:-3] }}<small>{{ esp[-3:] }}</small></div>
+      <div style="margin-top:14px; max-width:420px;">
+        <div class="m-line"><span>Efectivo inicial</span><span>{{ resumen_actual.monto_inicial|moneda(moneda) }}</span></div>
+        <div class="m-line"><span>+ Abonos y pagos de órdenes en efectivo</span><span class="m-ok">{{ resumen_actual.total_pagos_efectivo|moneda(moneda) }}</span></div>
+        <div class="m-line"><span>+ Otros ingresos en efectivo (cobros, POS...)</span><span class="m-ok">{{ resumen_actual.total_ingresos_efectivo|moneda(moneda) }}</span></div>
+        <div class="m-line"><span>− Salidas de efectivo</span><span class="m-bad">{{ resumen_actual.total_salidas_efectivo|moneda(moneda) }}</span></div>
+      </div>
+      {% if resumen_actual.efectivo_esperado < 0 and usuario.rol == 'admin' %}<p class="help m-bad">No puede haber efectivo negativo: revísalo en <a href="/revision#caja-{{ actual.id }}">Revisión del sistema</a>.</p>{% endif %}
+    </div>
+
+    <form method="post" action="/caja/turnos/{{ actual.id }}/cerrar" class="m-box" id="formCerrarCaja" onsubmit="return confirm('¿Cerrar la caja? Después solo el administrador podrá reabrirla o corregirla.');">
+      <label for="efectivoContado" style="font-weight:700; font-size:15px;">Cerrar caja: ¿cuánto efectivo contaste?</label>
+      <input type="number" step="0.01" min="0" name="efectivo_contado" id="efectivoContado" required style="font-size:24px; font-weight:800; padding:12px; margin-top:8px; width:100%; box-sizing:border-box;" data-esperado="{{ resumen_actual.efectivo_esperado }}">
+      <div class="m-line" style="margin-top:10px;"><span>Diferencia</span><b id="difCierre" style="font-size:18px;">—</b></div>
+      <div class="field" style="margin-top:8px;"><label for="notasCierre">Notas del cierre (opcional)</label><textarea id="notasCierre" name="notas_cierre" rows="2" placeholder="Ej: faltante por cambio mal dado, billete dañado..."></textarea></div>
+      <button type="submit" class="btn btn-primary" style="width:100%; min-height:46px; font-weight:700;">Cerrar caja</button>
+    </form>
+  </section>
+
   {% if dias_actual %}
   {{ bloque_dia(dias_actual[0], moneda, 'Cierre del día') }}
   {{ otros_dias(dias_actual[1:], moneda) }}
   {% endif %}
 
-  <h3 style="margin:4px 0 10px;">Total general de la caja <span class="help" style="font-weight:400;">— desde que se abrió, incluye el efectivo inicial</span></h3>
-  <div class="grid cols-3" style="margin-bottom:18px;">
-    <div class="kpi accent-green"><div class="kpi-label">Caja abierta desde</div><div class="kpi-value" style="font-size:20px;">{{ a_hora_local(actual.fecha_apertura).strftime('%d/%m/%Y %I:%M %p') }}</div><div class="help">por {{ actual.abierta_por }}</div></div>
-    <div class="kpi accent-blue"><div class="kpi-label">Efectivo inicial</div><div class="kpi-value">{{ resumen_actual.monto_inicial|moneda(moneda) }}</div></div>
-    <div class="kpi accent-blue"><div class="kpi-label">Cobrado desde que se abrió (todas las formas de pago)</div><div class="kpi-value">{{ resumen_actual.total_cobrado|moneda(moneda) }}</div></div>
-  </div>
-
-  <div class="grid cols-2" style="align-items:start; margin-bottom:18px;">
-    <div class="card">
-      <div class="card-title">Cerrar caja (arqueo)</div>
-      <p class="help">Cuenta el efectivo que hay en la caja y escríbelo aquí. El sistema lo compara con lo que debería haber.</p>
-      <table style="margin-bottom:12px;">
-        <tr><td>Efectivo inicial</td><td style="text-align:right;">{{ resumen_actual.monto_inicial|moneda(moneda) }}</td></tr>
-        <tr><td>+ Abonos y pagos de órdenes en efectivo</td><td style="text-align:right;">{{ resumen_actual.total_pagos_efectivo|moneda(moneda) }}</td></tr>
-        <tr><td>+ Otros ingresos en efectivo (cobros, ventas POS...)</td><td style="text-align:right;">{{ resumen_actual.total_ingresos_efectivo|moneda(moneda) }}</td></tr>
-        <tr><td>− Salidas de caja</td><td style="text-align:right;">{{ resumen_actual.total_salidas_efectivo|moneda(moneda) }}</td></tr>
-        <tr><td style="font-weight:700;">= Efectivo que debería haber</td><td style="text-align:right; font-weight:700;">{{ resumen_actual.efectivo_esperado|moneda(moneda) }}</td></tr>
-      </table>
-      <form method="post" action="/caja/turnos/{{ actual.id }}/cerrar" onsubmit="return confirm('¿Cerrar la caja? Después solo el administrador podrá reabrirla o corregirla.');">
-        <div class="field"><label>Efectivo contado *</label><input type="number" step="0.01" min="0" name="efectivo_contado" required></div>
-        <div class="field"><label>Notas del cierre (opcional)</label><textarea name="notas_cierre" placeholder="Ej: faltante por cambio mal dado, billete dañado..."></textarea></div>
-        <button type="submit" class="btn btn-primary">Cerrar caja</button>
-        <a href="/caja/turnos/{{ actual.id }}" class="btn btn-outline">Ver detalle del turno</a>
-      </form>
+  <details class="m-more">
+    <summary>Total general de la caja (desde que se abrió, con el efectivo inicial)</summary>
+    <div class="m-stats" style="margin-top:14px;">
+      <div><div class="m-label">Efectivo inicial</div><div class="m-val">{{ resumen_actual.monto_inicial|moneda(moneda) }}</div></div>
+      <div><div class="m-label">Cobrado desde que se abrió</div><div class="m-val">{{ resumen_actual.total_cobrado|moneda(moneda) }}</div></div>
+      {% for metodo, monto in resumen_actual.cobrado_por_metodo %}
+      <div><div class="m-label">{{ metodo }}</div><div class="m-val" style="font-size:18px;">{{ monto|moneda(moneda) }}</div></div>
+      {% endfor %}
     </div>
-    <div class="card">
-      <div class="card-title">Cobrado desde que se abrió, por forma de pago</div>
-      <div class="table-wrap">
-        <table>
-          <tbody>
-            {% for metodo, monto in resumen_actual.cobrado_por_metodo %}
-            <tr><td>{{ metodo }}</td><td style="text-align:right;">{{ monto|moneda(moneda) }}</td></tr>
-            {% else %}
-            <tr><td colspan="2" class="empty-state">Todavía no hay cobros en este turno.</td></tr>
-            {% endfor %}
-          </tbody>
-          {% if resumen_actual.cobrado_por_metodo %}
-          <tfoot><tr><td style="font-weight:700;">Total</td><td style="text-align:right; font-weight:700;">{{ resumen_actual.total_cobrado|moneda(moneda) }}</td></tr></tfoot>
-          {% endif %}
-        </table>
-      </div>
-      <p class="help" style="margin-top:8px;">Ventas del POS: {{ resumen_actual.ventas_pos|length }} · Facturas emitidas: {{ resumen_actual.facturas|length }} · Abonos: {{ resumen_actual.pagos|length }}</p>
-    </div>
-  </div>
+    <p class="help" style="margin-top:8px;">Ventas del POS: {{ resumen_actual.ventas_pos|length }} · Facturas emitidas: {{ resumen_actual.facturas|length }} · Abonos: {{ resumen_actual.pagos|length }}</p>
+  </details>
 {% else %}
-  <div class="card" style="margin-bottom:18px; max-width:560px;">
-    <div class="card-title">Abrir caja</div>
-    <p class="help">La caja está cerrada. Cuenta el efectivo con que empiezas el turno y ábrela.</p>
-    <form method="post" action="/caja/turnos/abrir">
-      <div class="field">
-        <label>Efectivo inicial *</label>
-        <input type="number" step="0.01" min="0" name="monto_inicial" value="{{ '%.2f'|format(sugerido_inicial) if sugerido_inicial is not none else '0.00' }}" required>
-        {% if sugerido_inicial is not none %}<div class="help">Sugerido: el efectivo contado en el último cierre ({{ sugerido_inicial|moneda(moneda) }}). Cámbialo si no coincide.</div>{% endif %}
-      </div>
-      <div class="field"><label>Notas (opcional)</label><textarea name="notas_apertura"></textarea></div>
-      <button type="submit" class="btn btn-success">Abrir caja</button>
-    </form>
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Caja cerrada</h1>
+      <div class="m-sub">Cuenta el efectivo con que empiezas el turno y abre la caja.</div>
+    </div>
   </div>
+  <form method="post" action="/caja/turnos/abrir" class="m-box" style="max-width:520px;">
+    <label for="montoInicial" style="font-weight:700; font-size:15px;">Abrir caja: efectivo inicial</label>
+    <input type="number" step="0.01" min="0" name="monto_inicial" id="montoInicial" value="{{ '%.2f'|format(sugerido_inicial) if sugerido_inicial is not none else '0.00' }}" required style="font-size:24px; font-weight:800; padding:12px; margin-top:8px; width:100%; box-sizing:border-box;">
+    {% if sugerido_inicial is not none %}<div class="help">Sugerido: lo contado en el último cierre ({{ sugerido_inicial|moneda(moneda) }}). Cámbialo si no coincide.</div>{% endif %}
+    <div class="field" style="margin-top:10px;"><label for="notasApertura">Notas (opcional)</label><textarea id="notasApertura" name="notas_apertura" rows="2"></textarea></div>
+    <button type="submit" class="btn btn-success" style="width:100%; min-height:46px; font-weight:700;">Abrir caja</button>
+  </form>
 {% endif %}
 
-<div class="card">
-  <div class="card-title">Historial de aperturas y cierres</div>
-  <form method="get" action="/caja/turnos" class="form-row" style="align-items:flex-end;">
-    <div class="field" style="flex:0 0 auto;"><label>Desde</label><input type="date" name="desde" value="{{ desde }}" max="{{ hoy_iso }}"></div>
-    <div class="field" style="flex:0 0 auto;"><label>Hasta</label><input type="date" name="hasta" value="{{ hasta }}" max="{{ hoy_iso }}"></div>
-    <div class="field" style="flex:0 0 auto;">
-      <label>Estado</label>
-      <select name="estado">
+<section class="m-sec" aria-label="Historial de aperturas y cierres">
+  <div class="m-sec-t">Historial de aperturas y cierres</div>
+  <form method="get" action="/caja/turnos" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:8px;">
+    <div class="field" style="margin:0;"><label for="hDesde">Desde</label><input id="hDesde" type="date" name="desde" value="{{ desde }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="margin:0;"><label for="hHasta">Hasta</label><input id="hHasta" type="date" name="hasta" value="{{ hasta }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="margin:0;">
+      <label for="hEstado">Estado</label>
+      <select id="hEstado" name="estado">
         <option value="">Todas</option>
         <option value="abierta" {{ 'selected' if estado == 'abierta' else '' }}>Abiertas</option>
         <option value="cerrada" {{ 'selected' if estado == 'cerrada' else '' }}>Cerradas</option>
       </select>
     </div>
-    <div class="field" style="flex:0 0 auto;"><button type="submit" class="btn btn-outline">Buscar</button></div>
-    {% if hay_filtro %}<div class="field" style="flex:0 0 auto;"><a href="/caja/turnos" class="btn btn-outline btn-sm">Quitar filtro</a></div>{% endif %}
+    <button type="submit" class="btn btn-outline btn-sm">Buscar</button>
+    {% if hay_filtro %}<a href="/caja/turnos" class="btn btn-outline btn-sm">Quitar filtro</a>{% else %}<span class="help">Últimas 60.</span>{% endif %}
   </form>
-  {% if not hay_filtro %}<p class="help">Se muestran las últimas 60. Usa las fechas para buscar más atrás.</p>{% endif %}
   <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>#</th><th>Apertura</th><th>Cierre</th><th>Efectivo inicial</th><th>Esperado</th><th>Contado</th><th>Diferencia</th><th>Estado</th><th></th></tr>
-      </thead>
+    <table class="m-table">
+      <thead><tr><th>Caja</th><th>Apertura</th><th>Cierre</th><th class="num">Inicial</th><th class="num">Esperado</th><th class="num">Contado</th><th class="num">Diferencia</th></tr></thead>
       <tbody>
         {% for t in historial %}
         <tr style="cursor:pointer;" onclick="window.location='/caja/turnos/{{ t.id }}'">
-          <td>{{ t.id }}</td>
+          <td><a href="/caja/turnos/{{ t.id }}" style="color:var(--text); font-weight:700;">#{{ t.id }}</a>{% if t.estado == 'abierta' %} <span class="m-ok" style="font-size:12px;">· abierta</span>{% endif %}</td>
           <td>{{ a_hora_local(t.fecha_apertura).strftime('%d/%m/%Y %I:%M %p') }}<div class="help">{{ t.abierta_por }}</div></td>
-          <td>{% if t.fecha_cierre %}{{ a_hora_local(t.fecha_cierre).strftime('%d/%m/%Y %I:%M %p') }}<div class="help">{{ t.cerrada_por }}</div>{% else %}-{% endif %}</td>
-          <td>{{ t.monto_inicial|moneda(moneda) }}</td>
-          <td>{{ t.efectivo_esperado|moneda(moneda) if t.efectivo_esperado is not none else '-' }}</td>
-          <td>{{ t.efectivo_contado|moneda(moneda) if t.efectivo_contado is not none else '-' }}</td>
-          <td>
-            {% if t.diferencia is none %}-
-            {% elif t.diferencia == 0 %}<span class="badge badge-listo-para-entregar">Cuadra</span>
-            {% elif t.diferencia > 0 %}<span class="badge badge-esperando-aprobacion">Sobrante {{ t.diferencia|moneda(moneda) }}</span>
-            {% else %}<span class="badge badge-cancelado">Faltante {{ (0 - t.diferencia)|moneda(moneda) }}</span>{% endif %}
+          <td>{% if t.fecha_cierre %}{{ a_hora_local(t.fecha_cierre).strftime('%d/%m/%Y %I:%M %p') }}<div class="help">{{ t.cerrada_por }}{% if t.cerrada_tarde %} · otro día{% endif %}</div>{% else %}<span class="m-muted">—</span>{% endif %}</td>
+          <td class="num">{{ t.monto_inicial|moneda(moneda) }}</td>
+          <td class="num {{ 'm-bad' if t.efectivo_esperado is not none and t.efectivo_esperado < 0 else '' }}">{{ t.efectivo_esperado|moneda(moneda) if t.efectivo_esperado is not none else '—' }}</td>
+          <td class="num">{{ t.efectivo_contado|moneda(moneda) if t.efectivo_contado is not none else '—' }}</td>
+          <td class="num" style="font-weight:700;">
+            {% if t.diferencia is none %}<span class="m-muted">—</span>
+            {% elif t.diferencia == 0 %}<span class="m-ok">Cuadra</span>
+            {% elif t.diferencia > 0 %}<span class="m-warn">Sobran {{ t.diferencia|moneda(moneda) }}</span>
+            {% else %}<span class="m-bad">Faltan {{ (0 - t.diferencia)|moneda(moneda) }}</span>{% endif %}
           </td>
-          <td>
-            {% if t.estado == 'abierta' %}<span class="badge badge-en-reparacion">Abierta</span>{% else %}<span class="badge badge-entregado">Cerrada</span>{% endif %}
-            {% if t.cerrada_tarde %}<div class="help">cerrada otro día</div>{% endif %}
-          </td>
-          <td><a href="/caja/turnos/{{ t.id }}" class="btn btn-outline btn-sm">Ver</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="empty-state">No hay aperturas de caja {{ 'en esas fechas' if hay_filtro else 'todavía' }}.</td></tr>
+        <tr><td colspan="7" class="empty-state">No hay aperturas de caja {{ 'en esas fechas' if hay_filtro else 'todavía' }}.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+</section>
+
+{% if usuario.rol == 'admin' %}
+<details class="m-more">
+  <summary>Bloqueo por caja cerrada (solo el administrador ve esto) · {% if obligatoria_activa %}activo{% elif obligatoria_desde %}programado{% else %}desactivado{% endif %}</summary>
+  <div style="margin-top:12px;">
+    {% if obligatoria_activa %}
+      <p>Activo desde el {{ obligatoria_desde.strftime('%d/%m/%Y %I:%M %p') }}: sin caja abierta no se pueden registrar cobros ni abonos, emitir facturas, vender en el POS ni entregar órdenes con saldo pendiente. Crear órdenes sí se puede.</p>
+    {% elif obligatoria_desde %}
+      <p>Se activará solo el <b>{{ obligatoria_desde.strftime('%d/%m/%Y a las %I:%M %p') }}</b> (hora de Honduras).</p>
+    {% else %}
+      <p>Desactivado: se puede cobrar, abonar, facturar y vender sin caja abierta.</p>
+    {% endif %}
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+      {% if not obligatoria_activa %}
+      <form method="post" action="/caja/turnos/configuracion" onsubmit="return confirm('¿Activar el bloqueo desde este momento?');">
+        <input type="hidden" name="accion" value="activar_ahora">
+        <button type="submit" class="btn btn-outline btn-sm">Activar ahora</button>
+      </form>
+      {% endif %}
+      {% if obligatoria_desde %}
+      <form method="post" action="/caja/turnos/configuracion" onsubmit="return confirm('¿Desactivar el bloqueo? Se podrá cobrar y facturar sin caja abierta.');">
+        <input type="hidden" name="accion" value="desactivar">
+        <button type="submit" class="btn btn-outline btn-sm">Desactivar</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/caja/turnos/configuracion" style="display:flex; gap:8px; align-items:flex-end;">
+        <input type="hidden" name="accion" value="programar">
+        <div class="field" style="margin:0;"><label for="progFecha">Programar para</label><input id="progFecha" type="datetime-local" name="fecha_hora" required></div>
+        <button type="submit" class="btn btn-outline btn-sm">Programar</button>
+      </form>
+    </div>
+  </div>
+</details>
+{% endif %}
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var input = document.getElementById("efectivoContado");
+  var dif = document.getElementById("difCierre");
+  if (!input || !dif) return;
+  var esperado = parseFloat(input.getAttribute("data-esperado")) || 0;
+  var moneda = {{ config_taller().moneda|tojson }};
+  function fmt(n) { return moneda + " " + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  input.addEventListener("input", function () {
+    var v = parseFloat(input.value);
+    if (isNaN(v)) { dif.textContent = "—"; dif.style.color = ""; return; }
+    var d = Math.round((v - esperado) * 100) / 100;
+    if (d === 0) { dif.textContent = "Cuadra"; dif.style.color = "var(--success-text)"; }
+    else if (d > 0) { dif.textContent = "Sobran " + fmt(d); dif.style.color = "var(--warning-text)"; }
+    else { dif.textContent = "Faltan " + fmt(d); dif.style.color = "var(--danger-text)"; }
+  });
+})();
+</script>
 {% endblock %}

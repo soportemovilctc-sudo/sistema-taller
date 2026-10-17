@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Nueva solicitud de compra{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <a href="/compras" class="m-muted" style="font-size:13px;">← Compras</a>
+      <h1 class="m-title" style="margin-top:6px;">Nueva solicitud de compra</h1>
+      <div class="m-sub">Lo que se le va a pedir al proveedor. Las unidades entran al inventario cuando confirmes la recepción.</div>
+    </div>
+  </div>
+
+  <form method="post" action="/compras/nueva" id="formCompra">
+    <div id="compraError" class="flash flash-error" style="display:none;"></div>
+    <div class="form-row">
+      <div class="field" style="flex:1 1 280px;">
+        <label for="proveedor">Proveedor *</label>
+        <input id="proveedor" type="text" name="proveedor" list="listaProveedores" required placeholder="Nombre del proveedor">
+        <datalist id="listaProveedores">{% for p in proveedores %}<option value="{{ p }}">{% endfor %}</datalist>
+      </div>
+      <div class="field" style="flex:2 1 320px;"><label for="notas">Notas</label><input id="notas" type="text" name="notas" placeholder="Opcional: condiciones, fecha de entrega..."></div>
+    </div>
+
+    <div class="field">
+      <label for="pickerProducto">Agregar producto</label>
+      <select id="pickerProducto" class="js-buscar-select" data-placeholder="Escribe el código o nombre del producto...">
+        <option value="">Selecciona un producto...</option>
+        {% for p in productos %}
+        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" {{ 'selected' if p.id == preseleccion else '' }}>{{ p.codigo }} · {{ p.nombre }} (hay {{ p.existencia or 0 }})</option>
+        {% endfor %}
+      </select>
+      <div class="help">¿Es un producto que todavía no existe? <a href="#" id="abrirNuevoProducto">Crearlo aquí mismo</a> (queda con 0 unidades hasta que llegue la compra).</div>
+    </div>
+
+    <div id="cajaNuevoProducto" class="m-box" style="display:none; margin-bottom:18px;">
+      <div class="m-sec-t" style="margin-bottom:12px;">Producto nuevo</div>
+      <div class="form-row">
+        <div class="field"><label for="npCodigo">Código *</label><input id="npCodigo" type="text"></div>
+        <div class="field" style="flex:2 1 260px;"><label for="npNombre">Nombre *</label><input id="npNombre" type="text"></div>
+        <div class="field">
+          <label for="npCategoria">Categoría</label>
+          <select id="npCategoria"><option value="">Sin categoría</option>{% for c in categorias %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+        </div>
+        <div class="field"><label for="npPrecio">Precio de venta</label><input id="npPrecio" type="number" min="0" step="0.01" value="0"></div>
+      </div>
+      <label style="display:flex; gap:8px; align-items:center; font-size:13px; margin-bottom:12px;"><input id="npConIsv" type="checkbox"> El precio de venta ya incluye ISV</label>
+      <button type="button" class="btn btn-primary btn-sm" id="crearNuevoProducto">Crear y agregar</button>
+      <button type="button" class="btn btn-outline btn-sm" id="cancelarNuevoProducto">Cancelar</button>
+      <span id="npMensaje" class="m-bad" style="margin-left:10px; font-size:13px;"></span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="m-table">
+        <thead><tr><th>Producto</th><th class="num">Hay</th><th class="num">Cantidad a pedir</th><th class="num">Costo c/u (sin ISV)</th><th class="num">Subtotal</th><th></th></tr></thead>
+        <tbody id="filasCompra">
+          <tr id="filaVacia"><td colspan="6" class="empty-state">Todavía no agregas productos.</td></tr>
+        </tbody>
+        <tfoot><tr><td colspan="4" class="num">Total estimado</td><td class="num" id="totalCompra" style="font-size:18px;">{{ moneda }} 0.00</td><td></td></tr></tfoot>
+      </table>
+    </div>
+    <div style="margin-top:18px; display:flex; gap:8px;">
+      <button type="submit" class="btn btn-primary">Crear solicitud</button>
+      <a href="/compras" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var moneda = {{ config_taller().moneda|tojson }};
+  var picker = document.getElementById("pickerProducto");
+  var cuerpo = document.getElementById("filasCompra");
+  var filaVacia = document.getElementById("filaVacia");
+  var form = document.getElementById("formCompra");
+  var errorBox = document.getElementById("compraError");
+
+  function fmt(n) { return moneda + " " + (Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  function recalcular() {
+    var total = 0, filas = cuerpo.querySelectorAll("tr.fila-compra");
+    filas.forEach(function (tr) {
+      var c = parseInt(tr.querySelector('input[name="cantidad"]').value, 10) || 0;
+      var k = parseFloat(tr.querySelector('input[name="costo"]').value) || 0;
+      tr.querySelector(".c-sub").textContent = fmt(c * k);
+      total += c * k;
+    });
+    document.getElementById("totalCompra").textContent = fmt(total);
+    filaVacia.style.display = filas.length ? "none" : "";
+  }
+
+  function agregar(datos) {
+    var existente = cuerpo.querySelector('tr.fila-compra[data-id="' + datos.id + '"]');
+    if (existente) { existente.querySelector('input[name="cantidad"]').focus(); return; }
+    var tr = document.createElement("tr");
+    tr.className = "fila-compra";
+    tr.dataset.id = datos.id;
+    tr.innerHTML =
+      '<td><input type="hidden" name="producto_id"><b class="c-codigo"></b><div class="help c-nombre"></div></td>' +
+      '<td class="num c-hay"></td>' +
+      '<td class="num"><input type="number" name="cantidad" min="1" step="1" value="1" style="width:100px; text-align:right;" aria-label="Cantidad"></td>' +
+      '<td class="num"><input type="number" name="costo" min="0" step="0.01" style="width:130px; text-align:right;" aria-label="Costo"></td>' +
+      '<td class="num c-sub"></td>' +
+      '<td class="num"><button type="button" class="btn btn-outline btn-sm c-quitar">Quitar</button></td>';
+    tr.querySelector('input[name="producto_id"]').value = datos.id;
+    tr.querySelector(".c-codigo").textContent = datos.codigo;
+    tr.querySelector(".c-nombre").textContent = datos.nombre;
+    tr.querySelector(".c-hay").textContent = datos.existencia;
+    tr.querySelector('input[name="costo"]').value = (parseFloat(datos.costo) || 0).toFixed(2);
+    cuerpo.appendChild(tr);
+    recalcular();
+    tr.querySelector('input[name="cantidad"]').select();
+  }
+
+  function desdeOpcion(op) {
+    return { id: op.value, codigo: op.dataset.codigo, nombre: op.dataset.nombre, existencia: op.dataset.existencia, costo: op.dataset.costo };
+  }
+
+  picker.addEventListener("change", function () {
+    if (!picker.value) return;
+    agregar(desdeOpcion(picker.options[picker.selectedIndex]));
+    picker.value = "";
+    picker.dispatchEvent(new Event("change"));
+  });
+  if (picker.value) { agregar(desdeOpcion(picker.options[picker.selectedIndex])); picker.value = ""; }
+
+  cuerpo.addEventListener("input", recalcular);
+  cuerpo.addEventListener("click", function (e) {
+    if (!e.target.classList.contains("c-quitar")) return;
+    e.target.closest("tr").remove();
+    recalcular();
+  });
+
+  var caja = document.getElementById("cajaNuevoProducto");
+  document.getElementById("abrirNuevoProducto").addEventListener("click", function (e) { e.preventDefault(); caja.style.display = "block"; document.getElementById("npCodigo").focus(); });
+  document.getElementById("cancelarNuevoProducto").addEventListener("click", function () { caja.style.display = "none"; });
+  document.getElementById("crearNuevoProducto").addEventListener("click", function () {
+    var msg = document.getElementById("npMensaje");
+    msg.textContent = "";
+    var datos = new FormData();
+    datos.append("codigo", document.getElementById("npCodigo").value);
+    datos.append("nombre", document.getElementById("npNombre").value);
+    datos.append("categoria", document.getElementById("npCategoria").value);
+    datos.append("precio_venta", document.getElementById("npPrecio").value || "0");
+    if (document.getElementById("npConIsv").checked) datos.append("precio_incluye_isv", "true");
+    fetch("/compras/producto-rapido", { method: "POST", body: datos })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res.ok) { msg.textContent = res.mensaje || "No se pudo crear."; return; }
+        var op = document.createElement("option");
+        op.value = res.id; op.dataset.codigo = res.codigo; op.dataset.nombre = res.nombre; op.dataset.existencia = 0; op.dataset.costo = 0;
+        op.textContent = res.codigo + " · " + res.nombre + " (hay 0)";
+        picker.appendChild(op);
+        agregar(desdeOpcion(op));
+        ["npCodigo", "npNombre", "npPrecio"].forEach(function (id) { document.getElementById(id).value = id === "npPrecio" ? "0" : ""; });
+        caja.style.display = "none";
+      })
+      .catch(function () { msg.textContent = "Error de conexión."; });
+  });
+
+  form.addEventListener("submit", function (e) {
+    var filas = cuerpo.querySelectorAll("tr.fila-compra");
+    var problemas = [];
+    if (!document.getElementById("proveedor").value.trim()) problemas.push("escribe el proveedor");
+    if (!filas.length) problemas.push("agrega al menos un producto");
+    filas.forEach(function (tr) {
+      if (!(parseInt(tr.querySelector('input[name="cantidad"]').value, 10) > 0)) problemas.push(tr.querySelector(".c-codigo").textContent + ": cantidad mayor a 0");
+    });
+    if (problemas.length) {
+      e.preventDefault();
+      errorBox.textContent = "Antes de crear: " + problemas.join("; ") + ".";
+      errorBox.style.display = "block";
+    }
+  });
+})();
+</script>
+{% endblock %}

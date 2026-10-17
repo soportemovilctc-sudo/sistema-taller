@@ -40,7 +40,7 @@
     </div>
     <div class="form-row">
       {% if not producto %}
-      <div class="field"><label>Existencia inicial</label><input type="number" min="0" name="existencia" value="0"></div>
+      <div class="field"><label>Existencia</label><div class="help" style="padding-top:8px;">Empieza en 0. Las unidades entran con una <b>Compra</b> (solicitud y recepción).</div></div>
       {% endif %}
       <div class="field"><label>Stock mínimo</label><input type="number" min="0" name="stock_minimo" value="{{ producto.stock_minimo if producto else '0' }}"></div>
     </div>

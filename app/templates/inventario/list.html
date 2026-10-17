@@ -15,6 +15,7 @@
       {% if usuario.rol == 'admin' %}<a href="/ajustes-inventario" class="btn btn-outline btn-sm">Ajustes de inventario (varios productos)</a>{% endif %}
       <a href="/inventario/precios" class="btn btn-outline btn-sm">Ver precios con impuesto</a>
       <a href="/inventario/categorias" class="btn btn-outline btn-sm">Categorías</a>
+      {% if usuario.rol == 'admin' %}<a href="/compras" class="btn btn-outline btn-sm">Compras</a>{% endif %}
       <a href="/inventario/nuevo" class="btn btn-primary btn-sm">+ Nuevo producto</a>
     </span>
   </div>
@@ -40,10 +41,11 @@
   </form>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Caja</th><th>Costo</th><th>Precio</th><th>Existencia</th><th>Mín.</th><th>Estado</th><th></th></tr></thead>
+    <thead><tr><th style="width:52px;">Historial</th><th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Caja</th><th>Costo</th><th>Precio</th><th>Existencia</th><th>Mín.</th><th>Estado</th><th></th></tr></thead>
     <tbody>
       {% for p in productos %}
       <tr>
+        <td><a href="/inventario/{{ p.id }}/movimiento" class="icon-hist" title="Ver el historial (kardex) de {{ p.codigo }}" aria-label="Ver el historial de {{ p.codigo }}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg></a></td>
         <td>{{ p.codigo }}</td>
         <td>{{ p.nombre }}</td>
         <td>{{ p.categoria or '-' }}</td>
@@ -58,7 +60,6 @@
         <td>{{ p.stock_minimo }}</td>
         <td>{% if p.estado == 'activo' %}<span class="badge badge-listo-para-entregar">Activo</span>{% else %}<span class="badge badge-cancelado">Inactivo</span>{% endif %}</td>
         <td style="white-space:nowrap;">
-          <a href="/inventario/{{ p.id }}/movimiento" class="btn btn-outline btn-sm">Movimientos</a>
           <a href="/inventario/{{ p.id }}/editar" class="btn btn-outline btn-sm">Editar</a>
           {% if usuario.rol == 'admin' %}
           <form method="post" action="/inventario/{{ p.id }}/eliminar" style="display:inline;" onsubmit="return confirm('¿Eliminar definitivamente el producto {{ p.codigo }} - {{ p.nombre }}? Solo funciona si nunca se ha vendido. Esta acción no se puede deshacer.');">
@@ -68,13 +69,13 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="11" class="empty-state">No hay productos registrados.</td></tr>
+      <tr><td colspan="12" class="empty-state">No hay productos registrados.</td></tr>
       {% endfor %}
     </tbody>
     {% if productos %}
     <tfoot>
       <tr>
-        <td colspan="5" style="text-align:right; font-weight:600;">Inversión total en inventario (costo &times; existencia):</td>
+        <td colspan="6" style="text-align:right; font-weight:600;">Inversión total en inventario (costo &times; existencia):</td>
         <td style="font-weight:700;">{{ total_inversion|moneda(config_taller().moneda) }}</td>
         <td colspan="5"></td>
       </tr>

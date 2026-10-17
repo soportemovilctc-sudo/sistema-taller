@@ -68,13 +68,21 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
         # Si viene un precio_unitario (el cajero lo ajustó en el carrito), se
         # usa ese en vez del precio_venta del catálogo, igual que ya se
         # permite al agregar un repuesto a una orden de servicio.
+        precio_lista = to_decimal(producto.precio_venta or 0)
         if item.precio_unitario is not None and item.precio_unitario > 0:
-            precio = to_decimal(item.precio_unitario)
+            precio = to_decimal(item.precio_unitario).quantize(Decimal("0.01"))
         else:
-            precio = to_decimal(producto.precio_venta)
+            precio = precio_lista
+        # Se puede cambiar el precio al vender, pero nunca por debajo del
+        # costo del producto (los dos sin ISV).
+        costo = to_decimal(producto.costo or 0)
+        if precio < costo:
+            return JSONResponse({"ok": False, "mensaje": (
+                f"El precio de '{producto.nombre}' no puede ser menor a su costo: "
+                f"mínimo L {costo:,.2f} sin ISV (L {aplicar_impuesto(costo, _isv_tasa(db)):,.2f} con ISV).")}, status_code=400)
         sub = (precio * item.cantidad).quantize(Decimal("0.01"))
         subtotal += sub
-        detalles.append((producto, item.cantidad, precio, sub))
+        detalles.append((producto, item.cantidad, precio, sub, precio_lista))
 
     descuento = to_decimal(venta_in.descuento)
     if descuento < 0 or descuento > subtotal:
@@ -98,9 +106,9 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
     db.add(venta)
     db.flush()
 
-    for producto, cantidad, precio, sub in detalles:
+    for producto, cantidad, precio, sub, precio_lista in detalles:
         db.add(DetalleVenta(venta_id=venta.id, producto_id=producto.id, cantidad=cantidad,
-                             precio_unitario=precio, subtotal=sub))
+                             precio_unitario=precio, subtotal=sub, precio_lista=precio_lista))
         producto.existencia -= cantidad
         db.add(MovimientoInventario(
             producto_id=producto.id, tipo="salida", cantidad=cantidad,

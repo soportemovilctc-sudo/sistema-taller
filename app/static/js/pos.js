@@ -47,7 +47,7 @@ function agregarAlCarrito(producto) {
   if (existente) {
     if (existente.cantidad < producto.existencia) existente.cantidad += 1;
   } else {
-    carrito.push({ id: producto.id, nombre: producto.nombre, precio: producto.precio, cantidad: 1, existencia: producto.existencia });
+    carrito.push({ id: producto.id, nombre: producto.nombre, precio: producto.precio, precioLista: producto.precio, cantidad: 1, existencia: producto.existencia });
   }
   renderCarrito();
 }
@@ -79,6 +79,12 @@ function cambiarPrecio(id, valorTexto) {
   var valor = parseFloat(valorTexto);
   if (isNaN(valor) || valor < 0) valor = 0;
   item.precio = valor;
+  var fila = document.querySelector('.cart-item[data-id="' + id + '"]');
+  if (fila) {
+    var conIsv = fila.querySelector(".cart-precio-isv");
+    if (conIsv) conIsv.textContent = "con ISV L " + (valor * (1 + TASA_ISV / 100)).toFixed(2);
+    fila.classList.toggle("precio-cambiado", Math.abs(valor - item.precioLista) > 0.004);
+  }
   actualizarTotales();
 }
 
@@ -93,11 +99,17 @@ function renderCarrito() {
 
   carrito.forEach(function (item) {
     var row = document.createElement("div");
-    row.className = "cart-item";
+    row.className = "cart-item" + (Math.abs(item.precio - item.precioLista) > 0.004 ? " precio-cambiado" : "");
+    row.setAttribute("data-id", item.id);
+    var nombreSeguro = document.createElement("span");
+    nombreSeguro.textContent = item.nombre;
     row.innerHTML =
-      '<span class="name">' + item.nombre + '<br><small>L ' +
+      '<span class="name">' + nombreSeguro.innerHTML +
+        '<label class="cart-precio"><span>Precio c/u (sin ISV)</span>' +
         '<input type="number" min="0" step="0.01" class="cart-price-input" value="' + item.precio.toFixed(2) +
-        '" oninput="cambiarPrecio(' + item.id + ', this.value)"> c/u</small></span>' +
+        '" oninput="cambiarPrecio(' + item.id + ', this.value)" aria-label="Precio de ' + nombreSeguro.innerHTML + '"></label>' +
+        '<small class="cart-precio-isv">con ISV L ' + (item.precio * (1 + TASA_ISV / 100)).toFixed(2) + '</small>' +
+        '<small class="cart-precio-lista">Precio del inventario: L ' + item.precioLista.toFixed(2) + '</small></span>' +
       '<button type="button" class="btn btn-outline btn-sm" onclick="cambiarCantidad(' + item.id + ', -1)">-</button>' +
       '<input type="number" min="1" value="' + item.cantidad + '" readonly>' +
       '<button type="button" class="btn btn-outline btn-sm" onclick="cambiarCantidad(' + item.id + ', 1)">+</button>' +

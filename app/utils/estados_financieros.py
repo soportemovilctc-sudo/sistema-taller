@@ -300,14 +300,20 @@ def estado_resultados(db: Session, periodo: Periodo, inv: InventarioHistorico, p
 
     inv_inicial = inv.valor_a(periodo.inicio_utc)["valor"]
     inv_final = inv.valor_a(periodo.fin_utc)["valor"]
-    compras = [m for m in gastos if m.categoria in CATEGORIAS_COMPRA_MERCADERIA]
-    total_compras = q(sum((to_decimal(m.monto) for m in compras), CERO))
+    # Compras de mercadería = lo recibido con el módulo de Compras (al costo,
+    # sin ISV, en la fecha en que llegó, aunque sea al crédito) + los egresos
+    # «Compras»/«Proveedores» hechos a mano. Los pagos de una recepción no se
+    # suman otra vez (ya están en lo recibido).
+    from app.utils.compras import compras_recibidas
+    compras = [m for m in gastos if m.categoria in CATEGORIAS_COMPRA_MERCADERIA and not m.recepcion_compra_id]
+    recibidas = compras_recibidas(db, periodo.inicio_utc, periodo.fin_utc)
+    total_compras = q(sum((to_decimal(m.monto) for m in compras), CERO) + recibidas["subtotal"])
     ajustes = reporte_ajustes(db, periodo.inicio_utc, periodo.fin_utc)["total"]
     ajustes_neto = q(ajustes["valor_neto"])  # + sobrante / - faltante, al costo
     costo_ventas = q(inv_inicial + total_compras - inv_final + ajustes_neto)
     utilidad_bruta = q(total_ingresos - costo_ventas)
 
-    gastos_operacion = _agrupar([m for m in gastos if m.categoria not in CATEGORIAS_COMPRA_MERCADERIA])
+    gastos_operacion = _agrupar([m for m in gastos if m.categoria not in CATEGORIAS_COMPRA_MERCADERIA and not m.recepcion_compra_id])
     total_gastos_caja = q(sum((v for _, v in gastos_operacion), CERO))
     depreciacion = depreciacion_del_periodo([p for p in partidas if p.tipo == "activo_fijo"], periodo)
     perdida_ajustes = q(-ajustes_neto)
@@ -323,7 +329,7 @@ def estado_resultados(db: Session, periodo: Periodo, inv: InventarioHistorico, p
 
     lineas.append(_l("Costo de ventas", tipo="titulo", nivel=0))
     lineas.append(_l("Inventario al inicio del período", inv_inicial))
-    lineas.append(_l("(+) Compras de mercadería (egresos «Compras» y «Proveedores»)", total_compras))
+    lineas.append(_l("(+) Compras de mercadería (recepciones de compra y egresos «Compras»/«Proveedores»)", total_compras))
     lineas.append(_l("(−) Inventario al final del período", -inv_final))
     if ajustes_neto:
         lineas.append(_l("(±) Faltantes/sobrantes de inventario (se muestran abajo, en gastos)", ajustes_neto))
@@ -422,7 +428,9 @@ def _isv_por_pagar(db: Session, dia: date) -> Decimal:
     inicio = inicio_dia_local_en_utc(dia.replace(day=1))
     fin = inicio_dia_local_en_utc(dia + timedelta(days=1))
     ingresos = [m for m in _movimientos(db, inicio, fin) if m.tipo == "ingreso"]
-    return q(sum(_isv_de_movimientos(db, ingresos).values(), CERO))
+    # Menos el ISV pagado en las facturas de compra del mes (crédito fiscal).
+    from app.utils.compras import compras_recibidas
+    return q(sum(_isv_de_movimientos(db, ingresos).values(), CERO) - compras_recibidas(db, inicio, fin)["isv"])
 
 
 def balance_general(db: Session, dia: date, inv: InventarioHistorico, partidas) -> dict:
@@ -444,7 +452,9 @@ def balance_general(db: Session, dia: date, inv: InventarioHistorico, partidas) 
 
     isv = _isv_por_pagar(db, dia)
     cxp, prestamos, otros_pasivos = suma("cuenta_por_pagar"), suma("prestamo"), suma("otro_pasivo")
-    total_pasivo = q(isv + cxp + otros_pasivos + prestamos)
+    from app.utils.compras import por_pagar_a
+    proveedores_compras = por_pagar_a(db, instante)
+    total_pasivo = q(isv + cxp + proveedores_compras + otros_pasivos + prestamos)
 
     capital = q(sum((to_decimal(p.monto) for p in partidas if p.tipo == "capital" and p.fecha <= dia), CERO))
     retiros = q(sum((to_decimal(p.monto) for p in partidas if p.tipo == "retiro" and p.fecha <= dia), CERO))
@@ -466,7 +476,9 @@ def balance_general(db: Session, dia: date, inv: InventarioHistorico, partidas) 
     lineas.append(_l("TOTAL ACTIVO", total_activo, "total", 0))
 
     lineas.append(_l("Pasivo", tipo="titulo", nivel=0))
-    lineas.append(_l("ISV por pagar (del mes en curso)", isv, nivel=1))
+    lineas.append(_l("ISV por pagar (del mes en curso, menos el ISV de las compras)", isv, nivel=1))
+    if proveedores_compras:
+        lineas.append(_l("Proveedores por pagar (compras recibidas al crédito)", proveedores_compras, nivel=1))
     if cxp:
         lineas.append(_l("Cuentas por pagar a proveedores", cxp, nivel=1))
     if otros_pasivos:

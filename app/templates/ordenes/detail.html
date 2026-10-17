@@ -1,51 +1,48 @@
 {% extends "base.html" %}
 {% block title %}Orden {{ orden.numero_orden }}{% endblock %}
 {% block content %}
-
-<div class="action-bar-sticky">
-  <a href="/ordenes/{{ orden.id }}/factura/nueva" class="btn btn-success btn-sm">
-    <svg viewBox="0 0 24 24"><path d="M6 2.5h9l3 3V21a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5z"/><path d="M9 12h6M9 16h4"/></svg> Generar factura
-  </a>
-  <a href="/ordenes/{{ orden.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">
-    <svg viewBox="0 0 24 24"><path d="M6 2.5h9l3 3V21a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5z"/><path d="M9 12h6M9 16h4"/></svg> PDF carta
-  </a>
-  <a href="/ordenes/{{ orden.id }}/pdf/tirilla" target="_blank" class="btn btn-outline btn-sm">
-    <svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M9 6h6M9 10h6M9 14h4"/></svg> Tirilla 80mm
-  </a>
-  <a href="/ordenes/{{ orden.id }}/whatsapp" target="_blank" class="btn btn-success btn-sm">
-    <svg viewBox="0 0 24 24"><path d="M4 20l1.4-4.2A8 8 0 1 1 9 18.5z"/></svg> WhatsApp
-  </a>
-  <a href="/ordenes/{{ orden.id }}/editar" class="btn btn-primary btn-sm">
-    <svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg> Editar
-  </a>
-  <span class="spacer"></span>
-  <div class="action-bar-more">
-    <button type="button" class="btn btn-outline btn-sm" title="Más opciones">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg>
-    </button>
-    <div class="action-bar-more-menu">
-      <a href="/ordenes/{{ orden.id }}/pdf/descargar">Descargar PDF (carta)</a>
-      <a href="/ordenes/{{ orden.id }}/pdf/tirilla/descargar">Descargar tirilla 80mm</a>
+{% set moneda = config_taller().moneda %}
+{% set _venc = orden.dias_en_taller() >= config_taller().dias_vencido_alerta and orden.estado not in ('ENTREGADO', 'CANCELADO') %}
+{% set _tiene_factura_vigente = orden.facturas|selectattr('anulada', 'equalto', false)|list|length > 0 %}
+<div class="m-wrap">
+  <div class="m-head" style="align-items:flex-start;">
+    <div style="min-width:0;">
+      <a href="/ordenes" class="m-muted" style="font-size:13px;">← Órdenes</a>
+      <h1 class="m-title" style="font-size:32px; margin-top:6px;">{{ orden.numero_orden }}</h1>
+      <div style="font-size:15px; margin-top:4px;">
+        <a href="/clientes/{{ orden.cliente_id }}" style="color:var(--text); font-weight:700;">{{ orden.cliente.nombre if orden.cliente else '-' }}</a>
+        <span class="m-muted">{% if orden.cliente and orden.cliente.telefono %} · {{ orden.cliente.telefono }}{% endif %} · {{ orden.tipo_equipo }} {{ orden.marca }} {{ orden.modelo }}{% if orden.falla_reportada %} · {{ orden.falla_reportada|truncate(60) }}{% endif %}</span>
+      </div>
+    </div>
+    <div class="m-acciones">
+      <a href="/ordenes/{{ orden.id }}/editar" class="btn btn-outline btn-sm"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/></svg> Editar</a>
+      <a href="/ordenes/{{ orden.id }}/whatsapp" target="_blank" class="btn btn-outline btn-sm"><svg viewBox="0 0 24 24"><path d="M4 20l1.4-4.2A8 8 0 1 1 9 18.5z"/></svg> WhatsApp</a>
+      <a href="/ordenes/{{ orden.id }}/pdf/tirilla" target="_blank" class="btn btn-outline btn-sm"><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M9 6h6M9 10h6M9 14h4"/></svg> Tirilla</a>
+      <div class="action-bar-more">
+        <button type="button" class="btn btn-outline btn-sm" title="Más opciones" aria-label="Más opciones">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg>
+        </button>
+        <div class="action-bar-more-menu">
+          <a href="/ordenes/{{ orden.id }}/pdf" target="_blank">Ver PDF (carta)</a>
+          <a href="/ordenes/{{ orden.id }}/pdf/descargar">Descargar PDF (carta)</a>
+          <a href="/ordenes/{{ orden.id }}/pdf/tirilla/descargar">Descargar tirilla 80mm</a>
+        </div>
+      </div>
+      {% if orden.saldo > 0 %}<a href="#abonar" class="btn btn-outline btn-sm">Abonar</a>{% endif %}
+      <a href="/ordenes/{{ orden.id }}/factura/nueva" class="btn btn-primary btn-sm"><svg viewBox="0 0 24 24"><path d="M6 2.5h9l3 3V21a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5z"/><path d="M9 12h6M9 16h4"/></svg> Generar factura</a>
     </div>
   </div>
-</div>
 
-<div class="card">
-  <div class="card-title">Orden {{ orden.numero_orden }}</div>
   {% if fecha_desincronizada %}
   <div class="flash flash-warning" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-    <span>⚠ Las ventas de repuestos/servicios de esta orden quedaron con una fecha distinta a la fecha de la orden ({{ orden.fecha.strftime('%d/%m/%Y') }}) — por eso pueden mezclarse con otro día en Caja o Reportes.</span>
-    <form method="post" action="/ordenes/{{ orden.id }}/sincronizar-fecha">
-      <button type="submit" class="btn btn-outline btn-sm">Corregir fecha de estas ventas</button>
-    </form>
+    <span>⚠ Las ventas de repuestos/servicios de esta orden quedaron con una fecha distinta a la fecha de la orden ({{ orden.fecha|fecha('%d/%m/%Y') }}) — por eso pueden mezclarse con otro día en Caja o Reportes.</span>
+    <form method="post" action="/ordenes/{{ orden.id }}/sincronizar-fecha"><button type="submit" class="btn btn-outline btn-sm">Corregir fecha de estas ventas</button></form>
   </div>
   {% endif %}
   {% if reversion_pendiente %}
   <div class="flash flash-warning" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
     <span>⚠ Esta orden está cancelada pero sus ventas de repuestos/servicios todavía siguen contando en Caja/Reportes, y sus repuestos no han vuelto a inventario.</span>
-    <form method="post" action="/ordenes/{{ orden.id }}/revertir-cancelacion">
-      <button type="submit" class="btn btn-outline btn-sm">Revertir ingresos y devolver repuestos</button>
-    </form>
+    <form method="post" action="/ordenes/{{ orden.id }}/revertir-cancelacion"><button type="submit" class="btn btn-outline btn-sm">Revertir ingresos y devolver repuestos</button></form>
   </div>
   {% endif %}
   {% if orden.estado == 'LISTO PARA ENTREGAR' and not orden.notificado_listo %}
@@ -59,13 +56,24 @@
       </form>
     </span>
   </div>
-  {% elif orden.estado == 'LISTO PARA ENTREGAR' and orden.notificado_listo %}
-  <p class="help" style="margin:-4px 0 10px;">✓ Cliente avisado el <b>{{ orden.fecha_notificado_listo|fecha('%d/%m/%Y %H:%M') if orden.fecha_notificado_listo else '-' }}</b> de que el equipo está listo para entregar.</p>
   {% endif %}
+
+  <section aria-label="Resumen de dinero" class="m-stats" style="gap:48px; padding-bottom:22px; border-bottom:1px solid var(--border);">
+    <div>
+      <div class="m-label">Saldo pendiente</div>
+      {% set sal = orden.saldo|moneda(moneda) %}
+      <div class="m-hero {{ 'm-ok' if not orden.saldo or orden.saldo <= 0 else '' }}">{{ sal[:-3] }}<small>{{ sal[-3:] }}</small></div>
+    </div>
+    <div><div class="m-label">Total</div><div class="m-val">{{ orden.total|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Abonado</div><div class="m-val m-ok">{{ orden.abonado|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Estado</div><div class="m-val" style="font-size:16px; margin-top:8px;"><span class="{{ 'badge badge-' + orden.estado.lower().replace(' ', '-') }}">{{ orden.estado }}</span></div></div>
+    <div><div class="m-label">Días en el taller</div><div class="m-val {{ 'm-bad' if _venc else '' }}">{{ orden.dias_en_taller() }}{{ ' · vencida' if _venc else '' }}</div></div>
+  </section>
+
   {% if orden.estado != 'CANCELADO' %}
   {% set flujo = estados[:-1] %}
   {% set idx_actual = flujo.index(orden.estado) if orden.estado in flujo else -1 %}
-  <div class="estado-stepper">
+  <div class="estado-stepper" style="margin-top:22px;">
     {% for e in flujo %}
     <div class="estado-step {{ 'done' if loop.index0 < idx_actual else ('current' if loop.index0 == idx_actual else '') }}">
       <div class="step-line-before"></div>
@@ -75,7 +83,7 @@
       {% else %}
         {% set _msj_confirmar = '¿Cambiar el estado de la orden a "' ~ e ~ '"?' %}
         {% if e == 'ENTREGADO' and orden.saldo and orden.saldo > 0 %}
-          {% set _msj_confirmar = _msj_confirmar ~ ' Se registrará un pago automático de ' ~ (orden.saldo|moneda(config_taller().moneda)) ~ ' para saldar la orden (se asume que el cliente ya pagó al recoger el equipo).' %}
+          {% set _msj_confirmar = _msj_confirmar ~ ' Se registrará un pago automático de ' ~ (orden.saldo|moneda(moneda)) ~ ' para saldar la orden (se asume que el cliente ya pagó al recoger el equipo).' %}
         {% endif %}
         <form method="post" action="/ordenes/{{ orden.id }}/estado" onsubmit="return confirm('{{ _msj_confirmar }}');">
           <input type="hidden" name="nuevo_estado" value="{{ e }}">
@@ -89,295 +97,215 @@
     </div>
     {% endfor %}
   </div>
-  <p class="help" style="margin-top:8px;">Toca un paso para actualizar el estado con un solo clic. Así el equipo no queda marcado como vencido por error.</p>
-  {% else %}
-  <p class="help">Esta orden está <b style="color: var(--danger);">CANCELADA</b>. Si necesitas reactivarla, usa "Cambiar estado" más abajo.</p>
+  {% if orden.estado == 'LISTO PARA ENTREGAR' and orden.notificado_listo %}
+  <p class="help">✓ Cliente avisado el <b>{{ orden.fecha_notificado_listo|fecha('%d/%m/%Y %I:%M %p') if orden.fecha_notificado_listo else '-' }}</b>.</p>
   {% endif %}
-  <div class="grid cols-4">
-    <div><label>Cliente</label><p><a href="/clientes/{{ orden.cliente_id }}">{{ orden.cliente.nombre if orden.cliente else '-' }}</a></p></div>
-    <div><label>Equipo</label><p>{{ orden.tipo_equipo }} {{ orden.marca }} {{ orden.modelo }}</p></div>
-    <div><label>IMEI / Serie</label><p>{{ orden.imei or orden.numero_serie or '-' }}</p></div>
-    <div><label>Técnico que recibió</label><p>{{ orden.tecnico.nombre if orden.tecnico else 'Sin asignar' }}</p></div>
-    <div><label>Técnico que reparó</label><p>{{ orden.tecnico_reparacion.nombre if orden.tecnico_reparacion else 'Sin asignar' }}</p></div>
-    <div><label>Fecha</label><p>{{ orden.fecha|fecha }}</p></div>
-    {% set _venc = orden.dias_en_taller() >= config_taller().dias_vencido_alerta and orden.estado not in ('ENTREGADO', 'CANCELADO') %}
-    <div><label>Días en el taller</label><p><span class="dias-chip {{ 'dias-chip-alerta' if _venc else '' }}">{{ orden.dias_en_taller() }} día{{ 's' if orden.dias_en_taller() != 1 else '' }}</span>{{ ' · Vencido' if _venc else '' }}{{ ' (cerrada)' if orden.fecha_cierre else '' }}</p></div>
-    <div><label>Prioridad</label><p><span class="{{ 'badge badge-' + orden.prioridad.lower() }}">{{ orden.prioridad }}</span></p></div>
-    <div><label>Estado actual</label><p><span class="{{ 'badge badge-' + orden.estado.lower().replace(' ', '-') }}">{{ orden.estado }}</span></p></div>
-    <div><label>Accesorios</label><p>{{ orden.lista_accesorios()|join(', ') or 'Ninguno' }}</p></div>
-  </div>
-</div>
+  {% else %}
+  <p class="help" style="margin-top:16px;">Esta orden está <b style="color: var(--danger);">CANCELADA</b>. Si necesitas reactivarla, usa «Cambiar a otro estado» abajo.</p>
+  {% endif %}
 
-<div class="grid cols-2">
-  <div class="card">
-    <div class="card-title">Detalle técnico</div>
-    <p><label>Condición física</label>{{ orden.lista_condicion()|join(', ') or '-' }} {{ orden.observaciones_condicion }}</p>
-    <p><label>Falla reportada</label>{{ orden.falla_reportada or '-' }}</p>
-    <p><label>Diagnóstico</label>{{ orden.diagnostico or '-' }}</p>
-    <p><label>Trabajo realizado</label>{{ orden.trabajo_realizado or '-' }}</p>
-    <p><label>Observaciones</label>{{ orden.observaciones or '-' }}</p>
-
-    <div class="card-title" style="font-size:13px; margin-top:16px;">Seguridad (PIN / Patrón)</div>
-    <details>
-      <summary style="cursor:pointer;">Mostrar datos sensibles</summary>
-      <p style="margin-top:8px;">PIN: <b>{{ orden.pin or 'No registrado' }}</b><br>Patrón: <b>{{ orden.patron or 'No registrado' }}</b></p>
-      <p class="help">{{ 'Se incluye en el documento impreso (orden/factura).' if orden.mostrar_seguridad_en_pdf else 'No se incluye en el documento impreso.' }} Puedes cambiarlo en "Editar".</p>
-    </details>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Resumen financiero</div>
-    <table>
-      <tr><td>Cotización</td><td style="text-align:right;">{{ orden.cotizacion|moneda(config_taller().moneda) }}</td></tr>
-      <tr><td>Recargo ({{ orden.recargo_pct }}%)</td><td style="text-align:right;">{{ orden.recargo_monto|moneda(config_taller().moneda) }}</td></tr>
-      {% if orden.repuestos_subtotal and orden.repuestos_subtotal > 0 %}
-      <tr><td>Repuestos utilizados</td><td style="text-align:right;">{{ orden.repuestos_subtotal|moneda(config_taller().moneda) }}</td></tr>
-      {% endif %}
-      {% if orden.servicios_subtotal and orden.servicios_subtotal > 0 %}
-      <tr><td>Servicios adicionales</td><td style="text-align:right;">{{ orden.servicios_subtotal|moneda(config_taller().moneda) }}</td></tr>
-      {% endif %}
-      <tr><td><b>Total del servicio</b></td><td style="text-align:right;"><b>{{ orden.total|moneda(config_taller().moneda) }}</b></td></tr>
-      <tr><td>Abonado</td><td style="text-align:right;">{{ orden.abonado|moneda(config_taller().moneda) }}</td></tr>
-      <tr><td><b>Saldo pendiente</b></td><td style="text-align:right;"><b class="{{ 'money-negative' if orden.saldo > 0 else 'money-positive' }}">{{ orden.saldo|moneda(config_taller().moneda) }}</b></td></tr>
-    </table>
-
-    {% if orden.saldo > 0 %}
-    <form method="post" action="/ordenes/{{ orden.id }}/abono" style="margin-top:14px;">
-      <div class="form-row">
-        <div class="field"><label>Monto del abono</label><input type="number" step="0.01" min="0.01" max="{{ orden.saldo }}" name="monto" required></div>
-        <div class="field">
-          <label>Forma de pago</label>
-          <select name="forma_pago">{% for fp in formas_pago %}<option value="{{ fp }}">{{ fp }}</option>{% endfor %}</select>
-        </div>
+  <div class="m-grid2 m-sec">
+    <section aria-label="Qué se cobra">
+      <div class="m-sec-t">Qué se cobra</div>
+      <div class="m-row"><span>Cotización del servicio</span><span class="r">{{ orden.cotizacion|moneda(moneda) }}</span></div>
+      {% if orden.recargo_monto and orden.recargo_monto > 0 %}<div class="m-row"><span>Recargo ({{ orden.recargo_pct }}%)</span><span class="r">{{ orden.recargo_monto|moneda(moneda) }}</span></div>{% endif %}
+      {% for r in orden.repuestos %}
+      <div class="m-row">
+        <span>{{ r.producto.nombre if r.producto else '-' }} <span class="m-muted">· repuesto · {{ r.cantidad }} × {{ r.precio_unitario|moneda(moneda) }}</span></span>
+        <span style="display:flex; gap:8px; align-items:center;">
+          <span class="r">{{ r.subtotal|moneda(moneda) }}</span>
+          {% if not _tiene_factura_vigente %}
+          <form method="post" action="/ordenes/{{ orden.id }}/repuestos/{{ r.id }}/eliminar" onsubmit="return confirm('¿Quitar este repuesto de la orden? Se repondrá al inventario y se revertirá el cobro.');">
+            <button type="submit" class="icon-btn icon-btn-outline" title="Quitar este repuesto" aria-label="Quitar repuesto"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          </form>
+          {% endif %}
+        </span>
       </div>
-      <div class="field"><label>Observación</label><input type="text" name="observacion"></div>
-      <button type="submit" class="btn btn-success">Registrar abono</button>
-    </form>
-    {% else %}
-    <p class="help" style="margin-top:10px;">Esta orden ya está totalmente pagada.</p>
-    {% endif %}
+      {% endfor %}
+      {% for s in orden.servicios_extra %}
+      <div class="m-row">
+        <span>{{ s.servicio.nombre if s.servicio else '-' }} <span class="m-muted">· servicio · {{ s.cantidad }} × {{ s.precio_unitario|moneda(moneda) }}</span></span>
+        <span style="display:flex; gap:8px; align-items:center;">
+          <span class="r">{{ s.subtotal|moneda(moneda) }}</span>
+          {% if not _tiene_factura_vigente %}
+          <form method="post" action="/ordenes/{{ orden.id }}/servicios/{{ s.id }}/eliminar" onsubmit="return confirm('¿Quitar este servicio de la orden? Se revertirá el cobro.');">
+            <button type="submit" class="icon-btn icon-btn-outline" title="Quitar este servicio" aria-label="Quitar servicio"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          </form>
+          {% endif %}
+        </span>
+      </div>
+      {% endfor %}
+      <div class="m-row" style="border-bottom:0;"><span style="font-weight:800;">Total</span><span class="r" style="font-size:18px;">{{ orden.total|moneda(moneda) }}</span></div>
+      {% if _tiene_factura_vigente %}<p class="help">Ya tiene factura vigente: los repuestos y servicios no se pueden quitar.</p>{% endif %}
 
-    <div class="card-title" style="font-size:13px; margin-top:16px;">Abonos registrados</div>
-    <table>
-      <thead><tr><th>Fecha</th><th>Monto</th><th>Forma de pago</th><th>Usuario</th></tr></thead>
-      <tbody>
-        {% for p in orden.pagos %}
-        <tr><td>{{ p.fecha|fecha('%d/%m/%Y %H:%M') }}</td><td>{{ p.monto|moneda(config_taller().moneda) }}</td><td>{{ p.forma_pago }}</td><td>{{ p.usuario_nombre }}</td></tr>
-        {% else %}
-        <tr><td colspan="4" class="empty-state">Sin abonos registrados.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+      <details style="margin-top:10px;">
+        <summary class="m-muted" style="cursor:pointer; font-size:14px;">+ Agregar repuesto</summary>
+        <form method="post" action="/ordenes/{{ orden.id }}/repuestos" id="formAgregarRepuesto" style="margin-top:10px;">
+          <div class="field">
+            <label for="selectRepuestoProducto">Producto</label>
+            <select name="producto_id" id="selectRepuestoProducto" class="js-buscar-select" data-placeholder="Escribe el nombre o código del repuesto..." data-entidad="un repuesto" required>
+              <option value="">Selecciona un repuesto...</option>
+              {% for p in productos_disponibles %}
+              <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}" data-costo="{{ p.costo }}">{% if p.categoria %}[{{ p.categoria }}] {% endif %}{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(moneda) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="field"><label>Cantidad</label><input type="number" step="1" min="1" name="cantidad" value="1" required></div>
+            <div class="field"><label for="inputRepuestoPrecio">Precio unitario (con {{ tasa_isv }}% ISV)</label><input type="number" step="0.01" min="0" name="precio" id="inputRepuestoPrecio" placeholder="Precio de venta"></div>
+          </div>
+          <button type="submit" class="btn btn-success btn-sm">Agregar repuesto</button>
+        </form>
+      </details>
+      <details style="margin-top:6px;">
+        <summary class="m-muted" style="cursor:pointer; font-size:14px;">+ Agregar servicio</summary>
+        <form method="post" action="/ordenes/{{ orden.id }}/servicios" id="formAgregarServicio" style="margin-top:10px;">
+          <div class="form-row">
+            <div class="field" style="flex:2;">
+              <label for="inputNombreServicio">Servicio</label>
+              <input type="text" name="nombre" id="inputNombreServicio" list="listaServiciosOrden" required placeholder="Escribe o elige un servicio...">
+              <datalist id="listaServiciosOrden">
+                {% for s in servicios_disponibles %}
+                <option value="{{ s.nombre }}" data-precio="{{ s.precio_venta }}" data-costo="{{ s.costo if s.costo is not none else '' }}">
+                {% endfor %}
+              </datalist>
+            </div>
+            <div class="field"><label>Cantidad</label><input type="number" step="1" min="1" name="cantidad" value="1" required></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label for="inputServicioPrecio">Precio de venta</label><input type="number" step="0.01" min="0" name="precio_venta" id="inputServicioPrecio" placeholder="0.00" required></div>
+            <div class="field"><label for="inputServicioCosto">Costo (opcional)</label><input type="number" step="0.01" min="0" name="costo" id="inputServicioCosto" placeholder="Déjalo en blanco si no tiene"></div>
+          </div>
+          <p class="help">Si el servicio no existe en el <a href="/servicios">catálogo</a>, se crea solo con este precio.</p>
+          <button type="submit" class="btn btn-success btn-sm">Agregar servicio</button>
+        </form>
+      </details>
+    </section>
+
+    <section aria-label="Abonos y facturas">
+      <div class="m-sec-t">Abonos</div>
+      {% for p in orden.pagos %}
+      <div class="m-row"><span>{{ p.forma_pago }} <span class="m-muted">· {{ p.fecha|fecha('%d/%m/%Y %I:%M %p') }} · {{ p.usuario_nombre }}</span></span><span class="r m-ok">{{ p.monto|moneda(moneda) }}</span></div>
+      {% else %}
+      <div class="m-row"><span class="m-muted">Sin abonos todavía.</span><span></span></div>
+      {% endfor %}
+
+      {% if orden.saldo > 0 %}
+      <form method="post" action="/ordenes/{{ orden.id }}/abono" id="abonar" class="m-box" style="margin-top:14px;">
+        <div class="form-row">
+          <div class="field"><label for="montoAbono">Monto del abono</label><input id="montoAbono" type="number" step="0.01" min="0.01" max="{{ orden.saldo }}" name="monto" required></div>
+          <div class="field">
+            <label for="formaAbono">Forma de pago</label>
+            <select id="formaAbono" name="forma_pago">{% for fp in formas_pago %}<option value="{{ fp }}">{{ fp }}</option>{% endfor %}</select>
+          </div>
+        </div>
+        <div class="field"><label for="obsAbono">Observación</label><input id="obsAbono" type="text" name="observacion"></div>
+        <button type="submit" class="btn btn-success btn-sm">Registrar abono</button>
+      </form>
+      {% else %}
+      <p class="m-ok" style="font-size:14px; margin-top:10px;">✓ Totalmente pagada.</p>
+      {% endif %}
+
+      <div class="m-sec-t" style="margin-top:28px;"><span>Facturas</span><a href="/ordenes/{{ orden.id }}/factura/nueva">+ Generar</a></div>
+      {% for f in orden.facturas %}
+      <a class="m-row" href="/facturas/{{ f.id }}">
+        <span><b>{{ f.numero_documento }}</b> <span class="m-muted">· {{ 'Fiscal' if f.tipo == 'fiscal' else 'Interna' }} · {{ f.fecha_emision|fecha('%d/%m/%Y') }}</span>
+          {% if f.anulada %}<span class="m-bad" style="font-size:12px;"> · ANULADA</span>{% endif %}</span>
+        <span class="r" style="{{ 'text-decoration:line-through; color:var(--text-muted);' if f.anulada else '' }}">{{ f.total|moneda(moneda) }}</span>
+      </a>
+      {% else %}
+      <div class="m-row"><span class="m-muted">Todavía no tiene factura.</span><span></span></div>
+      {% endfor %}
+    </section>
   </div>
-</div>
 
-<div class="card">
-  <div class="card-title">Repuestos usados</div>
-    <p class="help">Los repuestos agregados se descuentan del inventario, se registran como venta y se suman al total de la orden y de la factura.</p>
-    <form method="post" action="/ordenes/{{ orden.id }}/repuestos" id="formAgregarRepuesto">
-      <div class="form-row">
+  <details class="m-more">
+    <summary>Datos del equipo y detalle técnico</summary>
+    <div class="m-grid2" style="margin-top:14px; gap:28px;">
+      <div>
+        <div class="m-row"><span class="m-muted">IMEI / Serie</span><span>{{ orden.imei or orden.numero_serie or '-' }}</span></div>
+        <div class="m-row"><span class="m-muted">Recibida</span><span>{{ orden.fecha|fecha('%d/%m/%Y %I:%M %p') }}</span></div>
+        <div class="m-row"><span class="m-muted">Técnico que recibió</span><span>{{ orden.tecnico.nombre if orden.tecnico else 'Sin asignar' }}</span></div>
+        <div class="m-row"><span class="m-muted">Técnico que reparó</span><span>{{ orden.tecnico_reparacion.nombre if orden.tecnico_reparacion else 'Sin asignar' }}</span></div>
+        <div class="m-row"><span class="m-muted">Prioridad</span><span class="{{ 'badge badge-' + orden.prioridad.lower() }}">{{ orden.prioridad }}</span></div>
+        <div class="m-row"><span class="m-muted">Accesorios</span><span>{{ orden.lista_accesorios()|join(', ') or 'Ninguno' }}</span></div>
+      </div>
+      <div>
+        <div class="m-row" style="display:block;"><span class="m-label">Condición física</span><div>{{ orden.lista_condicion()|join(', ') or '-' }} {{ orden.observaciones_condicion }}</div></div>
+        <div class="m-row" style="display:block;"><span class="m-label">Falla reportada</span><div>{{ orden.falla_reportada or '-' }}</div></div>
+        <div class="m-row" style="display:block;"><span class="m-label">Diagnóstico</span><div>{{ orden.diagnostico or '-' }}</div></div>
+        <div class="m-row" style="display:block;"><span class="m-label">Trabajo realizado</span><div>{{ orden.trabajo_realizado or '-' }}</div></div>
+        <div class="m-row" style="display:block;"><span class="m-label">Observaciones</span><div>{{ orden.observaciones or '-' }}</div></div>
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer; font-size:13px;" class="m-muted">Seguridad (PIN / patrón)</summary>
+          <p style="margin-top:8px;">PIN: <b>{{ orden.pin or 'No registrado' }}</b><br>Patrón: <b>{{ orden.patron or 'No registrado' }}</b></p>
+          <p class="help">{{ 'Se incluye en el documento impreso (orden/factura).' if orden.mostrar_seguridad_en_pdf else 'No se incluye en el documento impreso.' }} Puedes cambiarlo en "Editar".</p>
+        </details>
+      </div>
+    </div>
+  </details>
+
+  <details class="m-more" style="margin-top:12px;">
+    <summary>Cambiar a otro estado (o cancelar) e historial de estados</summary>
+    <div class="m-grid2" style="margin-top:14px; gap:28px;">
+      <form method="post" action="/ordenes/{{ orden.id }}/estado">
         <div class="field">
-          <label>Producto</label>
-          <select name="producto_id" id="selectRepuestoProducto" class="js-buscar-select" data-placeholder="Escribe el nombre o código del repuesto..." data-entidad="un repuesto" required>
-            <option value="">Selecciona un repuesto...</option>
-            {% for p in productos_disponibles %}
-            <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}" data-costo="{{ p.costo }}">{% if p.categoria %}[{{ p.categoria }}] {% endif %}{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
-            {% endfor %}
+          <label for="selectNuevoEstado">Nuevo estado</label>
+          <select name="nuevo_estado" id="selectNuevoEstado">
+            {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == orden.estado else '' }}>{{ e }}</option>{% endfor %}
           </select>
         </div>
-        <div class="field"><label>Cantidad</label><input type="number" step="1" min="1" name="cantidad" value="1" required></div>
-        <div class="field"><label>Precio unitario</label><input type="number" step="0.01" min="0" name="precio" id="inputRepuestoPrecio" placeholder="Precio de venta"></div>
-      </div>
-      <p class="help">El precio se llena solo con el precio de venta del producto ya con el {{ tasa_isv }}% de impuesto incluido; cámbialo si vas a cobrar otro precio.</p>
-      <button type="submit" class="btn btn-success">Agregar repuesto</button>
-    </form>
-    <script>
-      (function () {
-        var select = document.getElementById('selectRepuestoProducto');
-        var campoPrecio = document.getElementById('inputRepuestoPrecio');
-        if (!select || !campoPrecio) return;
-        select.addEventListener('change', function () {
-          var opcion = select.options[select.selectedIndex];
-          campoPrecio.value = (opcion && opcion.getAttribute('data-precio')) || '';
-        });
-      })();
-    </script>
-
-    <div class="card-title" style="font-size:13px; margin-top:16px;">Repuestos agregados a esta orden</div>
-    {% set _tiene_factura_vigente = orden.facturas|selectattr('anulada', 'equalto', false)|list|length > 0 %}
-    <table>
-      <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th><th>Usuario</th><th></th></tr></thead>
-      <tbody>
-        {% for r in orden.repuestos %}
-        <tr>
-          <td>{{ r.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
-          <td>{{ r.producto.nombre if r.producto else '-' }}</td>
-          <td>{{ r.cantidad }}</td>
-          <td>{{ r.precio_unitario|moneda(config_taller().moneda) }}</td>
-          <td>{{ r.subtotal|moneda(config_taller().moneda) }}</td>
-          <td>{{ r.usuario_nombre }}</td>
-          <td>
-            {% if _tiene_factura_vigente %}
-            <span class="text-muted" title="No se puede quitar: la orden ya tiene una factura vigente">—</span>
-            {% else %}
-            <form method="post" action="/ordenes/{{ orden.id }}/repuestos/{{ r.id }}/eliminar"
-                  onsubmit="return confirm('¿Quitar este repuesto de la orden? Se repondrá al inventario y se revertirá el cobro.');">
-              <button type="submit" class="btn btn-danger btn-sm" title="Quitar este repuesto de la orden">Quitar</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="7" class="empty-state">Sin repuestos agregados a esta orden.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-</div>
-
-<div class="card">
-  <div class="card-title">Servicios agregados</div>
-    <p class="help">Escribe el nombre del servicio (cambio de pantalla, formateo, diagnóstico, etc.). Si ya existe en el <a href="/servicios">catálogo</a>, elígelo de la lista y se autocompleta su precio; si es nuevo, simplemente escribe su precio (y costo, si tiene) y se crea solo, guardado en el catálogo para la próxima vez. Se suma al total de la orden y de la factura, y queda registrado como ingreso para Reportes.</p>
-    <form method="post" action="/ordenes/{{ orden.id }}/servicios" id="formAgregarServicio">
-      <div class="form-row">
-        <div class="field" style="flex:2;">
-          <label>Servicio</label>
-          <input type="text" name="nombre" id="inputNombreServicio" list="listaServiciosOrden" required placeholder="Escribe o elige un servicio...">
-          <datalist id="listaServiciosOrden">
-            {% for s in servicios_disponibles %}
-            <option value="{{ s.nombre }}" data-precio="{{ s.precio_venta }}" data-costo="{{ s.costo if s.costo is not none else '' }}">
-            {% endfor %}
-          </datalist>
-        </div>
-        <div class="field"><label>Cantidad</label><input type="number" step="1" min="1" name="cantidad" value="1" required></div>
-      </div>
-      <div class="form-row">
-        <div class="field"><label>Precio de venta</label><input type="number" step="0.01" min="0" name="precio_venta" id="inputServicioPrecio" placeholder="0.00" required></div>
-        <div class="field"><label>Costo (opcional)</label><input type="number" step="0.01" min="0" name="costo" id="inputServicioCosto" placeholder="Déjalo en blanco si no tiene"></div>
-      </div>
-      <button type="submit" class="btn btn-success">Agregar servicio</button>
-    </form>
-    <script>
-      (function () {
-        var input = document.getElementById('inputNombreServicio');
-        var datalist = document.getElementById('listaServiciosOrden');
-        var campoPrecio = document.getElementById('inputServicioPrecio');
-        var campoCosto = document.getElementById('inputServicioCosto');
-        if (!input || !datalist || !campoPrecio) return;
-        input.addEventListener('input', function () {
-          var opciones = datalist.querySelectorAll('option');
-          for (var i = 0; i < opciones.length; i++) {
-            if (opciones[i].value === input.value) {
-              campoPrecio.value = opciones[i].getAttribute('data-precio') || '';
-              campoCosto.value = opciones[i].getAttribute('data-costo') || '';
-              return;
-            }
-          }
-        });
-      })();
-    </script>
-
-    <div class="card-title" style="font-size:13px; margin-top:16px;">Servicios agregados a esta orden</div>
-    <table>
-      <thead><tr><th>Fecha</th><th>Servicio</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th><th>Usuario</th><th></th></tr></thead>
-      <tbody>
-        {% for s in orden.servicios_extra %}
-        <tr>
-          <td>{{ s.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
-          <td>{{ s.servicio.nombre if s.servicio else '-' }}</td>
-          <td>{{ s.cantidad }}</td>
-          <td>{{ s.precio_unitario|moneda(config_taller().moneda) }}</td>
-          <td>{{ s.subtotal|moneda(config_taller().moneda) }}</td>
-          <td>{{ s.usuario_nombre }}</td>
-          <td>
-            {% if _tiene_factura_vigente %}
-            <span class="text-muted" title="No se puede quitar: la orden ya tiene una factura vigente">—</span>
-            {% else %}
-            <form method="post" action="/ordenes/{{ orden.id }}/servicios/{{ s.id }}/eliminar"
-                  onsubmit="return confirm('¿Quitar este servicio de la orden? Se revertirá el cobro.');">
-              <button type="submit" class="btn btn-danger btn-sm" title="Quitar este servicio de la orden">Quitar</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="7" class="empty-state">Sin servicios agregados a esta orden.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-</div>
-
-<div class="card">
-  <div class="card-title">
-    Facturación
-    <span class="actions">
-      <a href="/ordenes/{{ orden.id }}/factura/nueva" class="btn btn-primary btn-sm">+ Generar factura</a>
-    </span>
-  </div>
-  <table>
-    <thead><tr><th>N.o Documento</th><th>Tipo</th><th>Fecha</th><th>Total</th><th>Estado</th><th></th></tr></thead>
-    <tbody>
-      {% for f in orden.facturas %}
-      <tr>
-        <td>{{ f.numero_documento }}</td>
-        <td>{{ 'Fiscal' if f.tipo == 'fiscal' else 'Interno' }}</td>
-        <td>{{ f.fecha_emision|fecha('%d/%m/%Y %H:%M') }}</td>
-        <td>{{ f.total|moneda(config_taller().moneda) }}</td>
-        <td>{{ 'ANULADA' if f.anulada else 'Vigente' }}</td>
-        <td><a href="/facturas/{{ f.id }}" class="btn btn-outline btn-sm">Ver</a></td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6" class="empty-state">Aún no se ha generado ninguna factura para esta orden.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<div class="grid cols-2">
-  <div class="card">
-    <div class="card-title">Cambiar a otro estado (o cancelar)</div>
-    <p class="help" style="margin-top:-6px;">Usa esto para cancelar la orden o para elegir un estado con observación. Para el avance normal, usa los pasos de arriba.</p>
-    <form method="post" action="/ordenes/{{ orden.id }}/estado">
-      <div class="field">
-        <label>Nuevo estado</label>
-        <select name="nuevo_estado" id="selectNuevoEstado">
-          {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == orden.estado else '' }}>{{ e }}</option>{% endfor %}
-        </select>
-      </div>
-      {% if orden.saldo and orden.saldo > 0 %}
-      <p class="help" id="avisoPagoAutomatico" style="display:none;">Esta orden tiene un saldo pendiente de {{ orden.saldo|moneda(config_taller().moneda) }}: si la marcas como ENTREGADO se registrará automáticamente un pago por ese monto.</p>
-      <script>
-        (function () {
-          var select = document.getElementById('selectNuevoEstado');
-          var aviso = document.getElementById('avisoPagoAutomatico');
-          if (!select || !aviso) return;
-          function actualizar() { aviso.style.display = (select.value === 'ENTREGADO') ? '' : 'none'; }
-          select.addEventListener('change', actualizar);
-          actualizar();
-        })();
-      </script>
-      {% endif %}
-      <div class="field"><label>Observación</label><input type="text" name="observacion" placeholder="Motivo del cambio (opcional)"></div>
-      <button type="submit" class="btn btn-primary">Actualizar estado</button>
-    </form>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Historial de estados</div>
-    <table>
-      <thead><tr><th>Fecha</th><th>De</th><th>A</th><th>Usuario</th></tr></thead>
-      <tbody>
+        {% if orden.saldo and orden.saldo > 0 %}
+        <p class="help" id="avisoPagoAutomatico" style="display:none;">Esta orden tiene un saldo pendiente de {{ orden.saldo|moneda(moneda) }}: si la marcas como ENTREGADO se registrará automáticamente un pago por ese monto.</p>
+        {% endif %}
+        <div class="field"><label for="obsEstado">Observación</label><input id="obsEstado" type="text" name="observacion" placeholder="Motivo del cambio (opcional)"></div>
+        <button type="submit" class="btn btn-primary btn-sm">Actualizar estado</button>
+      </form>
+      <div>
         {% for h in orden.historial|reverse %}
-        <tr>
-          <td>{{ h.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
-          <td>{{ h.estado_anterior or '-' }}</td>
-          <td><span class="{{ 'badge badge-' + h.estado_nuevo.lower().replace(' ', '-') }}">{{ h.estado_nuevo }}</span></td>
-          <td>{{ h.usuario_nombre }}</td>
-        </tr>
+        <div class="m-row"><span>{{ h.estado_anterior or '—' }} → <span class="{{ 'badge badge-' + h.estado_nuevo.lower().replace(' ', '-') }}">{{ h.estado_nuevo }}</span></span><span class="m-muted" style="font-size:12.5px; text-align:right;">{{ h.fecha|fecha('%d/%m/%Y %I:%M %p') }}<br>{{ h.usuario_nombre }}</span></div>
         {% else %}
-        <tr><td colspan="4" class="empty-state">Sin historial.</td></tr>
+        <p class="m-muted">Sin historial.</p>
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
+      </div>
+    </div>
+  </details>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    var select = document.getElementById('selectRepuestoProducto');
+    var campoPrecio = document.getElementById('inputRepuestoPrecio');
+    if (select && campoPrecio) {
+      select.addEventListener('change', function () {
+        var opcion = select.options[select.selectedIndex];
+        campoPrecio.value = (opcion && opcion.getAttribute('data-precio')) || '';
+      });
+    }
+    var input = document.getElementById('inputNombreServicio');
+    var datalist = document.getElementById('listaServiciosOrden');
+    var campoPrecioS = document.getElementById('inputServicioPrecio');
+    var campoCosto = document.getElementById('inputServicioCosto');
+    if (input && datalist && campoPrecioS) {
+      input.addEventListener('input', function () {
+        var opciones = datalist.querySelectorAll('option');
+        for (var i = 0; i < opciones.length; i++) {
+          if (opciones[i].value === input.value) {
+            campoPrecioS.value = opciones[i].getAttribute('data-precio') || '';
+            campoCosto.value = opciones[i].getAttribute('data-costo') || '';
+            return;
+          }
+        }
+      });
+    }
+    var sel = document.getElementById('selectNuevoEstado');
+    var aviso = document.getElementById('avisoPagoAutomatico');
+    if (sel && aviso) {
+      var actualizar = function () { aviso.style.display = (sel.value === 'ENTREGADO') ? '' : 'none'; };
+      sel.addEventListener('change', actualizar);
+      actualizar();
+    }
+  })();
+</script>
 {% endblock %}

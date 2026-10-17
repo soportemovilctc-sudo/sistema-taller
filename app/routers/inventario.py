@@ -277,12 +277,17 @@ def inventario_crear(
     producto = Producto(
         codigo=codigo.strip(), nombre=nombre.strip(), categoria=categoria, marca=marca,
         costo=costo_final, precio_venta=precio_final,
-        existencia=max(0, existencia), stock_minimo=max(0, stock_minimo), proveedor=proveedor,
+        # Las unidades ya no se cargan al crear el producto: solo entran con
+        # una Recepción de compra (ver app/utils/compras.py).
+        existencia=0, stock_minimo=max(0, stock_minimo), proveedor=proveedor,
         caja=caja.strip(), estado="activo",
     )
     db.add(producto)
     db.commit()
-    flash(request, "Producto creado correctamente.", "success")
+    if usuario.get("rol") == "admin":
+        flash(request, f"Producto {producto.codigo} creado con 0 unidades. Para que entren unidades, haz la solicitud de compra.", "success")
+        return RedirectResponse(f"/compras/nueva?producto_id={producto.id}", status_code=303)
+    flash(request, f"Producto {producto.codigo} creado con 0 unidades. Las unidades entran cuando el administrador registra la compra.", "success")
     return RedirectResponse("/inventario", status_code=303)
 
 
@@ -373,9 +378,10 @@ def inventario_movimiento_form(producto_id: int, request: Request, db: Session =
     if not producto:
         flash(request, "Producto no encontrado.", "error")
         return RedirectResponse("/inventario", status_code=303)
-    movimientos = db.query(MovimientoInventario).filter(MovimientoInventario.producto_id == producto_id).order_by(MovimientoInventario.fecha.desc()).all()
+    from app.utils.kardex import kardex_producto
+    k = kardex_producto(db, producto, request.query_params.get("desde", ""), request.query_params.get("hasta", ""))
     return templates.TemplateResponse("inventario/movimiento.html", {
-        "request": request, "producto": producto, "movimientos": movimientos, "usuario": usuario,
+        "request": request, "producto": producto, "k": k, "usuario": usuario,
     })
 
 
@@ -391,6 +397,9 @@ def inventario_registrar_movimiento(
 
     if cantidad <= 0:
         flash(request, "La cantidad debe ser mayor a cero.", "error")
+        return RedirectResponse(f"/inventario/{producto_id}/movimiento", status_code=303)
+    if tipo == "entrada":
+        flash(request, "Las unidades ya no entran a mano: se registran con una Compra (solicitud y luego recepción). Para corregir un conteo, usa Ajustes de inventario.", "error")
         return RedirectResponse(f"/inventario/{producto_id}/movimiento", status_code=303)
     if tipo in ("salida", "ajuste") and usuario.get("rol") != "admin":
         flash(request, "Solo el administrador puede hacer salidas o ajustes de inventario. Las entradas sí se pueden registrar.", "error")
@@ -456,8 +465,11 @@ def inventario_ajustes_procesar(
     if cantidad <= 0:
         flash(request, "La cantidad debe ser mayor a cero.", "error")
         return RedirectResponse(destino, status_code=303)
+    if tipo == "entrada":
+        flash(request, "Las unidades ya no entran a mano: se registran con una Compra (solicitud y luego recepción).", "error")
+        return RedirectResponse(destino, status_code=303)
     if tipo in ("salida", "ajuste") and usuario.get("rol") != "admin":
-        flash(request, "Solo el administrador puede hacer salidas o ajustes de inventario. Las entradas sí se pueden registrar.", "error")
+        flash(request, "Solo el administrador puede hacer salidas o ajustes de inventario.", "error")
         return RedirectResponse(destino, status_code=303)
 
     if tipo == "entrada":
@@ -550,7 +562,7 @@ def inventario_descargar_plantilla(db: Session = Depends(get_db), usuario=Depend
         ("4.", "Nombre (obligatorio)."),
         ("5.", "Categoría: elige una de la lista desplegable de la celda (solo se pueden usar categorías ya creadas en Inventario → Categorías). Marca y Proveedor son texto libre y opcionales."),
         ("6.", "Costo y Precio de venta: números, por ejemplo 250.00. Si los dejas en blanco en un producto que ya existe, no se modifica el que ya tenía guardado."),
-        ("7.", "Existencia: si el producto es NUEVO, se usa como la existencia inicial. Si el producto YA EXISTE, la cantidad que pongas se SUMA a la existencia actual (como una entrada de inventario), no la reemplaza. Déjala en blanco si no quieres modificar la existencia."),
+        ("7.", "Existencia: YA NO SE APLICA. Las unidades solo entran con Compras (solicitud y recepción) o, para cargar un conteo, con Ajustes de inventario → Importar desde Excel. Puedes dejar la columna en blanco."),
         ("8.", "Stock mínimo: cantidad a partir de la cual el sistema avisa \"Bajo\". Opcional."),
         ("9.", "Caja: el número o nombre de la caja/casillero donde tienes guardado el repuesto (por ejemplo \"Caja 3\" o \"Estante A-2\"). Opcional, solo para ubicarlo más rápido."),
         ("10.", "Costo y Precio de venta con impuesto incluido: si prefieres escribir el número redondo que ya incluye el impuesto y que el sistema le reste el ISV automáticamente para guardarlo, marca la casilla \"Estos precios ya incluyen impuesto\" al subir el archivo, en el Paso 2."),
@@ -821,7 +833,9 @@ async def inventario_importar_confirmar(
             if hay_stock_min:
                 producto.stock_minimo = max(0, stock_minimo)
             detalle = "Datos actualizados."
-            if hay_existencia and existencia and existencia > 0:
+            if hay_existencia and existencia:
+                detalle += " La existencia del archivo NO se aplicó: las unidades entran con Compras o Ajustes de inventario."
+            if False:  # antes: la carga masiva sumaba existencias (ahora solo por Compras / Ajustes)
                 nueva_existencia = producto.existencia + existencia
                 db.add(MovimientoInventario(
                     producto_id=producto.id, tipo="entrada", cantidad=existencia,
@@ -836,13 +850,13 @@ async def inventario_importar_confirmar(
             producto = Producto(
                 codigo=codigo, nombre=nombre, categoria=categoria, marca=marca,
                 costo=costo, precio_venta=precio_venta,
-                existencia=max(0, existencia or 0), stock_minimo=max(0, stock_minimo or 0),
+                existencia=0, stock_minimo=max(0, stock_minimo or 0),
                 proveedor=proveedor, caja=caja, estado="activo",
             )
             db.add(producto)
             db.flush()
             creados += 1
-            resultados.append({"fila": i, "codigo": codigo, "nombre": nombre, "resultado": "creado", "detalle": "Producto nuevo creado."})
+            resultados.append({"fila": i, "codigo": codigo, "nombre": nombre, "resultado": "creado", "detalle": "Producto nuevo creado con 0 unidades." + (" La existencia del archivo NO se aplicó: las unidades entran con Compras o Ajustes de inventario." if existencia else "")})
 
     db.commit()
 

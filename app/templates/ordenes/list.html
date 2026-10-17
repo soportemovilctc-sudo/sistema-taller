@@ -1,94 +1,88 @@
 {% extends "base.html" %}
 {% block title %}Órdenes de servicio{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="card-title">
-    Órdenes de servicio
-    <span class="actions"><a href="/ordenes/nueva" class="btn btn-primary btn-sm">+ Nueva orden</a></span>
+{% set moneda = config_taller().moneda %}
+{% set umbral = config_taller().dias_vencido_alerta %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Órdenes</h1>
+      <div class="m-sub">{{ ordenes|length }} de {{ total_ordenes }}{% if estado %} · {{ estado|lower }}{% endif %}{% if vencidas %} · solo vencidas{% endif %}</div>
+    </div>
+    <div class="m-acciones"><a href="/ordenes/nueva" class="btn btn-primary">+ Nueva orden</a></div>
   </div>
-  <form method="get" class="form-row" style="margin-bottom:14px;">
+
+  <form method="get" id="filtrosOrdenes">
     <input type="hidden" name="vencidas" value="{{ vencidas }}">
-    <div class="field" style="flex:2;"><input type="text" name="q" value="{{ q }}" placeholder="Buscar por N. orden, cliente, IMEI, marca, modelo..."></div>
-    <div class="field">
-      <select name="estado">
-        <option value="">Todos los estados</option>
-        {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == estado else '' }}>{{ e }}</option>{% endfor %}
-      </select>
-      <div class="help">El buscador y este menú se combinan con las pestañas de abajo.</div>
+    {% if estado %}<input type="hidden" name="estado" value="{{ estado }}">{% endif %}
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+      <input type="search" name="q" value="{{ q }}" placeholder="Buscar por orden, cliente, teléfono, IMEI, marca o modelo" style="flex:1 1 320px; min-width:0;" aria-label="Buscar orden">
+      <button type="submit" class="btn btn-outline">Buscar</button>
     </div>
-    <div class="field">
-      <select name="tecnico_id">
-        <option value="">Todos los técnicos</option>
-        {% for t in tecnicos %}<option value="{{ t.id }}" {{ 'selected' if t.id|string == tecnico_id else '' }}>{{ t.nombre }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <select name="prioridad">
-        <option value="">Toda prioridad</option>
-        {% for p in prioridades %}<option value="{{ p }}" {{ 'selected' if p == prioridad else '' }}>{{ p }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label>Desde</label>
-      <input type="date" name="desde" value="{{ desde }}">
-    </div>
-    <div class="field">
-      <label>Hasta</label>
-      <input type="date" name="hasta" value="{{ hasta }}">
-    </div>
-    <div class="field" style="flex:0;"><button type="submit" class="btn btn-outline">Filtrar</button></div>
-    {% if desde or hasta %}
-    <div class="field" style="flex:0; align-self:flex-end;"><a href="/ordenes" class="btn btn-outline btn-sm">Quitar fechas</a></div>
-    {% endif %}
-  </form>
-  <div class="estado-tabs">
-    <a href="/ordenes" class="estado-tab {{ '' if estado else 'estado-tab-todos-active' }} {{ 'estado-tab-muted' if estado else '' }}">
-      Todos <span class="count">{{ total_ordenes }}</span>
-    </a>
-    {% for e in estados %}
-    <a href="/ordenes?estado={{ e|urlencode }}" class="estado-tab {{ 'badge-' + e.lower().replace(' ', '-') if e == estado else 'estado-tab-muted' }}">
-      {{ e }} <span class="count">{{ conteo_estados.get(e, 0) }}</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% if vencidas %}
-  <div class="flash flash-warning" style="margin-bottom:14px;">
-    Mostrando solo órdenes activas vencidas (sin entregar hace {{ config_taller().dias_vencido_alerta }} días o más).
-    <a href="/ordenes">Ver todas las órdenes</a>
-  </div>
-  {% endif %}
-  <div class="table-wrap">
-  <table class="responsive-table">
-    <thead><tr><th>N. Orden</th><th>Ingreso</th><th>Días</th><th>Cliente</th><th>Equipo</th><th>Técnico</th><th>Prioridad</th><th>Estado</th><th>Saldo</th></tr></thead>
-    <tbody>
-      {% for o in ordenes %}
-      <tr>
-        <td data-label="N. Orden"><a href="/ordenes/{{ o.id }}"><b>{{ o.numero_orden }}</b></a></td>
-        <td data-label="Ingreso">{{ o.fecha|fecha('%d/%m/%Y %I:%M %p') }}</td>
-        {% set _venc = o.dias_en_taller() >= config_taller().dias_vencido_alerta and o.estado not in ('ENTREGADO', 'CANCELADO') %}
-        <td data-label="Días"><span class="dias-chip {{ 'dias-chip-alerta' if _venc else '' }}">{{ 'Vencido ' if _venc else '' }}{{ o.dias_en_taller() }}d</span></td>
-        <td data-label="Cliente">{{ o.cliente.nombre if o.cliente else '-' }}</td>
-        <td data-label="Equipo">{{ o.tipo_equipo }} {{ o.marca }} {{ o.modelo }}</td>
-        <td data-label="Técnico">{{ o.tecnico.nombre if o.tecnico else '-' }}</td>
-        <td data-label="Prioridad"><span class="{{ 'badge badge-' + o.prioridad.lower() }}">{{ o.prioridad }}</span></td>
-        <td data-label="Estado">
-          <form method="post" action="/ordenes/{{ o.id }}/estado" class="quick-estado">
-            <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
-            <select name="nuevo_estado" class="badge badge-select {{ 'badge-' + o.estado.lower().replace(' ', '-') }}" onchange="this.form.submit()" title="Cambiar estado">
-              {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == o.estado else '' }}>{{ e }}</option>{% endfor %}
-            </select>
-          </form>
-          {% if o.estado == 'LISTO PARA ENTREGAR' and not o.notificado_listo %}
-          <span class="badge badge-aviso-pendiente" title="El cliente aún no ha sido avisado de que el equipo está listo">Sin avisar</span>
-          {% endif %}
-        </td>
-        <td data-label="Saldo">{{ o.saldo|moneda(config_taller().moneda) }}</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="9" class="empty-state">No se encontraron órdenes con esos filtros.</td></tr>
+    <div class="m-chips" style="margin:14px 0 6px;" role="group" aria-label="Filtrar por estado">
+      <a class="m-chip {{ 'on' if not estado and not vencidas else '' }}" href="/ordenes">Todas <b>{{ total_ordenes }}</b></a>
+      {% for e in estados %}
+      <a class="m-chip {{ 'on' if e == estado else '' }}" href="/ordenes?estado={{ e|urlencode }}">{{ e|capitalize }} <b>{{ conteo_estados.get(e, 0) }}</b></a>
       {% endfor %}
-    </tbody>
-  </table>
+      <a class="m-chip {{ 'on' if vencidas else '' }}" href="/ordenes?vencidas=1" style="{{ '' if vencidas else 'color:var(--danger-text);' }}">Vencidas</a>
+    </div>
+    <details {{ 'open' if tecnico_id or prioridad or desde or hasta else '' }} style="margin-bottom:10px;">
+      <summary class="m-muted" style="cursor:pointer; font-size:13px; padding:6px 0;">Más filtros (técnico, prioridad, fechas)</summary>
+      <div class="form-row" style="margin-top:8px; align-items:flex-end;">
+        <div class="field">
+          <label for="fTecnico">Técnico</label>
+          <select id="fTecnico" name="tecnico_id">
+            <option value="">Todos</option>
+            {% for t in tecnicos %}<option value="{{ t.id }}" {{ 'selected' if t.id|string == tecnico_id else '' }}>{{ t.nombre }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="fPrioridad">Prioridad</label>
+          <select id="fPrioridad" name="prioridad">
+            <option value="">Toda</option>
+            {% for p in prioridades %}<option value="{{ p }}" {{ 'selected' if p == prioridad else '' }}>{{ p }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label for="fDesde">Desde</label><input id="fDesde" type="date" name="desde" value="{{ desde }}"></div>
+        <div class="field"><label for="fHasta">Hasta</label><input id="fHasta" type="date" name="hasta" value="{{ hasta }}"></div>
+        <div class="field" style="flex:0;"><button type="submit" class="btn btn-outline">Aplicar</button></div>
+        {% if tecnico_id or prioridad or desde or hasta %}<div class="field" style="flex:0;"><a href="/ordenes" class="btn btn-outline">Quitar filtros</a></div>{% endif %}
+      </div>
+    </details>
+  </form>
+
+  <div class="table-wrap">
+    <table class="m-table responsive-table">
+      <thead><tr><th>Orden</th><th>Cliente y equipo</th><th>Estado</th><th class="num">Días</th><th class="num">Saldo</th></tr></thead>
+      <tbody>
+        {% for o in ordenes %}
+        {% set _venc = o.dias_en_taller() >= umbral and o.estado not in ('ENTREGADO', 'CANCELADO') %}
+        <tr>
+          <td data-label="Orden" style="white-space:nowrap;">
+            <a href="/ordenes/{{ o.id }}" style="color:{{ 'var(--danger-text)' if o.prioridad == 'URGENTE' else 'var(--text)' }}; font-weight:800;">{{ o.numero_orden }}</a>
+            <div class="m-muted" style="font-size:11.5px;">{{ o.fecha|hn('%d/%m %I:%M %p') }}</div>
+          </td>
+          <td data-label="Cliente y equipo">
+            <div style="font-weight:600;">{{ o.cliente.nombre if o.cliente else '-' }}</div>
+            <div class="m-muted" style="font-size:12.5px;">{{ o.tipo_equipo }} {{ o.marca }} {{ o.modelo }}{% if o.tecnico %} · {{ o.tecnico.nombre }}{% endif %}</div>
+          </td>
+          <td data-label="Estado">
+            <form method="post" action="/ordenes/{{ o.id }}/estado" class="quick-estado">
+              <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+              <select name="nuevo_estado" class="badge badge-select {{ 'badge-' + o.estado.lower().replace(' ', '-') }}" onchange="this.form.submit()" title="Cambiar estado" aria-label="Estado de {{ o.numero_orden }}">
+                {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == o.estado else '' }}>{{ e }}</option>{% endfor %}
+              </select>
+            </form>
+            {% if o.estado == 'LISTO PARA ENTREGAR' and not o.notificado_listo %}<div class="m-warn" style="font-size:11.5px; margin-top:3px;">Cliente sin avisar</div>{% endif %}
+          </td>
+          <td data-label="Días" class="num {{ 'm-bad' if _venc else 'm-muted' }}" style="font-weight:{{ '700' if _venc else '400' }};">{{ o.dias_en_taller() }}{% if _venc %} · vencida{% endif %}</td>
+          <td data-label="Saldo" class="num" style="font-weight:800; {{ 'color:var(--text-muted); font-weight:500;' if not o.saldo else '' }}">{{ o.saldo|moneda(moneda) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">No se encontraron órdenes con esos filtros.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endblock %}

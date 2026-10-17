@@ -1,5 +1,6 @@
 """Instancia compartida de Jinja2Templates con filtros y funciones globales."""
 import json
+from datetime import datetime
 import os
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
@@ -32,6 +33,11 @@ def fmt_moneda(valor, simbolo="L"):
 def fmt_fecha(valor, formato="%d/%m/%Y"):
     if not valor:
         return ""
+    # Las fechas con hora se guardan en UTC: se muestran en hora de Honduras
+    # (antes salían 6 horas adelantadas). Una fecha sin hora (date) queda igual.
+    if isinstance(valor, datetime) and valor.tzinfo is None:
+        from app.utils.turnos_caja import a_hora_local
+        valor = a_hora_local(valor)
     try:
         return valor.strftime(formato)
     except AttributeError:
@@ -110,3 +116,17 @@ def estado_caja():
 
 
 templates.env.globals["estado_caja"] = estado_caja
+
+
+def fmt_hora_local(valor, formato="%d/%m/%Y %I:%M %p"):
+    """Fecha/hora guardada en UTC -> hora de Honduras, con formato."""
+    if not valor:
+        return ""
+    from app.utils.turnos_caja import a_hora_local
+    try:
+        return a_hora_local(valor).strftime(formato)
+    except (AttributeError, TypeError, ValueError):
+        return str(valor)
+
+
+templates.env.filters["hn"] = fmt_hora_local

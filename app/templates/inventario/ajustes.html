@@ -14,7 +14,7 @@
   {% if usuario.rol == 'admin' %}
   <div class="flash flash-info">Para ajustar varios productos a la vez, importar un conteo desde Excel o ver reportes en lempiras, usa <a href="/ajustes-inventario">Ajustes de inventario</a>.</div>
   {% else %}
-  <p class="help">Aquí puedes registrar entradas de mercadería. Las salidas y los ajustes solo los puede hacer el administrador.</p>
+  <p class="help">Salidas y ajustes de un producto (solo el administrador). Las unidades nuevas entran con una <a href="/compras">Compra</a>.</p>
   {% endif %}
   <form method="get" style="margin:14px 0;">
     <input type="text" name="q" value="{{ q }}" placeholder="Buscar por código o nombre..." autofocus>
@@ -36,7 +36,6 @@
             <form method="post" action="/inventario/ajustes/{{ p.id }}" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
               <input type="hidden" name="q" value="{{ q }}">
               <select name="tipo" style="max-width:160px;">
-                <option value="entrada">Entrada (+)</option>
                 <option value="salida">Salida (-)</option>
                 <option value="ajuste">Ajuste (fijar existencia)</option>
               </select>

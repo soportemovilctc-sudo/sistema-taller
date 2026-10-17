@@ -1273,3 +1273,70 @@ html, body {
   0%, 100% { opacity: 0; }
   15%, 85% { opacity: 1; }
 }
+
+/* ============================================================
+   Estilo minimalista (oct 2026): menos cajas, más aire y los
+   datos importantes en grande. Se mantienen íconos, logo y nombre.
+   ============================================================ */
+.content { padding: 28px 36px 40px; }
+@media (max-width: 700px) { .content { padding: 18px 16px 32px; } }
+.card { box-shadow: none; border-radius: 12px; }
+thead th { text-transform: none; font-size: 12px; letter-spacing: 0; font-weight: 600; }
+tbody tr:nth-child(even) { background: transparent; }
+.sidebar { background: var(--bg); }
+.sidebar .brand { border-bottom: 0; margin-bottom: 6px; }
+.nav-link.active { background: var(--panel-2); color: var(--text); font-weight: 600; border-left-color: var(--primary); }
+
+.m-wrap { max-width: 1120px; }
+.m-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 26px; }
+.m-title { font-size: 26px; font-weight: 800; margin: 0; line-height: 1.15; }
+.m-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.m-acciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.m-hero { font-size: 52px; font-weight: 800; line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.m-hero small { font-size: .5em; color: var(--text-muted); font-weight: 700; letter-spacing: 0; }
+@media (max-width: 700px) { .m-hero { font-size: 40px; } }
+.m-label { font-size: 12px; color: var(--text-muted); }
+.m-val { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.m-stats { display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-end; }
+.m-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 28px 0; }
+.m-strip > * { padding: 16px 0; color: var(--text); }
+.m-strip > a:hover { text-decoration: none; color: var(--primary-light); }
+.m-strip .n { font-size: 30px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.m-sec { margin-top: 34px; }
+.m-sec-t { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.m-sec-t a { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.m-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); color: var(--text); }
+a.m-row:hover { text-decoration: none; color: var(--primary-light); }
+.m-row .r { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
+.m-muted { color: var(--text-muted); }
+.m-ok { color: var(--success-text); } .m-bad { color: var(--danger-text); } .m-warn { color: var(--warning-text); }
+.m-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 44px; }
+.m-table { width: 100%; border-collapse: collapse; }
+.m-table th { font-size: 12px; color: var(--text-muted); font-weight: 600; text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+.m-table td { padding: 11px 8px; border-bottom: 1px solid var(--border); }
+.m-table tbody tr:hover { background: transparent; }
+.m-table .num, .m-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.m-table tfoot td { font-weight: 800; border-bottom: 0; }
+.m-dot::before { content: "\25CF"; margin-right: 6px; font-size: .8em; }
+.m-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.m-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--text); background: transparent; }
+.m-chip:hover { text-decoration: none; border-color: var(--primary); }
+.m-chip.on { border-color: var(--primary); background: var(--panel-2); font-weight: 600; }
+.m-chip b { font-variant-numeric: tabular-nums; }
+.m-box { border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.m-line { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-variant-numeric: tabular-nums; }
+.m-line span:first-child { color: var(--text-muted); }
+details.m-more { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 30px; }
+details.m-more > summary { cursor: pointer; color: var(--text-muted); font-size: 14px; }
+.icon-hist { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary-light); }
+.icon-hist:hover { background: var(--primary); color: #fff; text-decoration: none; }
+.icon-hist svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; }
+
+/* Punto de Venta: precio editable por línea */
+.cart-item .name { font-size: 14px; font-weight: 600; }
+.cart-item .cart-precio { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.cart-item .cart-precio .cart-price-input { width: 110px; padding: 7px 8px; font-size: 15px; font-weight: 700; color: var(--text); border: 1px solid var(--border); border-radius: 8px; background: var(--bg-alt); }
+.cart-item .cart-precio-isv, .cart-item .cart-precio-lista { display: block; font-size: 11.5px; font-weight: 500; color: var(--text-muted); margin-top: 2px; }
+.cart-item .cart-precio-lista { display: none; }
+.cart-item.precio-cambiado .cart-price-input { border-color: var(--warning); }
+.cart-item.precio-cambiado .cart-precio-lista { display: block; color: var(--warning-text); }

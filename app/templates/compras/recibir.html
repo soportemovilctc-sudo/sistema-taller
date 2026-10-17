@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Recibir {{ sol.numero }}{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <a href="/compras/{{ sol.id }}" class="m-muted" style="font-size:13px;">← {{ sol.numero }}</a>
+      <h1 class="m-title" style="margin-top:6px;">Confirmar recepción</h1>
+      <div class="m-sub">{{ sol.proveedor }} · escribe lo que llegó de verdad y su costo según la factura del proveedor (sin ISV). Lo que no llegó déjalo en 0.</div>
+    </div>
+  </div>
+
+  <form method="post" action="/compras/{{ sol.id }}/recibir" id="formRecibir">
+    <div class="table-wrap">
+      <table class="m-table">
+        <thead><tr><th>Producto</th><th class="num">Falta</th><th class="num">Llegó</th><th class="num">Costo c/u (sin ISV)</th><th class="num">Subtotal</th></tr></thead>
+        <tbody>
+          {% for d in sol.detalles if d.pendiente > 0 %}
+          <tr class="fila-rec">
+            <td><b>{{ d.producto.codigo }}</b> <span class="m-muted">· {{ d.producto.nombre }}</span><div class="help">hay {{ d.producto.existencia }} · costo actual {{ d.producto.costo|moneda(moneda) }}</div></td>
+            <td class="num">{{ d.pendiente }}</td>
+            <td class="num"><input type="number" name="cantidad_{{ d.id }}" min="0" max="{{ d.pendiente }}" step="1" value="{{ d.pendiente }}" style="width:100px; text-align:right;" aria-label="Cantidad que llegó de {{ d.producto.codigo }}"></td>
+            <td class="num"><input type="number" name="costo_{{ d.id }}" min="0" step="0.01" value="{{ '%.2f'|format(d.costo_unitario) }}" style="width:130px; text-align:right;" aria-label="Costo de {{ d.producto.codigo }}"></td>
+            <td class="num c-sub"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="4" class="num m-muted" style="font-weight:500;">Mercadería</td><td class="num" id="recSubtotal"></td></tr>
+          <tr>
+            <td colspan="4" class="num m-muted" style="font-weight:500;">ISV de la factura del proveedor <button type="button" class="btn btn-outline btn-sm" id="calcIsv" style="margin-left:6px;">Calcular {{ tasa_isv|int }}%</button></td>
+            <td class="num"><input type="number" name="isv" id="recIsv" min="0" step="0.01" value="0.00" style="width:130px; text-align:right;" aria-label="ISV de la factura"></td>
+          </tr>
+          <tr><td colspan="4" class="num">Total a pagar</td><td class="num" id="recTotal" style="font-size:20px;"></td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="m-grid2" style="margin-top:24px; gap:24px;">
+      <fieldset class="m-box" style="margin:0;">
+        <legend class="m-sec-t" style="padding:0 6px;">¿Cómo se pagó?</legend>
+        {% for f in formas %}
+        <label style="display:flex; gap:10px; align-items:flex-start; padding:8px 0; cursor:pointer;">
+          <input type="radio" name="forma_pago" value="{{ f }}" {{ 'checked' if loop.first else '' }} required>
+          <span><b>{{ {'Efectivo': 'Efectivo de la caja', 'Banco': 'Banco (transferencia)', 'Crédito': 'Al crédito'}.get(f, f) }}</b>
+            <span class="help" style="display:block;">{{ {'Efectivo': 'Sale de la caja abierta; cuenta en su cierre.', 'Banco': 'Sale de la cuenta del banco.', 'Crédito': 'Queda por pagar al proveedor; lo pagas después desde esta compra.'}.get(f, '') }}</span></span>
+        </label>
+        {% endfor %}
+      </fieldset>
+      <div>
+        <div class="field"><label for="facturaProveedor">Número de factura del proveedor</label><input id="facturaProveedor" type="text" name="factura_proveedor" placeholder="Opcional"></div>
+        <div class="field"><label for="notasRec">Notas</label><input id="notasRec" type="text" name="notas" placeholder="Opcional: llegó incompleto, producto dañado..."></div>
+      </div>
+    </div>
+    <div style="margin-top:18px; display:flex; gap:8px;">
+      <button type="submit" class="btn btn-primary">Confirmar recepción</button>
+      <a href="/compras/{{ sol.id }}" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var moneda = {{ config_taller().moneda|tojson }}, tasa = {{ tasa_isv|float }};
+  var form = document.getElementById("formRecibir"), isv = document.getElementById("recIsv");
+  function fmt(n) { return moneda + " " + (Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function subtotal() {
+    var s = 0;
+    form.querySelectorAll("tr.fila-rec").forEach(function (tr) {
+      var c = parseInt(tr.querySelector('input[name^="cantidad_"]').value, 10) || 0;
+      var k = parseFloat(tr.querySelector('input[name^="costo_"]').value) || 0;
+      tr.querySelector(".c-sub").textContent = fmt(c * k);
+      s += c * k;
+    });
+    return s;
+  }
+  function recalcular() {
+    var s = subtotal();
+    document.getElementById("recSubtotal").textContent = fmt(s);
+    document.getElementById("recTotal").textContent = fmt(s + (parseFloat(isv.value) || 0));
+  }
+  document.getElementById("calcIsv").addEventListener("click", function () { isv.value = (Math.round(subtotal() * tasa) / 100).toFixed(2); recalcular(); });
+  form.addEventListener("input", recalcular);
+  form.addEventListener("submit", function (e) {
+    var forma = form.querySelector('input[name="forma_pago"]:checked');
+    var txt = document.getElementById("recTotal").textContent;
+    if (!confirm("¿Confirmar la recepción? Entran las unidades al inventario. Total: " + txt + (forma ? " · " + forma.value : ""))) e.preventDefault();
+  });
+  recalcular();
+})();
+</script>
+{% endblock %}

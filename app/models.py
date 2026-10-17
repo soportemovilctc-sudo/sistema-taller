@@ -523,6 +523,9 @@ class DetalleVenta(Base):
     precio_unitario = Column(Numeric(10, 2), nullable=False)
     subtotal = Column(Numeric(10, 2), nullable=False)
     costo_unitario = Column(Numeric(10, 2), nullable=True)  # ver OrdenRepuesto.costo_unitario
+    # Precio del inventario al momento de vender; si es distinto de
+    # precio_unitario, la cajera cambió el precio en el Punto de Venta.
+    precio_lista = Column(Numeric(10, 2), nullable=True)
 
     venta = relationship("Venta", back_populates="detalles")
     producto = relationship("Producto")
@@ -587,6 +590,10 @@ class MovimientoFinanciero(Base):
     # Turno de caja (apertura) en el que se registró; se llena solo (ver
     # app/utils/turnos_caja.py). Vacío en los movimientos de antes del módulo.
     turno_caja_id = Column(Integer, nullable=True, index=True)
+
+    # Pago de una Recepción de compra (ver RecepcionCompra): así las Compras
+    # de los Estados Financieros no la cuentan dos veces.
+    recepcion_compra_id = Column(Integer, nullable=True, index=True)
 
 
 class SaldoInicialMensual(Base):
@@ -987,3 +994,105 @@ class PartidaBalance(Base):
 
     def vigente_en(self, dia) -> bool:
         return self.fecha <= dia and (self.fecha_baja is None or self.fecha_baja > dia)
+
+
+# ---------------------------------------------------------------------------
+# Compras: solicitud de compra -> recepción (confirmación) -> pago.
+# Las unidades de un producto SOLO entran al inventario con una recepción
+# (ver app/utils/compras.py). Solo el administrador usa este módulo.
+# ---------------------------------------------------------------------------
+COMPRA_PENDIENTE = "pendiente"        # solicitada, nada recibido
+COMPRA_PARCIAL = "parcial"            # recibida en parte
+COMPRA_RECIBIDA = "recibida"          # todo recibido
+COMPRA_CERRADA = "cerrada"            # se cerró sin recibir todo
+COMPRA_ANULADA = "anulada"            # se anuló antes de recibir nada
+ESTADOS_COMPRA = {
+    COMPRA_PENDIENTE: "Pendiente de recibir", COMPRA_PARCIAL: "Recibida en parte",
+    COMPRA_RECIBIDA: "Recibida", COMPRA_CERRADA: "Cerrada (no llegó todo)", COMPRA_ANULADA: "Anulada",
+}
+PAGO_COMPRA_EFECTIVO = "Efectivo"     # sale de la caja abierta (Caja Chica)
+PAGO_COMPRA_BANCO = "Banco"           # transferencia (Banco)
+PAGO_COMPRA_CREDITO = "Crédito"       # queda por pagar al proveedor
+FORMAS_PAGO_COMPRA = (PAGO_COMPRA_EFECTIVO, PAGO_COMPRA_BANCO, PAGO_COMPRA_CREDITO)
+CATEGORIA_COMPRA_MERCADERIA = "Compras"
+
+
+class SolicitudCompra(Base):
+    __tablename__ = "solicitudes_compra"
+
+    id = Column(Integer, primary_key=True)
+    numero = Column(String(20), unique=True, nullable=False, index=True)  # SC-000001
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    proveedor = Column(String(150), nullable=False, default="")
+    notas = Column(Text, default="")
+    estado = Column(String(12), nullable=False, default=COMPRA_PENDIENTE, index=True)
+    total_estimado = Column(Numeric(12, 2), nullable=False, default=0)
+    usuario_nombre = Column(String(150), default="")
+    cerrada_en = Column(DateTime, nullable=True)
+    cerrada_por = Column(String(150), nullable=True)
+    motivo_cierre = Column(Text, nullable=True)
+
+    detalles = relationship("SolicitudCompraDetalle", back_populates="solicitud", cascade="all,delete-orphan",
+                            order_by="SolicitudCompraDetalle.id")
+    recepciones = relationship("RecepcionCompra", back_populates="solicitud", order_by="RecepcionCompra.id")
+
+
+class SolicitudCompraDetalle(Base):
+    __tablename__ = "solicitudes_compra_detalle"
+
+    id = Column(Integer, primary_key=True)
+    solicitud_id = Column(Integer, ForeignKey("solicitudes_compra.id"), nullable=False, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id"), nullable=False, index=True)
+    cantidad = Column(Integer, nullable=False)
+    cantidad_recibida = Column(Integer, nullable=False, default=0)
+    costo_unitario = Column(Numeric(10, 2), nullable=False, default=0)  # costo esperado (sin ISV)
+
+    solicitud = relationship("SolicitudCompra", back_populates="detalles")
+    producto = relationship("Producto")
+
+    @property
+    def pendiente(self) -> int:
+        return max(0, (self.cantidad or 0) - (self.cantidad_recibida or 0))
+
+
+class RecepcionCompra(Base):
+    __tablename__ = "recepciones_compra"
+
+    id = Column(Integer, primary_key=True)
+    numero = Column(String(20), unique=True, nullable=False, index=True)  # RC-000001
+    solicitud_id = Column(Integer, ForeignKey("solicitudes_compra.id"), nullable=False, index=True)
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    proveedor = Column(String(150), default="")
+    factura_proveedor = Column(String(60), default="")
+    forma_pago = Column(String(12), nullable=False)          # ver FORMAS_PAGO_COMPRA
+    subtotal = Column(Numeric(12, 2), nullable=False, default=0)  # costo de la mercadería (sin ISV)
+    isv = Column(Numeric(12, 2), nullable=False, default=0)       # ISV de la factura del proveedor (crédito fiscal)
+    total = Column(Numeric(12, 2), nullable=False, default=0)     # subtotal + isv: lo que se paga
+    pagado = Column(Numeric(12, 2), nullable=False, default=0)
+    notas = Column(Text, default="")
+    usuario_nombre = Column(String(150), default="")
+
+    solicitud = relationship("SolicitudCompra", back_populates="recepciones")
+    detalles = relationship("RecepcionCompraDetalle", back_populates="recepcion", cascade="all,delete-orphan",
+                            order_by="RecepcionCompraDetalle.id")
+
+    @property
+    def saldo(self):
+        return (self.total or 0) - (self.pagado or 0)
+
+
+class RecepcionCompraDetalle(Base):
+    __tablename__ = "recepciones_compra_detalle"
+
+    id = Column(Integer, primary_key=True)
+    recepcion_id = Column(Integer, ForeignKey("recepciones_compra.id"), nullable=False, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id"), nullable=False, index=True)
+    cantidad = Column(Integer, nullable=False)
+    costo_unitario = Column(Numeric(10, 2), nullable=False, default=0)   # costo real de la factura (sin ISV)
+    subtotal = Column(Numeric(12, 2), nullable=False, default=0)
+    existencia_anterior = Column(Integer, nullable=False, default=0)
+    costo_anterior = Column(Numeric(10, 2), nullable=False, default=0)
+    costo_nuevo = Column(Numeric(10, 2), nullable=False, default=0)       # costo promedio que quedó
+
+    recepcion = relationship("RecepcionCompra", back_populates="detalles")
+    producto = relationship("Producto")

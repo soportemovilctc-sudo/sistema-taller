@@ -43,7 +43,7 @@
       <div class="m-row">
         <a href="/ordenes/{{ o.id }}" style="color:var(--text); min-width:0;">
           <b>{{ o.numero_orden }}</b> <span class="m-muted">· {{ o.cliente.nombre if o.cliente else '-' }} · {{ o.marca }} {{ o.modelo }}</span>
-          <div class="m-bad" style="font-size:12px; margin-top:2px;">Vencida · +{{ o.dias_en_taller() - umbral_vencido }} día{{ 's' if (o.dias_en_taller() - umbral_vencido) != 1 else '' }} · {{ o.estado|lower }}</div>
+          <div class="m-bad" style="font-size:12px; margin-top:2px;">Vencida · {{ o.dias_en_taller() }} días en el taller · {{ o.estado|lower }}</div>
         </a>
         <div style="display:flex; gap:6px; align-items:center;">
           <span class="r">{{ o.saldo|moneda(moneda) }}</span>
@@ -62,7 +62,8 @@
         </div>
       </div>
       {% endfor %}
-      {% for o in listas_entregar %}
+      {% set ids_vencidas = ordenes_vencidas|map(attribute='id')|list %}
+      {% for o in listas_entregar if o.id not in ids_vencidas %}
       <a class="m-row" href="/ordenes/{{ o.id }}">
         <span style="min-width:0;"><b>{{ o.numero_orden }}</b> <span class="m-muted">· {{ o.cliente.nombre if o.cliente else '-' }} · {{ o.marca }} {{ o.modelo }}</span>
           <span class="m-ok" style="display:block; font-size:12px; margin-top:2px;">Lista para entregar</span></span>

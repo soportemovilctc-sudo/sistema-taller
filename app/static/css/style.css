@@ -1340,3 +1340,24 @@ details.m-more > summary { cursor: pointer; color: var(--text-muted); font-size:
 .cart-item .cart-precio-lista { display: none; }
 .cart-item.precio-cambiado .cart-price-input { border-color: var(--warning); }
 .cart-item.precio-cambiado .cart-precio-lista { display: block; color: var(--warning-text); }
+
+/* Interruptores "con ISV incluido" y edición de productos en lote */
+.isv-bar { display: flex; gap: 30px; flex-wrap: wrap; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); margin: 8px 0 14px; }
+.isv-switch { display: inline-flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; position: relative; }
+.isv-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.isv-switch .sw { width: 42px; height: 24px; border-radius: 999px; background: var(--border); position: relative; flex-shrink: 0; transition: background .15s ease; }
+.isv-switch .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); transition: transform .15s ease; }
+.isv-switch input:checked + .sw { background: var(--primary); }
+.isv-switch input:checked + .sw::after { transform: translateX(18px); }
+.isv-switch input:focus-visible + .sw { outline: 2px solid var(--primary-light); outline-offset: 2px; }
+.isv-switch .tx { display: flex; flex-direction: column; line-height: 1.25; }
+.isv-switch .tx b { font-size: 14px; font-weight: 700; color: var(--text); }
+.isv-switch .tx small { font-size: 12px; color: var(--text-muted); }
+.ev-tabla td { padding: 6px 6px; vertical-align: top; }
+.ev-tabla .ev-in { padding: 6px 8px; font-size: 13px; }
+.ev-tabla .ev-num { width: 110px; text-align: right; font-weight: 700; }
+.ev-tabla .ev-dif { border-color: var(--warning) !important; background: var(--warning-bg); }
+.ev-tabla tr.ev-cambiado td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+.ev-tabla tr.ev-error td { background: var(--danger-bg); }
+.ev-barra { position: sticky; bottom: 0; display: flex; gap: 10px; justify-content: flex-end; align-items: center; padding: 12px 0; margin-top: 10px; background: var(--bg); border-top: 1px solid var(--border); z-index: 5; }
+.ev-barra span { margin-right: auto; color: var(--text-muted); font-size: 14px; }

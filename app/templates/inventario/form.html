@@ -32,11 +32,12 @@
       <div class="field"><label>Marca</label><input type="text" name="marca" value="{{ producto.marca if producto else '' }}"></div>
     </div>
     <div class="form-row">
-      <div class="field"><label>Costo</label><input type="number" step="0.01" min="0" name="costo" value="{{ producto.costo if producto else '0' }}"></div>
-      <div class="field"><label>Precio de venta</label><input type="number" step="0.01" min="0" name="precio_venta" value="{{ producto.precio_venta if producto else '0' }}"></div>
+      <div class="field"><label for="inCosto">Costo</label><input id="inCosto" type="number" step="0.01" min="0" name="costo" value="{{ producto.costo if producto else '0' }}"></div>
+      <div class="field"><label for="inPrecio">Precio de venta</label><input id="inPrecio" type="number" step="0.01" min="0" name="precio_venta" value="{{ producto.precio_venta if producto else '0' }}"></div>
     </div>
-    <div class="field">
-      <label class="checkbox-chip"><input type="checkbox" name="precios_incluyen_impuesto" value="true"> El Costo y el Precio de venta que escribí arriba YA incluyen impuesto (quítaselo automáticamente al guardar)</label>
+    <div class="isv-bar" style="margin-top:0;">
+      <label class="isv-switch"><input type="checkbox" name="costo_incluye_isv" value="true" id="swCosto"><span class="sw" aria-hidden="true"></span><span class="tx"><b>Costo con ISV incluido</b><small id="notaCosto">se le quita el ISV al guardar</small></span></label>
+      <label class="isv-switch"><input type="checkbox" name="precio_incluye_isv" value="true" id="swPrecio"><span class="sw" aria-hidden="true"></span><span class="tx"><b>Precio con ISV incluido</b><small id="notaPrecio">el que paga el cliente</small></span></label>
     </div>
     <div class="form-row">
       {% if not producto %}
@@ -59,6 +60,7 @@
     {% endif %}
     <button type="submit" class="btn btn-primary">Guardar</button>
     <a href="/inventario" class="btn btn-outline">Cancelar</a>
+    {% if producto and usuario.rol == 'admin' %}<a href="/inventario/editar-varios?q={{ producto.codigo|urlencode }}&estado=todos" class="btn btn-outline" style="float:right;">Editar varios a la vez</a>{% endif %}
   </form>
   {% if producto and usuario.rol == 'admin' %}
   <form method="post" action="/inventario/{{ producto.id }}/eliminar" style="margin-top:14px;" onsubmit="return confirm('¿Eliminar definitivamente el producto {{ producto.codigo }} - {{ producto.nombre }}? Esto solo funciona si nunca se ha vendido; si tiene historial, se bloqueará. Esta acción no se puede deshacer.');">
@@ -69,6 +71,25 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script>
+(function () {
+  var tasa = {{ (tasa_isv if tasa_isv is defined else 15)|float }}, f = 1 + tasa / 100;
+  var moneda = {{ config_taller().moneda|tojson }};
+  function fmt(n) { return moneda + " " + (Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  var swC = document.getElementById("swCosto"), swP = document.getElementById("swPrecio");
+  var inC = document.getElementById("inCosto"), inP = document.getElementById("inPrecio");
+  function notas() {
+    var c = parseFloat(inC.value) || 0, p = parseFloat(inP.value) || 0;
+    document.getElementById("notaCosto").textContent = swC.checked ? "queda sin ISV: " + fmt(c / f) : "se guarda tal cual (sin ISV)";
+    document.getElementById("notaPrecio").textContent = swP.checked ? "queda sin ISV: " + fmt(p / f) : "el cliente paga " + fmt(p * f);
+  }
+  function convertir(sw, inp) { var v = parseFloat(inp.value); if (!isNaN(v)) inp.value = (sw.checked ? v * f : v / f).toFixed(2); notas(); }
+  swC.addEventListener("change", function () { convertir(swC, inC); });
+  swP.addEventListener("change", function () { convertir(swP, inP); });
+  inC.addEventListener("input", notas); inP.addEventListener("input", notas);
+  notas();
+})();
+</script>
 {% if not producto and ultimos_codigos %}
 <script>
 (function () {

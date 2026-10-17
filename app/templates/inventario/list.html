@@ -15,7 +15,8 @@
       {% if usuario.rol == 'admin' %}<a href="/ajustes-inventario" class="btn btn-outline btn-sm">Ajustes de inventario (varios productos)</a>{% endif %}
       <a href="/inventario/precios" class="btn btn-outline btn-sm">Ver precios con impuesto</a>
       <a href="/inventario/categorias" class="btn btn-outline btn-sm">Categorías</a>
-      {% if usuario.rol == 'admin' %}<a href="/compras" class="btn btn-outline btn-sm">Compras</a>{% endif %}
+      {% if usuario.rol == 'admin' %}<a href="/compras" class="btn btn-outline btn-sm">Compras</a>
+      <a href="/inventario/editar-varios" class="btn btn-outline btn-sm">Editar productos (costo, precio, categoría…)</a>{% endif %}
       <a href="/inventario/nuevo" class="btn btn-primary btn-sm">+ Nuevo producto</a>
     </span>
   </div>

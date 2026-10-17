@@ -13,7 +13,7 @@ from app import models
 from app.security import hash_password
 
 from app.routers import auth, dashboard, clientes, ordenes, tecnicos, inventario, pos, contabilidad, reportes, configuracion, api, catalogo, facturacion, servicio_rapido, servicios, caja
-from app.routers import turnos_caja, ajustes_inventario, estados_financieros, revision, compras, banco
+from app.routers import turnos_caja, ajustes_inventario, estados_financieros, revision, compras, banco, inventario_editar
 from app.utils.turnos_caja import registrar_vinculacion_automatica
 from app.utils.inventario_costos import registrar_costos_automaticos
 
@@ -132,6 +132,7 @@ app.include_router(estados_financieros.router)
 app.include_router(revision.router)
 app.include_router(compras.router)
 app.include_router(banco.router)
+app.include_router(inventario_editar.router)
 app.include_router(caja.router)
 app.include_router(contabilidad.router)
 app.include_router(reportes.router)

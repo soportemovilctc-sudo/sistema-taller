@@ -94,6 +94,7 @@ def compras_crear(
 def compras_producto_rapido(
     request: Request, codigo: str = Form(""), nombre: str = Form(""), categoria: str = Form(""),
     precio_venta: str = Form("0"), precio_incluye_isv: bool = Form(False),
+    costo: str = Form("0"), costo_incluye_isv: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(solo_admin),
 ):
     """Crea un producto nuevo (con 0 unidades) desde la solicitud de compra."""
@@ -107,16 +108,24 @@ def compras_producto_rapido(
         return JSONResponse({"ok": False, "mensaje": "Esa categoría no existe."}, status_code=400)
     try:
         precio = to_decimal(precio_venta or "0")
+        costo_val = to_decimal(costo or "0")
     except Exception:  # noqa: BLE001
-        return JSONResponse({"ok": False, "mensaje": "Precio de venta inválido."}, status_code=400)
+        return JSONResponse({"ok": False, "mensaje": "Costo o precio de venta inválido."}, status_code=400)
+    if precio < 0 or costo_val < 0:
+        return JSONResponse({"ok": False, "mensaje": "El costo y el precio no pueden ser negativos."}, status_code=400)
+    tasa = _isv_tasa(db)
     if precio_incluye_isv:
-        precio = _quitar_impuesto(precio, _isv_tasa(db))
-    p = Producto(codigo=codigo, nombre=nombre, categoria=categoria, costo=0, precio_venta=precio,
+        precio = _quitar_impuesto(precio, tasa)
+    if costo_incluye_isv:
+        costo_val = _quitar_impuesto(costo_val, tasa)
+    if precio > 0 and precio < costo_val:
+        return JSONResponse({"ok": False, "mensaje": "El precio de venta queda por debajo del costo."}, status_code=400)
+    p = Producto(codigo=codigo, nombre=nombre, categoria=categoria, costo=costo_val, precio_venta=precio,
                  existencia=0, stock_minimo=0, estado="activo")
     db.add(p)
     db.commit()
-    return JSONResponse({"ok": True, "id": p.id, "codigo": p.codigo, "nombre": p.nombre, "costo": "0.00", "existencia": 0,
-                         "precio": str(p.precio_venta or 0)})
+    return JSONResponse({"ok": True, "id": p.id, "codigo": p.codigo, "nombre": p.nombre, "costo": f"{to_decimal(p.costo or 0):.2f}",
+                         "existencia": 0, "precio": str(p.precio_venta or 0)})
 
 
 @router.get(BASE + "/{solicitud_id}")

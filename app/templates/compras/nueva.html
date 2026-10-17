@@ -42,19 +42,23 @@
           <label for="npCategoria">Categoría</label>
           <select id="npCategoria"><option value="">Sin categoría</option>{% for c in categorias %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
         </div>
+        <div class="field"><label for="npCosto">Costo</label><input id="npCosto" type="number" min="0" step="0.01" value="0"></div>
         <div class="field"><label for="npPrecio">Precio de venta</label><input id="npPrecio" type="number" min="0" step="0.01" value="0"></div>
       </div>
-      <label style="display:flex; gap:8px; align-items:center; font-size:13px; margin-bottom:12px;"><input id="npConIsv" type="checkbox"> El precio de venta ya incluye ISV</label>
+      <div style="display:flex; gap:26px; flex-wrap:wrap; margin:2px 0 14px;">
+        <label class="isv-switch"><input type="checkbox" id="npCostoIsv"><span class="sw" aria-hidden="true"></span><span class="tx"><b>Costo con ISV</b><small>se le quita el {{ tasa_isv|int }}%</small></span></label>
+        <label class="isv-switch"><input type="checkbox" id="npConIsv"><span class="sw" aria-hidden="true"></span><span class="tx"><b>Precio con ISV</b><small>el que paga el cliente</small></span></label>
+      </div>
       <button type="button" class="btn btn-primary btn-sm" id="crearNuevoProducto">Crear y agregar</button>
       <button type="button" class="btn btn-outline btn-sm" id="cancelarNuevoProducto">Cancelar</button>
       <span id="npMensaje" class="m-bad" style="margin-left:10px; font-size:13px;"></span>
     </div>
 
-    <div style="display:flex; gap:22px; flex-wrap:wrap; margin:6px 0 10px;">
-      <label style="display:flex; gap:8px; align-items:center; font-size:14px;"><input type="checkbox" name="costo_con_isv" value="true" id="costoConIsv"> Los <b>costos</b> que escribo ya incluyen ISV ({{ tasa_isv|int }}%)</label>
-      <label style="display:flex; gap:8px; align-items:center; font-size:14px;"><input type="checkbox" name="precio_con_isv" value="true" id="precioConIsv"> Los <b>precios de venta</b> que escribo ya incluyen ISV ({{ tasa_isv|int }}%)</label>
+    <div class="isv-bar">
+      <label class="isv-switch"><input type="checkbox" name="costo_con_isv" value="true" id="costoConIsv"><span class="sw" aria-hidden="true"></span><span class="tx"><b>Costos con ISV incluido</b><small>Escribo el costo con el {{ tasa_isv|int }}% y el sistema se lo quita</small></span></label>
+      <label class="isv-switch"><input type="checkbox" name="precio_con_isv" value="true" id="precioConIsv"><span class="sw" aria-hidden="true"></span><span class="tx"><b>Precios con ISV incluido</b><small>Escribo el precio que paga el cliente (con el {{ tasa_isv|int }}%)</small></span></label>
     </div>
-    <p class="help" style="margin-top:-4px;">Marca la casilla y escribe el número redondo con ISV: el sistema le quita el ISV solo al guardar. El precio de venta nuevo queda en el producto cuando confirmes la recepción; déjalo igual si no cambia.</p>
+    <p class="help" style="margin-top:-4px;">Activa el interruptor y escribe el número redondo con ISV: el sistema le quita el ISV solo al guardar. El precio de venta nuevo queda en el producto cuando confirmes la recepción; déjalo igual si no cambia.</p>
     <div class="table-wrap">
       <table class="m-table">
         <thead><tr><th>Producto</th><th class="num">Hay</th><th class="num">Cantidad a pedir</th><th class="num" id="thCosto">Costo c/u (sin ISV)</th><th class="num" id="thPrecio">Precio de venta c/u (sin ISV)</th><th class="num">Subtotal (sin ISV)</th><th></th></tr></thead>
@@ -195,16 +199,18 @@
     datos.append("categoria", document.getElementById("npCategoria").value);
     datos.append("precio_venta", document.getElementById("npPrecio").value || "0");
     if (document.getElementById("npConIsv").checked) datos.append("precio_incluye_isv", "true");
+    datos.append("costo", document.getElementById("npCosto").value || "0");
+    if (document.getElementById("npCostoIsv").checked) datos.append("costo_incluye_isv", "true");
     fetch("/compras/producto-rapido", { method: "POST", body: datos })
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (!res.ok) { msg.textContent = res.mensaje || "No se pudo crear."; return; }
         var op = document.createElement("option");
-        op.value = res.id; op.dataset.codigo = res.codigo; op.dataset.nombre = res.nombre; op.dataset.existencia = 0; op.dataset.costo = 0; op.dataset.precio = res.precio || 0;
+        op.value = res.id; op.dataset.codigo = res.codigo; op.dataset.nombre = res.nombre; op.dataset.existencia = 0; op.dataset.costo = res.costo || 0; op.dataset.precio = res.precio || 0;
         op.textContent = res.codigo + " · " + res.nombre + " (hay 0)";
         picker.appendChild(op);
         agregar(desdeOpcion(op));
-        ["npCodigo", "npNombre", "npPrecio"].forEach(function (id) { document.getElementById(id).value = id === "npPrecio" ? "0" : ""; });
+        ["npCodigo", "npNombre", "npPrecio", "npCosto"].forEach(function (id) { document.getElementById(id).value = (id === "npPrecio" || id === "npCosto") ? "0" : ""; });
         caja.style.display = "none";
       })
       .catch(function () { msg.textContent = "Error de conexión."; });

@@ -7,14 +7,14 @@
     <div>
       <a href="/compras/{{ sol.id }}" class="m-muted" style="font-size:13px;">← {{ sol.numero }}</a>
       <h1 class="m-title" style="margin-top:6px;">Confirmar recepción</h1>
-      <div class="m-sub">{{ sol.proveedor }} · escribe lo que llegó de verdad, su costo según la factura del proveedor y el precio de venta. Si los escribes con ISV, marca la casilla. Lo que no llegó déjalo en 0.</div>
+      <div class="m-sub">{{ sol.proveedor }} · escribe lo que llegó de verdad, su costo según la factura del proveedor y el precio de venta. Si los escribes con ISV, activa el interruptor. Lo que no llegó déjalo en 0.</div>
     </div>
   </div>
 
   <form method="post" action="/compras/{{ sol.id }}/recibir" id="formRecibir">
-    <div style="display:flex; gap:22px; flex-wrap:wrap; margin:0 0 10px;">
-      <label style="display:flex; gap:8px; align-items:center; font-size:14px;"><input type="checkbox" name="costo_con_isv" value="true" id="costoConIsv"> Los <b>costos</b> que escribo ya incluyen ISV ({{ tasa_isv|int }}%)</label>
-      <label style="display:flex; gap:8px; align-items:center; font-size:14px;"><input type="checkbox" name="precio_con_isv" value="true" id="precioConIsv"> Los <b>precios de venta</b> que escribo ya incluyen ISV ({{ tasa_isv|int }}%)</label>
+    <div class="isv-bar">
+      <label class="isv-switch"><input type="checkbox" name="costo_con_isv" value="true" id="costoConIsv"><span class="sw" aria-hidden="true"></span><span class="tx"><b>Costos con ISV incluido</b><small>Escribo el costo con el {{ tasa_isv|int }}% y el sistema se lo quita</small></span></label>
+      <label class="isv-switch"><input type="checkbox" name="precio_con_isv" value="true" id="precioConIsv"><span class="sw" aria-hidden="true"></span><span class="tx"><b>Precios con ISV incluido</b><small>Escribo el precio que paga el cliente (con el {{ tasa_isv|int }}%)</small></span></label>
     </div>
     <div class="table-wrap">
       <table class="m-table">

@@ -1099,3 +1099,18 @@ class RecepcionCompraDetalle(Base):
 
     recepcion = relationship("RecepcionCompra", back_populates="detalles")
     producto = relationship("Producto")
+
+
+class HistorialProducto(Base):
+    """Cada cambio de datos de un producto (nombre, categoría, costo,
+    precio...) hecho a mano en Inventario: quién, cuándo, antes y después."""
+    __tablename__ = "historial_productos"
+
+    id = Column(Integer, primary_key=True)
+    producto_id = Column(Integer, ForeignKey("productos.id"), nullable=False, index=True)
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    usuario_nombre = Column(String(150), default="")
+    campo = Column(String(40), nullable=False)
+    antes = Column(String(200), default="")
+    despues = Column(String(200), default="")
+    origen = Column(String(30), default="")  # editar | editar_varios

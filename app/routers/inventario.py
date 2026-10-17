@@ -268,7 +268,7 @@ def inventario_exportar_excel(q: str = "", categoria: str = "", db: Session = De
 def inventario_nuevo_form(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     return templates.TemplateResponse("inventario/form.html", {
         "request": request, "producto": None, "usuario": usuario, "ultimo_producto": _ultimo_producto(db),
-        "categorias": _categorias_disponibles(db), "ultimos_codigos": ultimos_codigos(db),
+        "categorias": _categorias_disponibles(db), "tasa_isv": _isv_tasa(db), "ultimos_codigos": ultimos_codigos(db),
     })
 
 
@@ -286,7 +286,7 @@ def inventario_crear(
     codigo: str = Form(...), nombre: str = Form(...), categoria: str = Form(""), marca: str = Form(""),
     costo: str = Form("0"), precio_venta: str = Form("0"), existencia: int = Form(0),
     stock_minimo: int = Form(0), proveedor: str = Form(""), caja: str = Form(""),
-    precios_incluyen_impuesto: bool = Form(False),
+    precios_incluyen_impuesto: bool = Form(False), costo_incluye_isv: bool = Form(False), precio_incluye_isv: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     existe = db.query(Producto).filter(Producto.codigo == codigo.strip()).first()
@@ -298,9 +298,10 @@ def inventario_crear(
         return RedirectResponse("/inventario/nuevo", status_code=303)
     costo_final = to_decimal(costo)
     precio_final = to_decimal(precio_venta)
-    if precios_incluyen_impuesto:
-        tasa = _isv_tasa(db)
+    tasa = _isv_tasa(db)
+    if precios_incluyen_impuesto or costo_incluye_isv:
         costo_final = _quitar_impuesto(costo_final, tasa)
+    if precios_incluyen_impuesto or precio_incluye_isv:
         precio_final = _quitar_impuesto(precio_final, tasa)
     producto = Producto(
         codigo=codigo.strip(), nombre=nombre.strip(), categoria=categoria, marca=marca,
@@ -327,7 +328,7 @@ def inventario_editar_form(producto_id: int, request: Request, db: Session = Dep
         return RedirectResponse("/inventario", status_code=303)
     return templates.TemplateResponse("inventario/form.html", {
         "request": request, "producto": producto, "usuario": usuario,
-        "categorias": _categorias_disponibles(db),
+        "categorias": _categorias_disponibles(db), "tasa_isv": _isv_tasa(db),
     })
 
 
@@ -337,7 +338,7 @@ def inventario_actualizar(
     nombre: str = Form(...), categoria: str = Form(""), marca: str = Form(""),
     costo: str = Form("0"), precio_venta: str = Form("0"), stock_minimo: int = Form(0),
     proveedor: str = Form(""), caja: str = Form(""), estado: str = Form("activo"),
-    precios_incluyen_impuesto: bool = Form(False),
+    precios_incluyen_impuesto: bool = Form(False), costo_incluye_isv: bool = Form(False), precio_incluye_isv: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     producto = db.get(Producto, producto_id)
@@ -345,23 +346,22 @@ def inventario_actualizar(
         if categoria != producto.categoria and not _categoria_valida(db, categoria):
             flash(request, "Esa categoría no existe. Créala primero en Inventario → Categorías.", "error")
             return RedirectResponse(f"/inventario/{producto_id}/editar", status_code=303)
+        from app.utils.edicion_productos import aplicar
         costo_final = to_decimal(costo)
         precio_final = to_decimal(precio_venta)
-        if precios_incluyen_impuesto:
-            tasa = _isv_tasa(db)
+        tasa = _isv_tasa(db)
+        if precios_incluyen_impuesto or costo_incluye_isv:
             costo_final = _quitar_impuesto(costo_final, tasa)
+        if precios_incluyen_impuesto or precio_incluye_isv:
             precio_final = _quitar_impuesto(precio_final, tasa)
-        producto.nombre = nombre.strip()
-        producto.categoria = categoria
-        producto.marca = marca
-        producto.costo = costo_final
-        producto.precio_venta = precio_final
-        producto.stock_minimo = max(0, stock_minimo)
-        producto.proveedor = proveedor
-        producto.caja = caja.strip()
-        producto.estado = estado
+        cambiados = aplicar(db, producto, {
+            "nombre": nombre.strip(), "categoria": categoria, "marca": marca,
+            "costo": costo_final.quantize(to_decimal("0.01")), "precio_venta": precio_final.quantize(to_decimal("0.01")),
+            "stock_minimo": max(0, stock_minimo), "proveedor": proveedor, "caja": caja.strip(),
+            "estado": "inactivo" if estado == "inactivo" else "activo",
+        }, usuario["nombre_completo"], "editar")
         db.commit()
-        flash(request, "Producto actualizado.", "success")
+        flash(request, ("Producto actualizado: " + ", ".join(cambiados) + ".") if cambiados else "No había cambios que guardar.", "success")
     return RedirectResponse("/inventario", status_code=303)
 
 
@@ -407,9 +407,13 @@ def inventario_movimiento_form(producto_id: int, request: Request, db: Session =
         flash(request, "Producto no encontrado.", "error")
         return RedirectResponse("/inventario", status_code=303)
     from app.utils.kardex import kardex_producto
+    from app.models import HistorialProducto
+    from app.utils.edicion_productos import CAMPOS
     k = kardex_producto(db, producto, request.query_params.get("desde", ""), request.query_params.get("hasta", ""))
+    cambios = (db.query(HistorialProducto).filter(HistorialProducto.producto_id == producto.id)
+               .order_by(HistorialProducto.fecha.desc(), HistorialProducto.id.desc()).limit(200).all())
     return templates.TemplateResponse("inventario/movimiento.html", {
-        "request": request, "producto": producto, "k": k, "usuario": usuario,
+        "request": request, "producto": producto, "k": k, "usuario": usuario, "cambios": cambios, "campos": CAMPOS,
     })
 
 

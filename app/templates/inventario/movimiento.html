@@ -55,6 +55,23 @@
   </div>
   {% if not k.cuadra %}<p class="help m-warn">La existencia guardada del producto ({{ producto.existencia }}) no coincide con el saldo del último movimiento. Revísalo con un ajuste de inventario (conteo físico).</p>{% endif %}
 
+  {% if cambios %}
+  <details class="m-more">
+    <summary>Cambios de datos del producto ({{ cambios|length }}): costo, precio, nombre, categoría…</summary>
+    <div class="table-wrap" style="margin-top:10px;">
+      <table class="m-table">
+        <thead><tr><th>Fecha</th><th>Dato</th><th>Antes</th><th>Después</th><th>Usuario</th></tr></thead>
+        <tbody>
+          {% for c in cambios %}
+          <tr><td class="m-muted" style="white-space:nowrap;">{{ c.fecha|hn }}</td><td style="font-weight:600;">{{ campos.get(c.campo, c.campo) }}</td>
+              <td class="m-muted">{{ c.antes or '—' }}</td><td style="font-weight:700;">{{ c.despues or '—' }}</td><td class="m-muted">{{ c.usuario_nombre }}{% if c.origen == 'editar_varios' %} · editar varios{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+
   {% if usuario.rol == 'admin' %}
   <details class="m-more">
     <summary>Salida o ajuste manual de este producto</summary>

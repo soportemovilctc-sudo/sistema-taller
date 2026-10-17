@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Editar productos{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap" style="max-width:none;">
+  <div class="m-head">
+    <div>
+      <a href="/inventario" class="m-muted" style="font-size:13px;">← Inventario</a>
+      <h1 class="m-title" style="margin-top:6px;">Editar productos</h1>
+      <div class="m-sub">Cambia nombre, categoría, costo, precio de venta y demás datos de varios productos a la vez. Las existencias no se tocan aquí. Cada cambio queda en el historial del producto.</div>
+    </div>
+  </div>
+
+  <form method="get" action="/inventario/editar-varios" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:6px;">
+    <input type="search" name="q" value="{{ q }}" placeholder="Buscar por código, nombre, marca o proveedor" style="flex:1 1 280px; min-width:0;" aria-label="Buscar productos">
+    <div class="field" style="margin:0;">
+      <label for="evCat">Categoría</label>
+      <select id="evCat" name="categoria">
+        <option value="">Todas</option>
+        <option value="__sin__" {{ 'selected' if categoria == '__sin__' else '' }}>Sin categoría</option>
+        {% for c in categorias %}<option value="{{ c }}" {{ 'selected' if c == categoria else '' }}>{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field" style="margin:0;">
+      <label for="evEstado">Estado</label>
+      <select id="evEstado" name="estado">
+        <option value="activo" {{ 'selected' if estado == 'activo' else '' }}>Activos</option>
+        <option value="inactivo" {{ 'selected' if estado == 'inactivo' else '' }}>Inactivos</option>
+        <option value="todos" {{ 'selected' if estado == 'todos' else '' }}>Todos</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-outline">Buscar</button>
+  </form>
+  <p class="help">{{ productos|length }} de {{ total }} producto{{ 's' if total != 1 else '' }}{% if total > limite %} · se muestran los primeros {{ limite }}: usa la búsqueda o la categoría para ver los demás{% endif %}.</p>
+
+  <form method="post" action="/inventario/editar-varios" id="formEditarVarios">
+    <input type="hidden" name="f_q" value="{{ q }}"><input type="hidden" name="f_categoria" value="{{ categoria }}"><input type="hidden" name="f_estado" value="{{ estado }}">
+    <div class="isv-bar">
+      <label class="isv-switch"><input type="checkbox" name="costo_con_isv" value="true" id="costoConIsv" {{ 'checked' if isv.costo else '' }}><span class="sw" aria-hidden="true"></span>
+        <span class="tx"><b>Costos con ISV incluido</b><small>Escribo el costo con el {{ tasa_isv|int }}% y el sistema se lo quita</small></span></label>
+      <label class="isv-switch"><input type="checkbox" name="precio_con_isv" value="true" id="precioConIsv" {{ 'checked' if isv.precio else '' }}><span class="sw" aria-hidden="true"></span>
+        <span class="tx"><b>Precios con ISV incluido</b><small>Escribo el precio de venta con el {{ tasa_isv|int }}% (el que paga el cliente)</small></span></label>
+    </div>
+
+    <div class="table-wrap">
+      <table class="m-table ev-tabla">
+        <thead>
+          <tr>
+            <th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th>
+            <th class="num" id="thCosto">Costo (sin ISV)</th><th class="num" id="thPrecio">Precio de venta (sin ISV)</th><th class="num">Margen</th>
+            <th class="num">Hay</th><th class="num">Mínimo</th><th>Caja</th><th>Proveedor</th><th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in productos %}
+          {% set v = valores.get(p.id) %}
+          {% set err = errores.get(p.id) %}
+          <tr class="ev-fila{{ ' ev-error' if err else '' }}{{ ' ev-cambiado' if v else '' }}" data-id="{{ p.id }}"
+              data-costo="{{ '%.2f'|format(p.costo or 0) }}" data-precio="{{ '%.2f'|format(p.precio_venta or 0) }}">
+            <td style="white-space:nowrap;"><input type="hidden" name="editado" value="{{ p.id }}" class="ev-marca" {{ '' if v else 'disabled' }}>
+              <a href="/inventario/{{ p.id }}/movimiento" style="color:var(--text); font-weight:700;">{{ p.codigo }}</a>
+              {% if err %}<div class="m-bad" style="font-size:11.5px; max-width:220px; white-space:normal;">{{ err|join('; ') }}</div>{% endif %}</td>
+            <td><input class="ev-in" style="min-width:210px;" name="nombre_{{ p.id }}" value="{{ v.nombre if v else p.nombre }}" data-o="{{ p.nombre }}" aria-label="Nombre de {{ p.codigo }}"></td>
+            <td>
+              {% set cat_actual = v.categoria if v else (p.categoria or '') %}
+              <select class="ev-in" style="min-width:160px;" name="categoria_{{ p.id }}" data-o="{{ p.categoria or '' }}" aria-label="Categoría de {{ p.codigo }}">
+                <option value="">Sin categoría</option>
+                {% for c in categorias %}<option value="{{ c }}" {{ 'selected' if c == cat_actual else '' }}>{{ c }}</option>{% endfor %}
+                {% if cat_actual and cat_actual not in categorias %}<option value="{{ cat_actual }}" selected>{{ cat_actual }} (inactiva)</option>{% endif %}
+              </select>
+            </td>
+            <td><input class="ev-in" style="width:110px;" name="marca_{{ p.id }}" value="{{ v.marca if v else (p.marca or '') }}" data-o="{{ p.marca or '' }}" aria-label="Marca de {{ p.codigo }}"></td>
+            <td class="num"><input class="ev-in ev-num ev-costo" type="number" min="0" step="0.01" name="costo_{{ p.id }}" value="{{ v.costo if v else '%.2f'|format(p.costo or 0) }}" aria-label="Costo de {{ p.codigo }}"><div class="help ev-nota-costo"></div></td>
+            <td class="num"><input class="ev-in ev-num ev-precio" type="number" min="0" step="0.01" name="precio_venta_{{ p.id }}" value="{{ v.precio_venta if v else '%.2f'|format(p.precio_venta or 0) }}" aria-label="Precio de venta de {{ p.codigo }}"><div class="help ev-nota-precio"></div></td>
+            <td class="num ev-margen" style="font-weight:700;"></td>
+            <td class="num m-muted">{{ p.existencia }}</td>
+            <td class="num"><input class="ev-in" type="number" min="0" step="1" style="width:70px; text-align:right;" name="stock_minimo_{{ p.id }}" value="{{ v.stock_minimo if v else (p.stock_minimo or 0) }}" data-o="{{ p.stock_minimo or 0 }}" aria-label="Mínimo de {{ p.codigo }}"></td>
+            <td><input class="ev-in" style="width:90px;" name="caja_{{ p.id }}" value="{{ v.caja if v else (p.caja or '') }}" data-o="{{ p.caja or '' }}" aria-label="Caja de {{ p.codigo }}"></td>
+            <td><input class="ev-in" style="width:130px;" name="proveedor_{{ p.id }}" value="{{ v.proveedor if v else (p.proveedor or '') }}" data-o="{{ p.proveedor or '' }}" aria-label="Proveedor de {{ p.codigo }}"></td>
+            <td>
+              {% set est = v.estado if v else p.estado %}
+              <select class="ev-in" name="estado_{{ p.id }}" data-o="{{ p.estado }}" aria-label="Estado de {{ p.codigo }}">
+                <option value="activo" {{ 'selected' if est != 'inactivo' else '' }}>Activo</option>
+                <option value="inactivo" {{ 'selected' if est == 'inactivo' else '' }}>Inactivo</option>
+              </select>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="12" class="empty-state">No hay productos con ese filtro.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="ev-barra">
+      <span id="evContador">Sin cambios todavía.</span>
+      <button type="button" class="btn btn-outline" id="evDeshacer" disabled>Deshacer cambios</button>
+      <button type="submit" class="btn btn-primary" id="evGuardar" disabled>Guardar cambios</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var moneda = {{ config_taller().moneda|tojson }}, tasa = {{ tasa_isv|float }}, f = 1 + tasa / 100;
+  var form = document.getElementById("formEditarVarios");
+  var chkCosto = document.getElementById("costoConIsv"), chkPrecio = document.getElementById("precioConIsv");
+  var contador = document.getElementById("evContador"), btnGuardar = document.getElementById("evGuardar"), btnDeshacer = document.getElementById("evDeshacer");
+  function fmt(n) { return moneda + " " + (Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function sinIsv(v, con) { return con ? v / f : v; }
+
+  function revisarFila(tr) {
+    var cambiado = false;
+    tr.querySelectorAll(".ev-in[data-o]").forEach(function (el) {
+      var distinto = String(el.value).trim() !== String(el.dataset.o).trim();
+      el.classList.toggle("ev-dif", distinto);
+      if (distinto) cambiado = true;
+    });
+    var kIn = tr.querySelector(".ev-costo"), pIn = tr.querySelector(".ev-precio");
+    var k = sinIsv(parseFloat(kIn.value) || 0, chkCosto.checked), p = sinIsv(parseFloat(pIn.value) || 0, chkPrecio.checked);
+    var kDif = Math.abs(k - parseFloat(tr.dataset.costo)) > 0.006, pDif = Math.abs(p - parseFloat(tr.dataset.precio)) > 0.006;
+    kIn.classList.toggle("ev-dif", kDif);
+    pIn.classList.toggle("ev-dif", pDif);
+    if (kDif || pDif) cambiado = true;
+    tr.querySelector(".ev-nota-costo").textContent = chkCosto.checked ? "sin ISV " + fmt(k) : "";
+    var notaP = tr.querySelector(".ev-nota-precio");
+    notaP.textContent = chkPrecio.checked ? "sin ISV " + fmt(p) : "cliente paga " + fmt(p * f);
+    var margen = tr.querySelector(".ev-margen");
+    if (p > 0) {
+      var m = (p - k) / p * 100;
+      margen.textContent = m.toFixed(1) + "%";
+      margen.style.color = p < k ? "var(--danger-text)" : (m < 15 ? "var(--warning-text)" : "var(--success-text)");
+      notaP.style.color = p < k ? "var(--danger-text)" : "";
+      if (p < k) notaP.textContent += " · ¡menor que el costo!";
+    } else { margen.textContent = "—"; margen.style.color = ""; }
+    tr.classList.toggle("ev-cambiado", cambiado);
+    tr.querySelector(".ev-marca").disabled = !cambiado;
+  }
+  function contar() {
+    var n = form.querySelectorAll("tr.ev-cambiado").length;
+    contador.textContent = n ? n + " producto" + (n !== 1 ? "s" : "") + " con cambios" : "Sin cambios todavía.";
+    btnGuardar.disabled = !n; btnDeshacer.disabled = !n;
+  }
+  form.addEventListener("input", function (e) {
+    var tr = e.target.closest("tr.ev-fila");
+    if (tr) { revisarFila(tr); contar(); }
+  });
+  form.addEventListener("change", function (e) {
+    var tr = e.target.closest("tr.ev-fila");
+    if (tr) { revisarFila(tr); contar(); }
+  });
+  function convertir(clase, con) {
+    form.querySelectorAll("." + clase).forEach(function (inp) {
+      var v = parseFloat(inp.value);
+      if (!isNaN(v)) inp.value = (con ? v * f : v / f).toFixed(2);
+    });
+    document.getElementById(clase === "ev-costo" ? "thCosto" : "thPrecio").textContent =
+      (clase === "ev-costo" ? "Costo" : "Precio de venta") + (con ? " (con ISV)" : " (sin ISV)");
+    form.querySelectorAll("tr.ev-fila").forEach(revisarFila);
+    contar();
+  }
+  chkCosto.addEventListener("change", function (e) { e.stopPropagation(); convertir("ev-costo", chkCosto.checked); });
+  chkPrecio.addEventListener("change", function (e) { e.stopPropagation(); convertir("ev-precio", chkPrecio.checked); });
+  if (chkCosto.checked) document.getElementById("thCosto").textContent = "Costo (con ISV)";
+  if (chkPrecio.checked) document.getElementById("thPrecio").textContent = "Precio de venta (con ISV)";
+  btnDeshacer.addEventListener("click", function () {
+    if (!confirm("¿Deshacer todos los cambios que no has guardado?")) return;
+    window.location.reload();
+  });
+  form.addEventListener("submit", function (e) {
+    var n = form.querySelectorAll("tr.ev-cambiado").length;
+    if (!n) { e.preventDefault(); return; }
+    if (!confirm("¿Guardar los cambios de " + n + " producto(s)?")) { e.preventDefault(); return; }
+    form.dataset.enviando = "1";
+    // Solo se envían las filas que cambiaron.
+    form.querySelectorAll("tr.ev-fila:not(.ev-cambiado)").forEach(function (tr) {
+      tr.querySelectorAll("input, select").forEach(function (el) { el.disabled = true; });
+    });
+  });
+  window.addEventListener("beforeunload", function (e) {
+    if (form.querySelectorAll("tr.ev-cambiado").length && !form.dataset.enviando) { e.preventDefault(); e.returnValue = ""; }
+  });
+  form.querySelectorAll("tr.ev-fila").forEach(revisarFila);
+  contar();
+})();
+</script>
+{% endblock %}

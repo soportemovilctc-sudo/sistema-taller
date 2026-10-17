@@ -64,6 +64,7 @@ CATEGORIA_OTRO_INGRESO = "Otros ingresos"
 CATEGORIA_REVERSION_CANCELACION = "Reversión por orden cancelada"
 CATEGORIAS_SALIDA_CAJA_CHICA = {
     "Salida de caja", "Crédito por garantía", "Compra menor", "Otro gasto de caja",
+    "Compras", "Proveedores", "Servicios básicos", "Transporte",
     CATEGORIA_NOMINA_EFECTIVO,
 }
 

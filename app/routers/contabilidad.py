@@ -80,6 +80,10 @@ def contabilidad_crear(
     tipo: str = Form(...), categoria: str = Form(...), monto: str = Form(...),
     descripcion: str = Form(""), db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
+    # Ya no se registra desde aquí: los ingresos y gastos van por Caja, para
+    # que queden en la caja abierta y cuadren en el cierre del día.
+    flash(request, "Los ingresos y gastos ahora se registran desde Caja → Registrar movimientos.", "error")
+    return RedirectResponse("/caja/registrar", status_code=303)
     try:
         monto_dec = to_decimal(monto)
         if monto_dec <= 0:

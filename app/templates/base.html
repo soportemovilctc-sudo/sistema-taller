@@ -89,6 +89,10 @@
         <svg class="ic-svg" viewBox="0 0 24 24"><path d="M6 2.5h9l3 3V21a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5z"/><path d="M9 17v-3M12 17v-6M15 17v-4"/></svg>
         Estados financieros
       </a>
+      <a class="nav-link {{ 'active' if request.url.path.startswith('/revision') else '' }}" href="/revision">
+        <svg class="ic-svg" viewBox="0 0 24 24"><path d="M9 11l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+        Revisión del sistema
+      </a>
       {% endif %}
 
       <div class="nav-group-label">Gestión</div>

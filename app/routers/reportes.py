@@ -537,8 +537,15 @@ def reportes_registrar_movimiento(
     """Registra un ingreso o gasto manual (por ejemplo el pago de un
     servicio, una compra de insumos, un retiro de caja): para que cualquiera
     que use el sistema (no solo lo que genera automáticamente una venta o
-    un pago de orden) pueda dejarlo anotado en Ingresos/Egresos."""
-    if tipo not in ("ingreso", "gasto"):
+    un pago de orden) pueda dejarlo anotado en Ingresos/Egresos.
+
+    YA NO SE USA: a pedido de Ricardo, los ingresos y egresos varios se
+    registran solo desde Caja (para que siempre queden en la caja abierta y
+    cuadren en el cierre). Se deja la ruta para que un formulario viejo en
+    caché no dé error, pero solo avisa y redirige a Caja."""
+    flash(request, "Los ingresos y egresos varios ahora se registran desde Caja → Registrar movimientos.", "error")
+    return RedirectResponse("/caja/registrar", status_code=303)
+    if tipo not in ("ingreso", "gasto"):  # noqa: código anterior, ya no se ejecuta
         flash(request, "Tipo de movimiento no válido.", "error")
         return RedirectResponse("/reportes?tipo=ingresos", status_code=303)
 

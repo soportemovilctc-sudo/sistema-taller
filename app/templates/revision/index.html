@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Revisión del sistema{% endblock %}
+{% block content %}
+<style>
+  .rv-head{display:flex;align-items:baseline;gap:24px;flex-wrap:wrap;margin-bottom:20px}
+  .rv-num{font-size:34px;font-weight:800;line-height:1}
+  .rv-num small{display:block;font-size:12px;font-weight:500;opacity:.65;margin-top:4px;letter-spacing:.02em}
+  .rv-err{color:#c0392b}.rv-av{color:#b7791f}.rv-ok{color:#2f855a}
+  .rv-sec{margin-bottom:22px}
+  .rv-sec h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:0 0 8px;font-weight:700}
+  .rv-p{border-left:3px solid #b7791f;padding:10px 14px;margin-bottom:10px;background:rgba(127,127,127,.05);border-radius:0 8px 8px 0}
+  .rv-p.error{border-left-color:#c0392b}
+  .rv-p h3{font-size:15px;margin:0;font-weight:700}
+  .rv-p p{margin:4px 0 0;font-size:13px;opacity:.8}
+  .rv-items{list-style:none;margin:8px 0 0;padding:0;font-size:13px}
+  .rv-items li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;border-top:1px solid rgba(127,127,127,.15)}
+  .rv-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+  .rv-acts form,.rv-items form{display:inline-flex;gap:6px;align-items:center;margin:0}
+  .rv-acts input[type=text],.rv-items input[type=text]{width:180px;padding:4px 8px;font-size:12px}
+  .rv-limpio{font-size:13px;opacity:.6;margin:0}
+</style>
+
+<div class="rv-head">
+  <div class="rv-num {{ 'rv-err' if rev.errores else 'rv-ok' }}">{{ rev.errores }}<small>por corregir</small></div>
+  <div class="rv-num rv-av">{{ rev.avisos }}<small>para revisar</small></div>
+  <div class="help" style="margin-left:auto;">Revisado {{ rev.revisado_en.strftime('%d/%m/%Y %I:%M %p') }} · <a href="/revision">Revisar otra vez</a></div>
+</div>
+<p class="help" style="margin:-8px 0 18px;">Esta pantalla solo muestra. Nada cambia hasta que presionas un botón y lo confirmas. Ningún registro se borra.</p>
+
+{% macro boton(a) %}
+<form method="post" action="{{ a.url }}" onsubmit="return confirm({{ a.confirmar|tojson|forceescape }});">
+  {% for k, v in a.campos.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  {% if a.pide_motivo %}<input type="text" name="motivo" placeholder="Motivo" required>{% endif %}
+  <button class="btn {{ a.estilo }} btn-sm" type="submit">{{ a.texto }}</button>
+</form>
+{% endmacro %}
+
+{% for s in rev.secciones %}
+<section class="rv-sec" id="{{ s.clave }}">
+  <h2>{{ s.titulo }}</h2>
+  {% for p in s.problemas %}
+  <div class="rv-p {{ p.nivel }}" {% if p.ancla %}id="{{ p.ancla }}"{% endif %}>
+    <h3>{{ p.titulo }}</h3>
+    {% if p.detalle %}<p>{{ p.detalle }}</p>{% endif %}
+    {% if p['items'] %}
+    <ul class="rv-items">
+      {% for it in p['items'] %}
+      <li>
+        <span>{% if it.enlace %}<a href="{{ it.enlace }}">{{ it.texto }}</a>{% else %}{{ it.texto }}{% endif %}</span>
+        {% if it.accion %}{{ boton(it.accion) }}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if p.acciones or p.enlace %}
+    <div class="rv-acts">
+      {% for a in p.acciones %}{{ boton(a) }}{% endfor %}
+      {% if p.enlace %}<a class="btn btn-outline btn-sm" href="{{ p.enlace[1] }}">{{ p.enlace[0] }}</a>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="rv-limpio">✓ Todo cuadra.</p>
+  {% endfor %}
+</section>
+{% endfor %}
+{% endblock %}

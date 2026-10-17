@@ -7,9 +7,9 @@
     <div class="form-row">
       <div class="field">
         <label>Código *</label>
-        <input type="text" name="codigo" required value="{{ producto.codigo if producto else '' }}" {{ 'readonly' if producto else '' }}>
-        {% if not producto and ultimo_producto %}
-        <div class="help">Último código usado: <b>{{ ultimo_producto.codigo }}</b> ({{ ultimo_producto.nombre }})</div>
+        <input type="text" name="codigo" id="campoCodigo" required value="{{ producto.codigo if producto else '' }}" {{ 'readonly' if producto else '' }}>
+        {% if not producto and ultimos_codigos %}
+        <div class="help" id="ultimoCodigo" style="font-size:13px; margin-top:6px;"></div>
         {% endif %}
       </div>
       <div class="field"><label>Nombre *</label><input type="text" name="nombre" required value="{{ producto.nombre if producto else '' }}"></div>
@@ -67,4 +67,37 @@
   <div class="help" style="margin-top:4px;">Solo se puede eliminar si nunca se ha vendido (ni en una orden ni en el Punto de Venta). Si ya tiene historial, desactívalo arriba en vez de eliminarlo.</div>
   {% endif %}
 </div>
+{% endblock %}
+{% block scripts %}
+{% if not producto and ultimos_codigos %}
+<script>
+(function () {
+  var ultimos = {{ ultimos_codigos|tojson }};
+  var caja = document.getElementById("ultimoCodigo");
+  var campo = document.getElementById("campoCodigo");
+  var cat = document.querySelector('select[name="categoria"]');
+  function pintar() {
+    var c = cat && cat.value && ultimos[cat.value] ? cat.value : "";
+    var u = ultimos[c];
+    caja.innerHTML = "";
+    if (!u) return;
+    var t = document.createElement("span");
+    t.innerHTML = "Último código " + (c ? "en <b></b>" : "usado") + ": ";
+    if (c) t.querySelector("b").textContent = c;
+    var b = document.createElement("b"); b.textContent = u.codigo;
+    var n = document.createElement("span"); n.textContent = " (" + u.nombre + ")";
+    caja.append(t, b, n);
+    if (u.siguiente) {
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "btn btn-outline btn-sm"; btn.style.marginLeft = "8px";
+      btn.textContent = "Usar " + u.siguiente;
+      btn.addEventListener("click", function () { campo.value = u.siguiente; campo.focus(); });
+      caja.appendChild(btn);
+    }
+  }
+  if (cat) cat.addEventListener("change", pintar);
+  pintar();
+})();
+</script>
+{% endif %}
 {% endblock %}

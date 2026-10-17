@@ -96,7 +96,9 @@ def obtener_notificaciones():
 
 
 def fmt_tojson(valor):
-    return Markup(json.dumps(valor))
+    # Seguro dentro de <script>: un texto con "</script>" no rompe la página.
+    texto = json.dumps(valor).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    return Markup(texto)
 
 
 templates.env.filters["tojson"] = fmt_tojson

@@ -59,11 +59,12 @@ def compras_lista(request: Request, estado: str = "", q: str = "", db: Session =
 
 @router.get(BASE + "/nueva")
 def compras_nueva(request: Request, producto_id: int = 0, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
-    from app.routers.inventario import _categorias_disponibles, _isv_tasa
+    from app.routers.inventario import _categorias_disponibles, _isv_tasa, ultimos_codigos
     proveedores = [p for (p,) in db.query(SolicitudCompra.proveedor).distinct().order_by(SolicitudCompra.proveedor).all() if p]
     return templates.TemplateResponse("compras/nueva.html", {
         "request": request, "usuario": usuario, "productos": _productos(db), "preseleccion": producto_id,
         "categorias": _categorias_disponibles(db), "proveedores": proveedores, "tasa_isv": _isv_tasa(db),
+        "ultimos_codigos": ultimos_codigos(db),
     })
 
 

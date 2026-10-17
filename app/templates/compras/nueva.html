@@ -36,7 +36,7 @@
     <div id="cajaNuevoProducto" class="m-box" style="display:none; margin-bottom:18px;">
       <div class="m-sec-t" style="margin-bottom:12px;">Producto nuevo</div>
       <div class="form-row">
-        <div class="field"><label for="npCodigo">Código *</label><input id="npCodigo" type="text"></div>
+        <div class="field"><label for="npCodigo">Código *</label><input id="npCodigo" type="text"><div class="help" id="npUltimo" style="font-size:12.5px; margin-top:4px;"></div></div>
         <div class="field" style="flex:2 1 260px;"><label for="npNombre">Nombre *</label><input id="npNombre" type="text"></div>
         <div class="field">
           <label for="npCategoria">Categoría</label>
@@ -163,6 +163,26 @@
     recalcular();
   });
 
+  var ultimos = {{ ultimos_codigos|tojson }};
+  function pintarUltimo() {
+    var cat = document.getElementById("npCategoria").value;
+    var c = cat && ultimos[cat] ? cat : "";
+    var u = ultimos[c], cajaU = document.getElementById("npUltimo");
+    cajaU.innerHTML = "";
+    if (!u) return;
+    var t = document.createElement("span"); t.textContent = "Último" + (c ? " en " + c : "") + ": ";
+    var b = document.createElement("b"); b.textContent = u.codigo;
+    cajaU.append(t, b);
+    if (u.siguiente) {
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "btn btn-outline btn-sm"; btn.style.marginLeft = "6px";
+      btn.textContent = "Usar " + u.siguiente;
+      btn.addEventListener("click", function () { document.getElementById("npCodigo").value = u.siguiente; });
+      cajaU.appendChild(btn);
+    }
+  }
+  document.getElementById("npCategoria").addEventListener("change", pintarUltimo);
+  pintarUltimo();
   var caja = document.getElementById("cajaNuevoProducto");
   document.getElementById("abrirNuevoProducto").addEventListener("click", function (e) { e.preventDefault(); caja.style.display = "block"; document.getElementById("npCodigo").focus(); });
   document.getElementById("cancelarNuevoProducto").addEventListener("click", function () { caja.style.display = "none"; });

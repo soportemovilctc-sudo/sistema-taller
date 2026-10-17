@@ -55,6 +55,34 @@ def _categorias_disponibles(db: Session):
     return [f[0] for f in filas]
 
 
+def siguiente_codigo(codigo: str) -> str:
+    """PRO-0009 -> PRO-0010, PAN12 -> PAN13 (respeta los ceros). Sin número al final -> ""."""
+    import re
+    m = re.match(r"^(.*?)(\d+)$", (codigo or "").strip())
+    if not m:
+        return ""
+    prefijo, numero = m.groups()
+    return f"{prefijo}{str(int(numero) + 1).zfill(len(numero))}"
+
+
+def ultimos_codigos(db: Session) -> dict:
+    """Último código usado en general y en cada categoría, con el siguiente
+    sugerido: {"": {codigo, nombre, siguiente}, "<categoría>": {...}}."""
+    ultimos = {}
+    for codigo, nombre, categoria in (db.query(Producto.codigo, Producto.nombre, Producto.categoria)
+                                      .order_by(Producto.creado_en.desc(), Producto.id.desc()).all()):
+        for clave in ("", categoria or ""):
+            if clave not in ultimos:
+                ultimos[clave] = {"codigo": codigo, "nombre": nombre, "siguiente": ""}
+    existentes = {c for (c,) in db.query(Producto.codigo).all()}
+    for datos in ultimos.values():
+        sig = siguiente_codigo(datos["codigo"])
+        while sig and sig in existentes:  # por si ese número ya se usó
+            sig = siguiente_codigo(sig)
+        datos["siguiente"] = sig
+    return ultimos
+
+
 def _ultimo_producto(db: Session):
     """El producto ingresado más recientemente (para mostrar cuál fue el
     último código usado)."""
@@ -240,7 +268,7 @@ def inventario_exportar_excel(q: str = "", categoria: str = "", db: Session = De
 def inventario_nuevo_form(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     return templates.TemplateResponse("inventario/form.html", {
         "request": request, "producto": None, "usuario": usuario, "ultimo_producto": _ultimo_producto(db),
-        "categorias": _categorias_disponibles(db),
+        "categorias": _categorias_disponibles(db), "ultimos_codigos": ultimos_codigos(db),
     })
 
 

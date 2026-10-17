@@ -48,6 +48,17 @@ def _num(valor, nombre: str, entero=False):
     return n
 
 
+def quitar_isv(valor, tasa) -> Decimal:
+    """Valor escrito CON ISV incluido -> el mismo valor sin ISV."""
+    return (to_decimal(valor) / (1 + to_decimal(tasa) / 100)).quantize(CENT)
+
+
+def _sin_isv(valor, con_isv: bool, tasa):
+    if valor is None:
+        return None
+    return quitar_isv(valor, tasa) if con_isv else to_decimal(valor).quantize(CENT)
+
+
 def _siguiente(db: Session, modelo, prefijo: str) -> str:
     ultimo = db.query(modelo).order_by(modelo.id.desc()).first()
     return siguiente_numero(ultimo.numero if ultimo else None, prefijo)
@@ -56,8 +67,10 @@ def _siguiente(db: Session, modelo, prefijo: str) -> str:
 # ---------------------------------------------------------------------------
 # Solicitud
 # ---------------------------------------------------------------------------
-def crear_solicitud(db: Session, proveedor: str, notas: str, lineas: list[dict], usuario_nombre: str):
-    """lineas: [{producto_id, cantidad, costo}] -> (solicitud, errores)."""
+def crear_solicitud(db: Session, proveedor: str, notas: str, lineas: list[dict], usuario_nombre: str,
+                    costo_con_isv: bool = False, precio_con_isv: bool = False, tasa=15):
+    """lineas: [{producto_id, cantidad, costo, precio?}] -> (solicitud, errores).
+    costo_con_isv / precio_con_isv: lo escrito ya trae el ISV y se le quita."""
     errores, filas, vistos = [], [], set()
     if not (proveedor or "").strip():
         errores.append("Escribe el proveedor.")
@@ -65,7 +78,8 @@ def crear_solicitud(db: Session, proveedor: str, notas: str, lineas: list[dict],
         try:
             pid = int(l.get("producto_id"))
             cantidad = _num(l.get("cantidad"), f"Línea {i} (cantidad)", entero=True)
-            costo = _num(l.get("costo"), f"Línea {i} (costo)")
+            costo = _sin_isv(_num(l.get("costo"), f"Línea {i} (costo)"), costo_con_isv, tasa)
+            precio = _sin_isv(_num(l.get("precio"), f"Línea {i} (precio de venta)"), precio_con_isv, tasa)
         except (TypeError, ValueError) as e:
             errores.append(str(e) if isinstance(e, ValueError) and str(e) else f"Línea {i}: datos inválidos.")
             continue
@@ -80,7 +94,11 @@ def crear_solicitud(db: Session, proveedor: str, notas: str, lineas: list[dict],
         if not cantidad:
             errores.append(f"{producto.codigo}: la cantidad debe ser mayor a cero.")
             continue
-        filas.append((producto, cantidad, (costo if costo is not None else to_decimal(producto.costo or 0)).quantize(CENT)))
+        costo = (costo if costo is not None else to_decimal(producto.costo or 0)).quantize(CENT)
+        if precio is not None and precio > 0 and precio < costo:
+            errores.append(f"{producto.codigo}: el precio de venta (L {precio:,.2f} sin ISV) queda por debajo del costo (L {costo:,.2f}).")
+            continue
+        filas.append((producto, cantidad, costo, precio if precio else None))
     if not filas and not errores:
         errores.append("Agrega al menos un producto.")
     if errores:
@@ -89,10 +107,10 @@ def crear_solicitud(db: Session, proveedor: str, notas: str, lineas: list[dict],
         numero=_siguiente(db, SolicitudCompra, "SC"), fecha=datetime.utcnow(),
         proveedor=proveedor.strip(), notas=(notas or "").strip(), estado=COMPRA_PENDIENTE,
         usuario_nombre=usuario_nombre,
-        total_estimado=sum((c * k for _, c, k in filas), CERO).quantize(CENT),
+        total_estimado=sum((c * k for _, c, k, _p in filas), CERO).quantize(CENT),
     )
-    for producto, cantidad, costo in filas:
-        sol.detalles.append(SolicitudCompraDetalle(producto_id=producto.id, cantidad=cantidad, costo_unitario=costo))
+    for producto, cantidad, costo, precio in filas:
+        sol.detalles.append(SolicitudCompraDetalle(producto_id=producto.id, cantidad=cantidad, costo_unitario=costo, precio_venta=precio))
     db.add(sol)
     db.flush()
     return sol, []
@@ -164,8 +182,11 @@ def pagar_recepcion(db: Session, rec: RecepcionCompra, monto_texto: str, forma: 
 # Recepción
 # ---------------------------------------------------------------------------
 def recibir(db: Session, sol: SolicitudCompra, lineas: dict, forma_pago: str, factura_proveedor: str,
-            isv_texto: str, notas: str, usuario_nombre: str):
-    """lineas: {detalle_id: (cantidad, costo)} -> (recepcion, errores)."""
+            isv_texto: str, notas: str, usuario_nombre: str,
+            costo_con_isv: bool = False, precio_con_isv: bool = False, tasa=15):
+    """lineas: {detalle_id: (cantidad, costo[, precio])} -> (recepcion, errores).
+    El precio de venta (si se escribe, o el de la solicitud) queda en el
+    producto al recibir."""
     if sol.estado not in (COMPRA_PENDIENTE, COMPRA_PARCIAL):
         return None, ["Esta solicitud ya no se puede recibir."]
     errores = []
@@ -178,10 +199,12 @@ def recibir(db: Session, sol: SolicitudCompra, lineas: dict, forma_pago: str, fa
         isv = CERO
     filas = []
     for det in sol.detalles:
-        cant_txt, costo_txt = lineas.get(det.id, ("", ""))
+        valores = tuple(lineas.get(det.id, ("", ""))) + ("",)
+        cant_txt, costo_txt, precio_txt = valores[0], valores[1], valores[2]
         try:
             cantidad = _num(cant_txt, f"{det.producto.codigo} (cantidad)", entero=True) or 0
-            costo = _num(costo_txt, f"{det.producto.codigo} (costo)")
+            costo = _sin_isv(_num(costo_txt, f"{det.producto.codigo} (costo)"), costo_con_isv, tasa)
+            precio = _sin_isv(_num(precio_txt, f"{det.producto.codigo} (precio de venta)"), precio_con_isv, tasa)
         except ValueError as e:
             errores.append(str(e))
             continue
@@ -190,7 +213,13 @@ def recibir(db: Session, sol: SolicitudCompra, lineas: dict, forma_pago: str, fa
         if cantidad > det.pendiente:
             errores.append(f"{det.producto.codigo}: solo faltan {det.pendiente} por recibir.")
             continue
-        filas.append((det, cantidad, (costo if costo is not None else to_decimal(det.costo_unitario)).quantize(CENT)))
+        costo = (costo if costo is not None else to_decimal(det.costo_unitario)).quantize(CENT)
+        if not precio:
+            precio = to_decimal(det.precio_venta) if det.precio_venta else None
+        if precio is not None and precio < costo:
+            errores.append(f"{det.producto.codigo}: el precio de venta (L {precio:,.2f} sin ISV) queda por debajo del costo (L {costo:,.2f}).")
+            continue
+        filas.append((det, cantidad, costo, precio))
     if not filas and not errores:
         errores.append("Escribe la cantidad que llegó de al menos un producto.")
     if forma_pago == PAGO_COMPRA_EFECTIVO and not errores:
@@ -208,7 +237,7 @@ def recibir(db: Session, sol: SolicitudCompra, lineas: dict, forma_pago: str, fa
     db.add(rec)
     db.flush()
     subtotal = CERO
-    for det, cantidad, costo in filas:
+    for det, cantidad, costo, precio in filas:
         producto = db.query(Producto).filter(Producto.id == det.producto_id).with_for_update().first()
         existencia_ant = producto.existencia or 0
         costo_ant = to_decimal(producto.costo or 0)
@@ -218,6 +247,9 @@ def recibir(db: Session, sol: SolicitudCompra, lineas: dict, forma_pago: str, fa
             costo_nuevo = costo
         producto.existencia = existencia_ant + cantidad
         producto.costo = costo_nuevo
+        precio_ant = to_decimal(producto.precio_venta or 0)
+        if precio is not None:
+            producto.precio_venta = precio
         if sol.proveedor and not (producto.proveedor or "").strip():
             producto.proveedor = sol.proveedor
         linea = (costo * cantidad).quantize(CENT)
@@ -225,6 +257,7 @@ def recibir(db: Session, sol: SolicitudCompra, lineas: dict, forma_pago: str, fa
         rec.detalles.append(RecepcionCompraDetalle(
             producto_id=producto.id, cantidad=cantidad, costo_unitario=costo, subtotal=linea,
             existencia_anterior=existencia_ant, costo_anterior=costo_ant, costo_nuevo=costo_nuevo,
+            precio_anterior=precio_ant, precio_nuevo=to_decimal(producto.precio_venta or 0),
         ))
         db.add(MovimientoInventario(
             producto_id=producto.id, tipo="entrada", cantidad=cantidad,

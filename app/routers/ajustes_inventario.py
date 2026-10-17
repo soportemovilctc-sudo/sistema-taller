@@ -435,9 +435,59 @@ def ajustes_reporte_excel(
     )
 
 
+@router.get(BASE + "/reporte/pdf")
+def ajustes_reporte_pdf(
+    desde: str = "", hasta: str = "", motivo: str = "", q: str = "", descargar: int = 0,
+    db: Session = Depends(get_db), usuario=Depends(solo_admin),
+):
+    from fastapi.responses import Response
+    from app.templates_env import obtener_config_actual
+    from app.utils.pdf_ajustes import pdf_reporte_ajustes
+    d, h, inicio, fin = _rango(desde, hasta, por_defecto_mes=True)
+    datos = reporte_ajustes(db, inicio, fin, motivo, q)
+    rango_txt = f"{d.strftime('%d/%m/%Y') if d else 'inicio'} al {h.strftime('%d/%m/%Y') if h else 'hoy'}"
+    filtros = " · ".join(x for x in (f"Motivo: {motivo}" if motivo else "", f"Búsqueda: {q}" if q else "") if x)
+    cfg = obtener_config_actual()
+    contenido = pdf_reporte_ajustes(datos, rango_txt, cfg.get("nombre_taller", "Mi Taller"), cfg.get("moneda", "L"), filtros)
+    modo = "attachment" if descargar else "inline"
+    return Response(contenido, media_type="application/pdf",
+                    headers={"Content-Disposition": f'{modo}; filename="reporte_ajustes_inventario.pdf"'})
+
+
 # ---------------------------------------------------------------------------
 # Detalle y reversión
 # ---------------------------------------------------------------------------
+@router.get(BASE + "/{ajuste_id}/pdf")
+def ajustes_detalle_pdf(ajuste_id: int, descargar: int = 0, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from fastapi.responses import Response
+    from app.templates_env import obtener_config_actual
+    from app.utils.pdf_ajustes import pdf_ajuste
+    ajuste = db.get(AjusteInventario, ajuste_id)
+    if not ajuste:
+        return RedirectResponse(BASE, status_code=303)
+    cfg = obtener_config_actual()
+    contenido = pdf_ajuste(ajuste, cfg.get("nombre_taller", "Mi Taller"), cfg.get("moneda", "L"),
+                           db.get(AjusteInventario, ajuste.revierte_a_id) if ajuste.revierte_a_id else None,
+                           db.get(AjusteInventario, ajuste.revertido_por_id) if ajuste.revertido_por_id else None)
+    modo = "attachment" if descargar else "inline"
+    return Response(contenido, media_type="application/pdf",
+                    headers={"Content-Disposition": f'{modo}; filename="ajuste_{ajuste.numero}.pdf"'})
+
+
+@router.get(BASE + "/{ajuste_id}/excel")
+def ajustes_detalle_excel(ajuste_id: int, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from fastapi.responses import Response
+    from app.templates_env import obtener_config_actual
+    from app.utils.pdf_ajustes import excel_ajuste
+    ajuste = db.get(AjusteInventario, ajuste_id)
+    if not ajuste:
+        return RedirectResponse(BASE, status_code=303)
+    cfg = obtener_config_actual()
+    return Response(excel_ajuste(ajuste, cfg.get("nombre_taller", "Mi Taller"), cfg.get("moneda", "L")),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="ajuste_{ajuste.numero}.xlsx"'})
+
+
 @router.get(BASE + "/{ajuste_id}")
 def ajustes_detalle(ajuste_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
     ajuste = db.get(AjusteInventario, ajuste_id)

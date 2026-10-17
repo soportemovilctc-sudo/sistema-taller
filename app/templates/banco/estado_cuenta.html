@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Estado de cuenta bancario{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+{% set qs = 'desde=' ~ desde ~ '&hasta=' ~ hasta ~ ('&tipo=' ~ ec.tipo if ec.tipo else '') %}
+<div class="pill-tabs">
+  <a href="/caja/panel">Panel gerencial</a>
+  <a href="/caja/conciliacion">Conciliación y egresos</a>
+  <a href="/banco/estado-cuenta" class="active">Estado de cuenta bancario</a>
+  <a href="/caja/informe">Informe mensual</a>
+  <a href="/caja/reporte">Reportes de caja chica</a>
+  <a href="/caja/libro-diario">Libro Diario</a>
+</div>
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Estado de cuenta bancario</h1>
+      <div class="m-sub">Del {{ ec.desde.strftime('%d/%m/%Y') }} al {{ ec.hasta.strftime('%d/%m/%Y') }} · {{ ec.n_total }} movimiento{{ 's' if ec.n_total != 1 else '' }} en Banco</div>
+    </div>
+    <div class="m-acciones">
+      <a href="/banco/estado-cuenta/pdf?{{ qs }}" target="_blank" class="btn btn-outline">PDF</a>
+      <a href="/banco/estado-cuenta/pdf?{{ qs }}&descargar=1" class="btn btn-outline">Descargar PDF</a>
+      <a href="/banco/estado-cuenta/excel?{{ qs }}" class="btn btn-success">Excel</a>
+    </div>
+  </div>
+
+  <section class="m-stats" aria-label="Saldos" style="gap:44px; padding-bottom:22px; border-bottom:1px solid var(--border);">
+    <div><div class="m-label">Saldo inicial</div><div class="m-val">{{ ec.saldo_inicial|moneda(moneda) }}</div></div>
+    <div><div class="m-label">+ Entradas</div><div class="m-val m-ok">{{ ec.entradas|moneda(moneda) }}</div></div>
+    <div><div class="m-label">− Salidas</div><div class="m-val m-bad">{{ ec.salidas|moneda(moneda) }}</div></div>
+    {% if ec.ajustes %}<div><div class="m-label">± Ajuste de saldo inicial</div><div class="m-val m-warn">{{ ec.ajustes|moneda(moneda) }}</div></div>{% endif %}
+    <div><div class="m-label">Saldo final</div>{% set sf = ec.saldo_final|moneda(moneda) %}<div class="m-hero {{ 'm-bad' if ec.saldo_final < 0 else '' }}">{{ sf[:-3] }}<small>{{ sf[-3:] }}</small></div></div>
+  </section>
+
+  <nav class="m-strip" aria-label="Por tipo" style="margin-top:0;">
+    {% for clave, nombre in ec.tipos.items() %}
+    <a href="/banco/estado-cuenta?desde={{ desde }}&hasta={{ hasta }}&tipo={{ clave }}" style="{{ 'color:var(--primary-light);' if ec.tipo == clave else '' }}">
+      <div class="m-label">{{ nombre }} · {{ ec.totales[clave].n }}</div>
+      <div style="font-size:20px; font-weight:800; margin-top:4px; font-variant-numeric:tabular-nums;" class="{{ 'm-bad' if clave == 'salida' else '' }}">{{ ec.totales[clave].monto|moneda(moneda) }}</div>
+    </a>
+    {% endfor %}
+  </nav>
+
+  <form method="get" action="/banco/estado-cuenta" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px;">
+    <div class="field" style="margin:0;"><label for="ecDesde">Desde</label><input id="ecDesde" type="date" name="desde" value="{{ desde }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="margin:0;"><label for="ecHasta">Hasta</label><input id="ecHasta" type="date" name="hasta" value="{{ hasta }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="margin:0;">
+      <label for="ecTipo">Mostrar</label>
+      <select id="ecTipo" name="tipo">
+        <option value="">Todo</option>
+        <option value="entradas" {{ 'selected' if ec.tipo == 'entradas' else '' }}>Solo entradas</option>
+        {% for clave, nombre in ec.tipos.items() %}<option value="{{ clave }}" {{ 'selected' if ec.tipo == clave else '' }}>{{ nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-outline btn-sm">Ver</button>
+    <a class="m-chip" href="/banco/estado-cuenta?desde={{ este_mes[0] }}&hasta={{ este_mes[1] }}">Este mes</a>
+    <a class="m-chip" href="/banco/estado-cuenta?desde={{ mes_anterior[0] }}&hasta={{ mes_anterior[1] }}">Mes anterior</a>
+  </form>
+  {% if ec.pendientes_conciliar %}<p class="help m-warn">{{ ec.pendientes_conciliar }} transferencia{{ 's' if ec.pendientes_conciliar != 1 else '' }} sin conciliar con el banco: <a href="/caja/conciliacion">revisarlas en Conciliación</a>.</p>{% endif %}
+
+  <div class="table-wrap">
+    <table class="m-table">
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Referencia</th><th class="num">Entrada</th><th class="num">Salida</th><th class="num">Saldo</th><th>Conciliación</th></tr></thead>
+      <tbody>
+        {% if not ec.tipo %}
+        <tr><td class="m-muted">{{ ec.desde.strftime('%d/%m/%Y') }}</td><td colspan="5" class="m-muted">Saldo inicial</td><td class="num" style="font-weight:800;">{{ ec.saldo_inicial|moneda(moneda) }}</td><td></td></tr>
+        {% endif %}
+        {% for f in ec.filas %}
+        <tr>
+          <td class="m-muted" style="white-space:nowrap;">{{ f.fecha|hn('%d/%m/%Y %I:%M %p') if f.fecha else f.dia.strftime('%d/%m/%Y') }}</td>
+          <td style="font-weight:600; white-space:nowrap;" class="{{ 'm-bad' if f.tipo == 'salida' else ('m-warn' if f.tipo == 'ajuste' else '') }}">{{ f.tipo_texto }}</td>
+          <td>{{ f.detalle }}{% if f.usuario %}<div class="m-muted" style="font-size:11.5px;">{{ f.usuario }}</div>{% endif %}</td>
+          <td class="m-muted" style="font-size:12.5px;">{{ f.referencia }}</td>
+          <td class="num m-ok" style="font-weight:700;">{{ f.entrada|moneda(moneda) if f.entrada else '' }}</td>
+          <td class="num m-bad" style="font-weight:700;">{{ f.salida|moneda(moneda) if f.salida else '' }}</td>
+          <td class="num" style="font-weight:800;">{{ f.saldo|moneda(moneda) }}</td>
+          <td style="font-size:12.5px;" class="{{ 'm-ok' if f.conciliacion == 'Conciliada' else 'm-warn' }}">{{ f.conciliacion }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty-state">No hay movimientos en Banco{% if ec.tipo %} de ese tipo{% endif %} en estas fechas.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if not ec.tipo and ec.filas %}
+      <tfoot><tr><td colspan="4" class="num">Saldo final</td><td class="num m-ok">{{ ec.entradas|moneda(moneda) }}</td><td class="num m-bad">{{ ec.salidas|moneda(moneda) }}</td><td class="num" style="font-size:16px;">{{ ec.saldo_final|moneda(moneda) }}</td><td></td></tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+  <p class="help" style="margin-top:10px;">Es el mismo saldo de «Banco actual» del Panel gerencial. Un abono por transferencia o tarjeta aparece el día en que se facturó la orden. El saldo de cada fila es el del banco después de ese movimiento.</p>
+</div>
+{% endblock %}

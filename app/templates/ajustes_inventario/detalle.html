@@ -9,6 +9,11 @@
     Ajuste {{ ajuste.numero }}
     {% if ajuste.revertido_por_id %}<span class="badge badge-cancelado">Revertido</span>{% endif %}
     {% if ajuste.revierte_a_id %}<span class="badge badge-alta">Reversión</span>{% endif %}
+    <span class="actions">
+      <a href="/ajustes-inventario/{{ ajuste.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF</a>
+      <a href="/ajustes-inventario/{{ ajuste.id }}/pdf?descargar=1" class="btn btn-outline btn-sm">Descargar PDF</a>
+      <a href="/ajustes-inventario/{{ ajuste.id }}/excel" class="btn btn-success btn-sm">Excel</a>
+    </span>
   </div>
   <div class="grid cols-3">
     <div><b>Fecha:</b> {{ a_hora_local(ajuste.fecha).strftime('%d/%m/%Y %I:%M %p') }}</div>

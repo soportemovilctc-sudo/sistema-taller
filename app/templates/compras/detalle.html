@@ -29,7 +29,7 @@
     <div class="m-sec-t">Productos pedidos</div>
     <div class="table-wrap">
       <table class="m-table">
-        <thead><tr><th>Producto</th><th class="num">Pedido</th><th class="num">Recibido</th><th class="num">Falta</th><th class="num">Costo esperado</th></tr></thead>
+        <thead><tr><th>Producto</th><th class="num">Pedido</th><th class="num">Recibido</th><th class="num">Falta</th><th class="num">Costo esperado</th><th class="num">Precio de venta nuevo</th></tr></thead>
         <tbody>
           {% for d in sol.detalles %}
           <tr>
@@ -38,6 +38,7 @@
             <td class="num m-ok" style="font-weight:700;">{{ d.cantidad_recibida }}</td>
             <td class="num {{ 'm-warn' if d.pendiente and sol.estado in ['pendiente', 'parcial'] else 'm-muted' }}">{{ d.pendiente }}</td>
             <td class="num">{{ d.costo_unitario|moneda(moneda) }}</td>
+            <td class="num">{{ d.precio_venta|moneda(moneda) if d.precio_venta else '—' }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -50,7 +51,7 @@
     <div class="m-sec-t"><span>Recepción {{ r.numero }} · {{ r.fecha|hn }}</span><span class="m-muted" style="text-transform:none; letter-spacing:0; font-weight:500;">por {{ r.usuario_nombre }}{% if r.factura_proveedor %} · factura del proveedor {{ r.factura_proveedor }}{% endif %}</span></div>
     <div class="table-wrap">
       <table class="m-table">
-        <thead><tr><th>Producto</th><th class="num">Llegó</th><th class="num">Costo c/u</th><th class="num">Subtotal</th><th class="num">Costo del producto</th></tr></thead>
+        <thead><tr><th>Producto</th><th class="num">Llegó</th><th class="num">Costo c/u</th><th class="num">Subtotal</th><th class="num">Costo del producto</th><th class="num">Precio de venta</th></tr></thead>
         <tbody>
           {% for d in r.detalles %}
           <tr>
@@ -59,13 +60,14 @@
             <td class="num">{{ d.costo_unitario|moneda(moneda) }}</td>
             <td class="num">{{ d.subtotal|moneda(moneda) }}</td>
             <td class="num m-muted">{{ d.costo_anterior|moneda(moneda) }} → <b style="color:var(--text);">{{ d.costo_nuevo|moneda(moneda) }}</b></td>
+            <td class="num m-muted">{% if d.precio_nuevo is not none and d.precio_anterior != d.precio_nuevo %}{{ d.precio_anterior|moneda(moneda) }} → <b style="color:var(--text);">{{ d.precio_nuevo|moneda(moneda) }}</b>{% elif d.precio_nuevo is not none %}{{ d.precio_nuevo|moneda(moneda) }}{% else %}—{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
         <tfoot>
-          <tr><td colspan="3" class="num m-muted" style="font-weight:500;">Mercadería</td><td class="num">{{ r.subtotal|moneda(moneda) }}</td><td></td></tr>
-          {% if r.isv %}<tr><td colspan="3" class="num m-muted" style="font-weight:500;">ISV de la factura</td><td class="num">{{ r.isv|moneda(moneda) }}</td><td></td></tr>{% endif %}
-          <tr><td colspan="3" class="num">Total</td><td class="num" style="font-size:18px;">{{ r.total|moneda(moneda) }}</td><td></td></tr>
+          <tr><td colspan="3" class="num m-muted" style="font-weight:500;">Mercadería</td><td class="num">{{ r.subtotal|moneda(moneda) }}</td><td colspan="2"></td></tr>
+          {% if r.isv %}<tr><td colspan="3" class="num m-muted" style="font-weight:500;">ISV de la factura</td><td class="num">{{ r.isv|moneda(moneda) }}</td><td colspan="2"></td></tr>{% endif %}
+          <tr><td colspan="3" class="num">Total</td><td class="num" style="font-size:18px;">{{ r.total|moneda(moneda) }}</td><td colspan="2"></td></tr>
         </tfoot>
       </table>
     </div>

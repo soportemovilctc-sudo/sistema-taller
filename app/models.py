@@ -1046,6 +1046,7 @@ class SolicitudCompraDetalle(Base):
     cantidad = Column(Integer, nullable=False)
     cantidad_recibida = Column(Integer, nullable=False, default=0)
     costo_unitario = Column(Numeric(10, 2), nullable=False, default=0)  # costo esperado (sin ISV)
+    precio_venta = Column(Numeric(10, 2), nullable=True)  # nuevo precio de venta (sin ISV); se aplica al recibir
 
     solicitud = relationship("SolicitudCompra", back_populates="detalles")
     producto = relationship("Producto")
@@ -1093,6 +1094,8 @@ class RecepcionCompraDetalle(Base):
     existencia_anterior = Column(Integer, nullable=False, default=0)
     costo_anterior = Column(Numeric(10, 2), nullable=False, default=0)
     costo_nuevo = Column(Numeric(10, 2), nullable=False, default=0)       # costo promedio que quedó
+    precio_anterior = Column(Numeric(10, 2), nullable=True)               # precio de venta antes de recibir
+    precio_nuevo = Column(Numeric(10, 2), nullable=True)                  # precio de venta que quedó
 
     recepcion = relationship("RecepcionCompra", back_populates="detalles")
     producto = relationship("Producto")

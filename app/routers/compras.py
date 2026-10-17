@@ -59,11 +59,11 @@ def compras_lista(request: Request, estado: str = "", q: str = "", db: Session =
 
 @router.get(BASE + "/nueva")
 def compras_nueva(request: Request, producto_id: int = 0, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
-    from app.routers.inventario import _categorias_disponibles
+    from app.routers.inventario import _categorias_disponibles, _isv_tasa
     proveedores = [p for (p,) in db.query(SolicitudCompra.proveedor).distinct().order_by(SolicitudCompra.proveedor).all() if p]
     return templates.TemplateResponse("compras/nueva.html", {
         "request": request, "usuario": usuario, "productos": _productos(db), "preseleccion": producto_id,
-        "categorias": _categorias_disponibles(db), "proveedores": proveedores,
+        "categorias": _categorias_disponibles(db), "proveedores": proveedores, "tasa_isv": _isv_tasa(db),
     })
 
 
@@ -71,10 +71,15 @@ def compras_nueva(request: Request, producto_id: int = 0, db: Session = Depends(
 def compras_crear(
     request: Request, proveedor: str = Form(""), notas: str = Form(""),
     producto_id: list[str] = Form([]), cantidad: list[str] = Form([]), costo: list[str] = Form([]),
+    precio: list[str] = Form([]), costo_con_isv: bool = Form(False), precio_con_isv: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(solo_admin),
 ):
-    lineas = [{"producto_id": p, "cantidad": c, "costo": k} for p, c, k in zip(producto_id, cantidad, costo) if (p or "").strip()]
-    sol, errores = crear_solicitud(db, proveedor, notas, lineas, usuario["nombre_completo"])
+    from app.routers.inventario import _isv_tasa
+    precios = list(precio) + [""] * (len(producto_id) - len(precio))
+    lineas = [{"producto_id": p, "cantidad": c, "costo": k, "precio": v}
+              for p, c, k, v in zip(producto_id, cantidad, costo, precios) if (p or "").strip()]
+    sol, errores = crear_solicitud(db, proveedor, notas, lineas, usuario["nombre_completo"],
+                                   costo_con_isv=costo_con_isv, precio_con_isv=precio_con_isv, tasa=_isv_tasa(db))
     if errores:
         db.rollback()
         flash(request, "No se creó la solicitud: " + " ".join(errores), "error")
@@ -109,7 +114,8 @@ def compras_producto_rapido(
                  existencia=0, stock_minimo=0, estado="activo")
     db.add(p)
     db.commit()
-    return JSONResponse({"ok": True, "id": p.id, "codigo": p.codigo, "nombre": p.nombre, "costo": "0.00", "existencia": 0})
+    return JSONResponse({"ok": True, "id": p.id, "codigo": p.codigo, "nombre": p.nombre, "costo": "0.00", "existencia": 0,
+                         "precio": str(p.precio_venta or 0)})
 
 
 @router.get(BASE + "/{solicitud_id}")
@@ -147,10 +153,14 @@ async def compras_recibir(solicitud_id: int, request: Request, db: Session = Dep
     sol = db.get(SolicitudCompra, solicitud_id)
     if not sol:
         return RedirectResponse(BASE, status_code=303)
+    from app.routers.inventario import _isv_tasa
     form = await request.form()
-    lineas = {d.id: (form.get(f"cantidad_{d.id}", ""), form.get(f"costo_{d.id}", "")) for d in sol.detalles}
+    lineas = {d.id: (form.get(f"cantidad_{d.id}", ""), form.get(f"costo_{d.id}", ""), form.get(f"precio_{d.id}", ""))
+              for d in sol.detalles}
     rec, errores = recibir(db, sol, lineas, form.get("forma_pago", ""), form.get("factura_proveedor", ""),
-                           form.get("isv", ""), form.get("notas", ""), usuario["nombre_completo"])
+                           form.get("isv", ""), form.get("notas", ""), usuario["nombre_completo"],
+                           costo_con_isv=bool(form.get("costo_con_isv")), precio_con_isv=bool(form.get("precio_con_isv")),
+                           tasa=_isv_tasa(db))
     if errores:
         db.rollback()
         flash(request, "No se registró la recepción: " + " ".join(errores), "error")

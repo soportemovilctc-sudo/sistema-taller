@@ -7,32 +7,37 @@
     <div>
       <a href="/compras/{{ sol.id }}" class="m-muted" style="font-size:13px;">← {{ sol.numero }}</a>
       <h1 class="m-title" style="margin-top:6px;">Confirmar recepción</h1>
-      <div class="m-sub">{{ sol.proveedor }} · escribe lo que llegó de verdad y su costo según la factura del proveedor (sin ISV). Lo que no llegó déjalo en 0.</div>
+      <div class="m-sub">{{ sol.proveedor }} · escribe lo que llegó de verdad, su costo según la factura del proveedor y el precio de venta. Si los escribes con ISV, marca la casilla. Lo que no llegó déjalo en 0.</div>
     </div>
   </div>
 
   <form method="post" action="/compras/{{ sol.id }}/recibir" id="formRecibir">
+    <div style="display:flex; gap:22px; flex-wrap:wrap; margin:0 0 10px;">
+      <label style="display:flex; gap:8px; align-items:center; font-size:14px;"><input type="checkbox" name="costo_con_isv" value="true" id="costoConIsv"> Los <b>costos</b> que escribo ya incluyen ISV ({{ tasa_isv|int }}%)</label>
+      <label style="display:flex; gap:8px; align-items:center; font-size:14px;"><input type="checkbox" name="precio_con_isv" value="true" id="precioConIsv"> Los <b>precios de venta</b> que escribo ya incluyen ISV ({{ tasa_isv|int }}%)</label>
+    </div>
     <div class="table-wrap">
       <table class="m-table">
-        <thead><tr><th>Producto</th><th class="num">Falta</th><th class="num">Llegó</th><th class="num">Costo c/u (sin ISV)</th><th class="num">Subtotal</th></tr></thead>
+        <thead><tr><th>Producto</th><th class="num">Falta</th><th class="num">Llegó</th><th class="num" id="thCosto">Costo c/u (sin ISV)</th><th class="num" id="thPrecio">Precio de venta c/u (sin ISV)</th><th class="num">Subtotal (sin ISV)</th></tr></thead>
         <tbody>
           {% for d in sol.detalles if d.pendiente > 0 %}
           <tr class="fila-rec">
             <td><b>{{ d.producto.codigo }}</b> <span class="m-muted">· {{ d.producto.nombre }}</span><div class="help">hay {{ d.producto.existencia }} · costo actual {{ d.producto.costo|moneda(moneda) }}</div></td>
             <td class="num">{{ d.pendiente }}</td>
             <td class="num"><input type="number" name="cantidad_{{ d.id }}" min="0" max="{{ d.pendiente }}" step="1" value="{{ d.pendiente }}" style="width:100px; text-align:right;" aria-label="Cantidad que llegó de {{ d.producto.codigo }}"></td>
-            <td class="num"><input type="number" name="costo_{{ d.id }}" min="0" step="0.01" value="{{ '%.2f'|format(d.costo_unitario) }}" style="width:130px; text-align:right;" aria-label="Costo de {{ d.producto.codigo }}"></td>
+            <td class="num"><input type="number" name="costo_{{ d.id }}" min="0" step="0.01" value="{{ '%.2f'|format(d.costo_unitario) }}" style="width:130px; text-align:right;" aria-label="Costo de {{ d.producto.codigo }}"><div class="help c-nota-costo"></div></td>
+            <td class="num"><input type="number" name="precio_{{ d.id }}" min="0" step="0.01" value="{{ '%.2f'|format(d.precio_venta if d.precio_venta else (d.producto.precio_venta or 0)) }}" style="width:130px; text-align:right;" aria-label="Precio de venta de {{ d.producto.codigo }}"><div class="help c-nota-precio"></div></td>
             <td class="num c-sub"></td>
           </tr>
           {% endfor %}
         </tbody>
         <tfoot>
-          <tr><td colspan="4" class="num m-muted" style="font-weight:500;">Mercadería</td><td class="num" id="recSubtotal"></td></tr>
+          <tr><td colspan="5" class="num m-muted" style="font-weight:500;">Mercadería (sin ISV)</td><td class="num" id="recSubtotal"></td></tr>
           <tr>
-            <td colspan="4" class="num m-muted" style="font-weight:500;">ISV de la factura del proveedor <button type="button" class="btn btn-outline btn-sm" id="calcIsv" style="margin-left:6px;">Calcular {{ tasa_isv|int }}%</button></td>
+            <td colspan="5" class="num m-muted" style="font-weight:500;">ISV de la factura del proveedor <button type="button" class="btn btn-outline btn-sm" id="calcIsv" style="margin-left:6px;">Calcular {{ tasa_isv|int }}%</button></td>
             <td class="num"><input type="number" name="isv" id="recIsv" min="0" step="0.01" value="0.00" style="width:130px; text-align:right;" aria-label="ISV de la factura"></td>
           </tr>
-          <tr><td colspan="4" class="num">Total a pagar</td><td class="num" id="recTotal" style="font-size:20px;"></td></tr>
+          <tr><td colspan="5" class="num">Total a pagar</td><td class="num" id="recTotal" style="font-size:20px;"></td></tr>
         </tfoot>
       </table>
     </div>
@@ -66,16 +71,37 @@
   var moneda = {{ config_taller().moneda|tojson }}, tasa = {{ tasa_isv|float }};
   var form = document.getElementById("formRecibir"), isv = document.getElementById("recIsv");
   function fmt(n) { return moneda + " " + (Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  var chkCosto = document.getElementById("costoConIsv"), chkPrecio = document.getElementById("precioConIsv");
+  function sinIsv(v, conIsv) { return conIsv ? v / (1 + tasa / 100) : v; }
+  function nota(v, conIsv) { return conIsv ? "sin ISV " + fmt(v / (1 + tasa / 100)) : "con ISV " + fmt(v * (1 + tasa / 100)); }
   function subtotal() {
     var s = 0;
     form.querySelectorAll("tr.fila-rec").forEach(function (tr) {
       var c = parseInt(tr.querySelector('input[name^="cantidad_"]').value, 10) || 0;
-      var k = parseFloat(tr.querySelector('input[name^="costo_"]').value) || 0;
+      var kTxt = parseFloat(tr.querySelector('input[name^="costo_"]').value) || 0;
+      var pTxt = parseFloat(tr.querySelector('input[name^="precio_"]').value) || 0;
+      var k = sinIsv(kTxt, chkCosto.checked), pv = sinIsv(pTxt, chkPrecio.checked);
       tr.querySelector(".c-sub").textContent = fmt(c * k);
+      tr.querySelector(".c-nota-costo").textContent = nota(kTxt, chkCosto.checked);
+      var np = tr.querySelector(".c-nota-precio");
+      np.textContent = pTxt ? nota(pTxt, chkPrecio.checked) + (pv < k ? " · ¡menor que el costo!" : "") : "";
+      np.style.color = pTxt && pv < k ? "var(--danger-text)" : "";
       s += c * k;
     });
     return s;
   }
+  function convertir(prefijo, conIsv) {
+    var f = 1 + tasa / 100;
+    form.querySelectorAll('input[name^="' + prefijo + '_"]').forEach(function (inp) {
+      var v = parseFloat(inp.value);
+      if (!isNaN(v)) inp.value = (conIsv ? v * f : v / f).toFixed(2);
+    });
+    document.getElementById(prefijo === "costo" ? "thCosto" : "thPrecio").textContent =
+      (prefijo === "costo" ? "Costo c/u" : "Precio de venta c/u") + (conIsv ? " (con ISV)" : " (sin ISV)");
+    recalcular();
+  }
+  chkCosto.addEventListener("change", function () { convertir("costo", chkCosto.checked); });
+  chkPrecio.addEventListener("change", function () { convertir("precio", chkPrecio.checked); });
   function recalcular() {
     var s = subtotal();
     document.getElementById("recSubtotal").textContent = fmt(s);

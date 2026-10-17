@@ -13,6 +13,9 @@
   <div class="card-title">
     Historial de ajustes de inventario
     <span class="actions">
+      {% set _qs = 'desde=' ~ (desde or '') ~ '&hasta=' ~ (hasta or '') ~ '&motivo=' ~ (motivo or '')|urlencode ~ '&q=' ~ (q or '')|urlencode %}
+      <a href="/ajustes-inventario/reporte/pdf?{{ _qs }}&descargar=1" class="btn btn-outline btn-sm" title="Reporte de estos ajustes en PDF (sin fechas: el mes actual)">Descargar PDF</a>
+      <a href="/ajustes-inventario/reporte/excel?{{ _qs }}" class="btn btn-success btn-sm" title="Reporte de estos ajustes en Excel (sin fechas: el mes actual)">Excel</a>
       <a href="/ajustes-inventario/nuevo" class="btn btn-primary btn-sm">+ Nuevo ajuste</a>
     </span>
   </div>

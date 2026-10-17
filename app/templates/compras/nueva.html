@@ -27,7 +27,7 @@
       <select id="pickerProducto" class="js-buscar-select" data-placeholder="Escribe el código o nombre del producto...">
         <option value="">Selecciona un producto...</option>
         {% for p in productos %}
-        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" {{ 'selected' if p.id == preseleccion else '' }}>{{ p.codigo }} · {{ p.nombre }} (hay {{ p.existencia or 0 }})</option>
+        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" data-precio="{{ p.precio_venta or 0 }}" {{ 'selected' if p.id == preseleccion else '' }}>{{ p.codigo }} · {{ p.nombre }} (hay {{ p.existencia or 0 }})</option>
         {% endfor %}
       </select>
       <div class="help">¿Es un producto que todavía no existe? <a href="#" id="abrirNuevoProducto">Crearlo aquí mismo</a> (queda con 0 unidades hasta que llegue la compra).</div>
@@ -50,13 +50,18 @@
       <span id="npMensaje" class="m-bad" style="margin-left:10px; font-size:13px;"></span>
     </div>
 
+    <div style="display:flex; gap:22px; flex-wrap:wrap; margin:6px 0 10px;">
+      <label style="display:flex; gap:8px; align-items:center; font-size:14px;"><input type="checkbox" name="costo_con_isv" value="true" id="costoConIsv"> Los <b>costos</b> que escribo ya incluyen ISV ({{ tasa_isv|int }}%)</label>
+      <label style="display:flex; gap:8px; align-items:center; font-size:14px;"><input type="checkbox" name="precio_con_isv" value="true" id="precioConIsv"> Los <b>precios de venta</b> que escribo ya incluyen ISV ({{ tasa_isv|int }}%)</label>
+    </div>
+    <p class="help" style="margin-top:-4px;">Marca la casilla y escribe el número redondo con ISV: el sistema le quita el ISV solo al guardar. El precio de venta nuevo queda en el producto cuando confirmes la recepción; déjalo igual si no cambia.</p>
     <div class="table-wrap">
       <table class="m-table">
-        <thead><tr><th>Producto</th><th class="num">Hay</th><th class="num">Cantidad a pedir</th><th class="num">Costo c/u (sin ISV)</th><th class="num">Subtotal</th><th></th></tr></thead>
+        <thead><tr><th>Producto</th><th class="num">Hay</th><th class="num">Cantidad a pedir</th><th class="num" id="thCosto">Costo c/u (sin ISV)</th><th class="num" id="thPrecio">Precio de venta c/u (sin ISV)</th><th class="num">Subtotal (sin ISV)</th><th></th></tr></thead>
         <tbody id="filasCompra">
-          <tr id="filaVacia"><td colspan="6" class="empty-state">Todavía no agregas productos.</td></tr>
+          <tr id="filaVacia"><td colspan="7" class="empty-state">Todavía no agregas productos.</td></tr>
         </tbody>
-        <tfoot><tr><td colspan="4" class="num">Total estimado</td><td class="num" id="totalCompra" style="font-size:18px;">{{ moneda }} 0.00</td><td></td></tr></tfoot>
+        <tfoot><tr><td colspan="5" class="num">Total estimado (sin ISV)</td><td class="num" id="totalCompra" style="font-size:18px;">{{ moneda }} 0.00</td><td></td></tr></tfoot>
       </table>
     </div>
     <div style="margin-top:18px; display:flex; gap:8px;">
@@ -78,12 +83,21 @@
 
   function fmt(n) { return moneda + " " + (Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
+  var tasa = {{ tasa_isv|float }};
+  var chkCosto = document.getElementById("costoConIsv"), chkPrecio = document.getElementById("precioConIsv");
+  function sinIsv(v, conIsv) { return conIsv ? v / (1 + tasa / 100) : v; }
+  function nota(v, conIsv) { return conIsv ? "sin ISV " + fmt(v / (1 + tasa / 100)) : "con ISV " + fmt(v * (1 + tasa / 100)); }
   function recalcular() {
     var total = 0, filas = cuerpo.querySelectorAll("tr.fila-compra");
     filas.forEach(function (tr) {
       var c = parseInt(tr.querySelector('input[name="cantidad"]').value, 10) || 0;
-      var k = parseFloat(tr.querySelector('input[name="costo"]').value) || 0;
+      var kTxt = parseFloat(tr.querySelector('input[name="costo"]').value) || 0;
+      var pTxt = parseFloat(tr.querySelector('input[name="precio"]').value) || 0;
+      var k = sinIsv(kTxt, chkCosto.checked), pv = sinIsv(pTxt, chkPrecio.checked);
       tr.querySelector(".c-sub").textContent = fmt(c * k);
+      tr.querySelector(".c-nota-costo").textContent = nota(kTxt, chkCosto.checked);
+      tr.querySelector(".c-nota-precio").textContent = pTxt ? nota(pTxt, chkPrecio.checked) + (pv && pv < k ? " · ¡menor que el costo!" : "") : "";
+      tr.querySelector(".c-nota-precio").style.color = pv && pv < k ? "var(--danger-text)" : "";
       total += c * k;
     });
     document.getElementById("totalCompra").textContent = fmt(total);
@@ -100,21 +114,24 @@
       '<td><input type="hidden" name="producto_id"><b class="c-codigo"></b><div class="help c-nombre"></div></td>' +
       '<td class="num c-hay"></td>' +
       '<td class="num"><input type="number" name="cantidad" min="1" step="1" value="1" style="width:100px; text-align:right;" aria-label="Cantidad"></td>' +
-      '<td class="num"><input type="number" name="costo" min="0" step="0.01" style="width:130px; text-align:right;" aria-label="Costo"></td>' +
+      '<td class="num"><input type="number" name="costo" min="0" step="0.01" style="width:130px; text-align:right;" aria-label="Costo"><div class="help c-nota-costo"></div></td>' +
+      '<td class="num"><input type="number" name="precio" min="0" step="0.01" style="width:130px; text-align:right;" aria-label="Precio de venta"><div class="help c-nota-precio"></div></td>' +
       '<td class="num c-sub"></td>' +
       '<td class="num"><button type="button" class="btn btn-outline btn-sm c-quitar">Quitar</button></td>';
     tr.querySelector('input[name="producto_id"]').value = datos.id;
     tr.querySelector(".c-codigo").textContent = datos.codigo;
     tr.querySelector(".c-nombre").textContent = datos.nombre;
     tr.querySelector(".c-hay").textContent = datos.existencia;
-    tr.querySelector('input[name="costo"]').value = (parseFloat(datos.costo) || 0).toFixed(2);
+    var f = 1 + tasa / 100;
+    tr.querySelector('input[name="costo"]').value = ((parseFloat(datos.costo) || 0) * (chkCosto.checked ? f : 1)).toFixed(2);
+    tr.querySelector('input[name="precio"]').value = ((parseFloat(datos.precio) || 0) * (chkPrecio.checked ? f : 1)).toFixed(2);
     cuerpo.appendChild(tr);
     recalcular();
     tr.querySelector('input[name="cantidad"]').select();
   }
 
   function desdeOpcion(op) {
-    return { id: op.value, codigo: op.dataset.codigo, nombre: op.dataset.nombre, existencia: op.dataset.existencia, costo: op.dataset.costo };
+    return { id: op.value, codigo: op.dataset.codigo, nombre: op.dataset.nombre, existencia: op.dataset.existencia, costo: op.dataset.costo, precio: op.dataset.precio };
   }
 
   picker.addEventListener("change", function () {
@@ -126,6 +143,20 @@
   if (picker.value) { agregar(desdeOpcion(picker.options[picker.selectedIndex])); picker.value = ""; }
 
   cuerpo.addEventListener("input", recalcular);
+  // Al marcar/desmarcar una casilla, los números ya escritos se convierten
+  // (con ISV <-> sin ISV) para que sigan valiendo lo mismo.
+  function convertir(nombre, conIsv) {
+    var f = 1 + tasa / 100;
+    cuerpo.querySelectorAll('input[name="' + nombre + '"]').forEach(function (inp) {
+      var v = parseFloat(inp.value);
+      if (!isNaN(v)) inp.value = (conIsv ? v * f : v / f).toFixed(2);
+    });
+    document.getElementById(nombre === "costo" ? "thCosto" : "thPrecio").textContent =
+      (nombre === "costo" ? "Costo c/u" : "Precio de venta c/u") + (conIsv ? " (con ISV)" : " (sin ISV)");
+    recalcular();
+  }
+  chkCosto.addEventListener("change", function () { convertir("costo", chkCosto.checked); });
+  chkPrecio.addEventListener("change", function () { convertir("precio", chkPrecio.checked); });
   cuerpo.addEventListener("click", function (e) {
     if (!e.target.classList.contains("c-quitar")) return;
     e.target.closest("tr").remove();
@@ -149,7 +180,7 @@
       .then(function (res) {
         if (!res.ok) { msg.textContent = res.mensaje || "No se pudo crear."; return; }
         var op = document.createElement("option");
-        op.value = res.id; op.dataset.codigo = res.codigo; op.dataset.nombre = res.nombre; op.dataset.existencia = 0; op.dataset.costo = 0;
+        op.value = res.id; op.dataset.codigo = res.codigo; op.dataset.nombre = res.nombre; op.dataset.existencia = 0; op.dataset.costo = 0; op.dataset.precio = res.precio || 0;
         op.textContent = res.codigo + " · " + res.nombre + " (hay 0)";
         picker.appendChild(op);
         agregar(desdeOpcion(op));

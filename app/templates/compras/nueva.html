@@ -27,7 +27,7 @@
       <select id="pickerProducto" class="js-buscar-select" data-placeholder="Escribe el código o nombre del producto...">
         <option value="">Selecciona un producto...</option>
         {% for p in productos %}
-        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" data-precio="{{ p.precio_venta or 0 }}" {{ 'selected' if p.id == preseleccion else '' }}>{{ p.codigo }} · {{ p.nombre }} (hay {{ p.existencia or 0 }})</option>
+        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-categoria="{{ p.categoria or '' }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" data-precio="{{ p.precio_venta or 0 }}" {{ 'selected' if p.id == preseleccion else '' }}>{% if p.categoria %}[{{ p.categoria }}] {% endif %}{{ p.codigo }} · {{ p.nombre }} (hay {{ p.existencia or 0 }})</option>
         {% endfor %}
       </select>
       <div class="help">¿Es un producto que todavía no existe? <a href="#" id="abrirNuevoProducto">Crearlo aquí mismo</a> (queda con 0 unidades hasta que llegue la compra).</div>
@@ -124,7 +124,7 @@
       '<td class="num"><button type="button" class="btn btn-outline btn-sm c-quitar">Quitar</button></td>';
     tr.querySelector('input[name="producto_id"]').value = datos.id;
     tr.querySelector(".c-codigo").textContent = datos.codigo;
-    tr.querySelector(".c-nombre").textContent = datos.nombre;
+    tr.querySelector(".c-nombre").textContent = datos.nombre + (datos.categoria ? " · " + datos.categoria : "");
     tr.querySelector(".c-hay").textContent = datos.existencia;
     var f = 1 + tasa / 100;
     tr.querySelector('input[name="costo"]').value = ((parseFloat(datos.costo) || 0) * (chkCosto.checked ? f : 1)).toFixed(2);
@@ -135,7 +135,7 @@
   }
 
   function desdeOpcion(op) {
-    return { id: op.value, codigo: op.dataset.codigo, nombre: op.dataset.nombre, existencia: op.dataset.existencia, costo: op.dataset.costo, precio: op.dataset.precio };
+    return { id: op.value, codigo: op.dataset.codigo, nombre: op.dataset.nombre, existencia: op.dataset.existencia, costo: op.dataset.costo, precio: op.dataset.precio, categoria: op.dataset.categoria || "" };
   }
 
   picker.addEventListener("change", function () {
@@ -206,7 +206,7 @@
       .then(function (res) {
         if (!res.ok) { msg.textContent = res.mensaje || "No se pudo crear."; return; }
         var op = document.createElement("option");
-        op.value = res.id; op.dataset.codigo = res.codigo; op.dataset.nombre = res.nombre; op.dataset.existencia = 0; op.dataset.costo = res.costo || 0; op.dataset.precio = res.precio || 0;
+        op.value = res.id; op.dataset.codigo = res.codigo; op.dataset.nombre = res.nombre; op.dataset.existencia = 0; op.dataset.categoria = document.getElementById("npCategoria").value; op.dataset.costo = res.costo || 0; op.dataset.precio = res.precio || 0;
         op.textContent = res.codigo + " · " + res.nombre + " (hay 0)";
         picker.appendChild(op);
         agregar(desdeOpcion(op));

@@ -22,7 +22,7 @@
         <tbody>
           {% for d in sol.detalles if d.pendiente > 0 %}
           <tr class="fila-rec">
-            <td><b>{{ d.producto.codigo }}</b> <span class="m-muted">· {{ d.producto.nombre }}</span><div class="help">hay {{ d.producto.existencia }} · costo actual {{ d.producto.costo|moneda(moneda) }}</div></td>
+            <td><b>{{ d.producto.codigo }}</b> <span class="m-muted">· {{ d.producto.nombre }}</span>{% if d.producto.categoria %}<span class="cat-tag">{{ d.producto.categoria }}</span>{% endif %}<div class="help">hay {{ d.producto.existencia }} · costo actual {{ d.producto.costo|moneda(moneda) }}</div></td>
             <td class="num">{{ d.pendiente }}</td>
             <td class="num"><input type="number" name="cantidad_{{ d.id }}" min="0" max="{{ d.pendiente }}" step="1" value="{{ d.pendiente }}" style="width:100px; text-align:right;" aria-label="Cantidad que llegó de {{ d.producto.codigo }}"></td>
             <td class="num"><input type="number" name="costo_{{ d.id }}" min="0" step="0.01" value="{{ '%.2f'|format(d.costo_unitario) }}" style="width:130px; text-align:right;" aria-label="Costo de {{ d.producto.codigo }}"><div class="help c-nota-costo"></div></td>

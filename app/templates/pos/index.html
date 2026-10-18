@@ -4,10 +4,18 @@
 <div class="pos-layout" data-tasa-isv="{{ tasa_isv }}">
   <div class="card">
     <div class="card-title">Productos</div>
-    <input type="text" id="posBuscarProducto" placeholder="Buscar producto..." style="margin-bottom:12px;">
+    <input type="text" id="posBuscarProducto" placeholder="Buscar producto, código o categoría..." style="margin-bottom:10px;">
+    {% set cats_pos = productos|map(attribute='categoria')|select|unique|sort|list %}
+    {% if cats_pos %}
+    <div class="m-chips" id="posCategorias" role="group" aria-label="Filtrar por categoría" style="margin-bottom:12px;">
+      <button type="button" class="m-chip on" data-cat="">Todas</button>
+      {% for c in cats_pos %}<button type="button" class="m-chip" data-cat="{{ c }}">{{ c }}</button>{% endfor %}
+    </div>
+    {% endif %}
     <div class="product-grid">
       {% for p in productos %}
-      <div class="product-card" data-id="{{ p.id }}" data-nombre="{{ p.nombre }}" data-precio="{{ p.precio_venta }}" data-existencia="{{ p.existencia }}">
+      <div class="product-card" data-id="{{ p.id }}" data-nombre="{{ p.nombre }}" data-codigo="{{ p.codigo }}" data-categoria="{{ p.categoria or '' }}" data-precio="{{ p.precio_venta }}" data-existencia="{{ p.existencia }}">
+        <div class="pcat">{{ p.categoria or 'Sin categoría' }} · {{ p.codigo }}</div>
         <div class="pname">{{ p.nombre }}</div>
         <div class="pprice">{{ p.precio_venta|moneda(config_taller().moneda) }}</div>
         <div class="pstock">Disponible: {{ p.existencia }}</div>

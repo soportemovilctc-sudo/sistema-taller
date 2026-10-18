@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", function () {
       agregarAlCarrito({
         id: parseInt(card.getAttribute("data-id"), 10),
         nombre: card.getAttribute("data-nombre"),
+        categoria: card.getAttribute("data-categoria") || "",
         precio: parseFloat(card.getAttribute("data-precio")),
         existencia: parseInt(card.getAttribute("data-existencia"), 10),
       });
@@ -21,15 +22,24 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   var buscador = document.getElementById("posBuscarProducto");
-  if (buscador) {
-    buscador.addEventListener("input", function () {
-      var q = buscador.value.toLowerCase();
-      document.querySelectorAll(".product-card").forEach(function (card) {
-        var nombre = (card.getAttribute("data-nombre") || "").toLowerCase();
-        card.style.display = nombre.includes(q) ? "" : "none";
-      });
+  var catActiva = "";
+  function filtrarProductos() {
+    var q = buscador ? buscador.value.toLowerCase() : "";
+    document.querySelectorAll(".product-card").forEach(function (card) {
+      var texto = ((card.getAttribute("data-nombre") || "") + " " + (card.getAttribute("data-codigo") || "") + " " +
+                   (card.getAttribute("data-categoria") || "")).toLowerCase();
+      var okCat = !catActiva || card.getAttribute("data-categoria") === catActiva;
+      card.style.display = (okCat && texto.includes(q)) ? "" : "none";
     });
   }
+  if (buscador) buscador.addEventListener("input", filtrarProductos);
+  document.querySelectorAll("#posCategorias .m-chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      catActiva = chip.getAttribute("data-cat") || "";
+      document.querySelectorAll("#posCategorias .m-chip").forEach(function (c) { c.classList.toggle("on", c === chip); });
+      filtrarProductos();
+    });
+  });
 
   var descuentoInput = document.getElementById("posDescuento");
   if (descuentoInput) descuentoInput.addEventListener("input", actualizarTotales);
@@ -47,7 +57,7 @@ function agregarAlCarrito(producto) {
   if (existente) {
     if (existente.cantidad < producto.existencia) existente.cantidad += 1;
   } else {
-    carrito.push({ id: producto.id, nombre: producto.nombre, precio: producto.precio, precioLista: producto.precio, cantidad: 1, existencia: producto.existencia });
+    carrito.push({ id: producto.id, nombre: producto.nombre, categoria: producto.categoria, precio: producto.precio, precioLista: producto.precio, cantidad: 1, existencia: producto.existencia });
   }
   renderCarrito();
 }
@@ -103,8 +113,10 @@ function renderCarrito() {
     row.setAttribute("data-id", item.id);
     var nombreSeguro = document.createElement("span");
     nombreSeguro.textContent = item.nombre;
+    var catSegura = document.createElement("span");
+    catSegura.textContent = item.categoria || "";
     row.innerHTML =
-      '<span class="name">' + nombreSeguro.innerHTML +
+      '<span class="name">' + (item.categoria ? '<small class="cart-cat">' + catSegura.innerHTML + '</small>' : '') + nombreSeguro.innerHTML +
         '<label class="cart-precio"><span>Precio c/u (sin ISV)</span>' +
         '<input type="number" min="0" step="0.01" class="cart-price-input" value="' + item.precio.toFixed(2) +
         '" oninput="cambiarPrecio(' + item.id + ', this.value)" aria-label="Precio de ' + nombreSeguro.innerHTML + '"></label>' +

@@ -29,7 +29,7 @@
       {% set p = fila.producto %}
       <tr>
         <td>{{ p.codigo }}</td>
-        <td>{{ p.nombre }}</td>
+        <td>{{ p.nombre }}{% if p.categoria %}<span class="cat-tag">{{ p.categoria }}</span>{% endif %}</td>
         <td>{{ p.caja or '-' }}</td>
         <td>{{ p.costo|moneda(config_taller().moneda) }}</td>
         <td><b>{{ fila.costo_con_impuesto|moneda(config_taller().moneda) }}</b></td>

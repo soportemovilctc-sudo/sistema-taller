@@ -40,7 +40,7 @@
         {% for d in ajuste.detalles %}
         <tr>
           <td>{{ d.producto_codigo }}</td>
-          <td>{% if d.producto %}<a href="/inventario/{{ d.producto_id }}/movimiento">{{ d.producto_nombre }}</a>{% else %}{{ d.producto_nombre }}{% endif %}</td>
+          <td>{% if d.producto %}<a href="/inventario/{{ d.producto_id }}/movimiento">{{ d.producto_nombre }}</a>{% if d.producto.categoria %}<span class="cat-tag">{{ d.producto.categoria }}</span>{% endif %}{% else %}{{ d.producto_nombre }}{% endif %}</td>
           <td>{{ d.existencia_anterior }}</td>
           <td>{{ d.existencia_nueva }}</td>
           <td style="font-weight:600; color:{{ 'var(--danger)' if d.diferencia < 0 else 'var(--success)' }};">{{ '+' if d.diferencia > 0 else '' }}{{ d.diferencia }}</td>

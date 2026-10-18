@@ -89,7 +89,7 @@
       {% if stock_bajo %}
       <div class="m-sec-t" style="margin-top:30px;"><span>Stock bajo el mínimo · {{ stock_bajo|length }}</span><a href="/inventario">Inventario →</a></div>
       {% for p in stock_bajo[:6] %}
-      <a class="m-row" href="/inventario/{{ p.id }}/movimiento"><span>{{ p.nombre }}</span><span class="r m-bad">{{ p.existencia }} <span class="m-muted" style="font-weight:400;">/ {{ p.stock_minimo }}</span></span></a>
+      <a class="m-row" href="/inventario/{{ p.id }}/movimiento"><span>{{ p.nombre }}{% if p.categoria %} <span class="m-muted" style="font-size:12px;">· {{ p.categoria }}</span>{% endif %}</span><span class="r m-bad">{{ p.existencia }} <span class="m-muted" style="font-weight:400;">/ {{ p.stock_minimo }}</span></span></a>
       {% endfor %}
       {% endif %}
     </section>

@@ -28,7 +28,7 @@
       <select id="pickerProducto" class="js-buscar-select" data-placeholder="Escribe el código o nombre del producto y presiona Enter...">
         <option value="">Selecciona un producto...</option>
         {% for p in productos %}
-        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" data-categoria="{{ p.categoria or '' }}">{{ p.codigo }} · {{ p.nombre }} (hay {{ p.existencia or 0 }})</option>
+        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" data-categoria="{{ p.categoria or '' }}">{% if p.categoria %}[{{ p.categoria }}] {% endif %}{{ p.codigo }} · {{ p.nombre }} (hay {{ p.existencia or 0 }})</option>
         {% endfor %}
       </select>
       <div class="help">Agrega todos los productos que quieras; cada uno se puede subir, bajar o dejar en una existencia exacta.</div>
@@ -161,7 +161,7 @@
       '<td><button type="button" class="btn btn-outline btn-sm c-quitar">Quitar</button></td>';
     tr.querySelector('input[name="producto_id"]').value = opcion.value;
     tr.querySelector(".c-codigo").textContent = opcion.dataset.codigo;
-    tr.querySelector(".c-nombre").textContent = opcion.dataset.nombre;
+    tr.querySelector(".c-nombre").textContent = opcion.dataset.nombre + (opcion.dataset.categoria ? " · " + opcion.dataset.categoria : "");
     tr.querySelector('select[name="modo"]').value = modoInicial;
     cuerpo.appendChild(tr);
     recalcularFila(tr);

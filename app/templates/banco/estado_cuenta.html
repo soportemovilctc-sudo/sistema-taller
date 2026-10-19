@@ -71,7 +71,7 @@
           <td class="m-muted" style="white-space:nowrap;">{{ f.fecha|hn('%d/%m/%Y %I:%M %p') if f.fecha else f.dia.strftime('%d/%m/%Y') }}</td>
           <td style="font-weight:600; white-space:nowrap;" class="{{ 'm-bad' if f.tipo == 'salida' else ('m-warn' if f.tipo == 'ajuste' else '') }}">{{ f.tipo_texto }}</td>
           <td>{{ f.detalle }}{% if f.usuario %}<div class="m-muted" style="font-size:11.5px;">{{ f.usuario }}</div>{% endif %}</td>
-          <td class="m-muted" style="font-size:12.5px;">{{ f.referencia }}</td>
+          <td class="m-muted nw" style="font-size:12.5px;">{{ f.referencia }}</td>
           <td class="num m-ok" style="font-weight:700;">{{ f.entrada|moneda(moneda) if f.entrada else '' }}</td>
           <td class="num m-bad" style="font-weight:700;">{{ f.salida|moneda(moneda) if f.salida else '' }}</td>
           <td class="num" style="font-weight:800;">{{ f.saldo|moneda(moneda) }}</td>

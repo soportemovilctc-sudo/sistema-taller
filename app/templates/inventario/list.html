@@ -41,20 +41,20 @@
     </div>
   </form>
   <div class="table-wrap">
-  <table>
+  <table class="inv-tabla">
     <thead><tr><th style="width:52px;">Historial</th><th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Caja</th><th>Costo</th><th>Precio</th><th>Existencia</th><th>Mín.</th><th>Estado</th><th></th></tr></thead>
     <tbody>
       {% for p in productos %}
       <tr>
         <td><a href="/inventario/{{ p.id }}/movimiento" class="icon-hist" title="Ver el historial (kardex) de {{ p.codigo }}" aria-label="Ver el historial de {{ p.codigo }}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg></a></td>
-        <td>{{ p.codigo }}</td>
-        <td>{{ p.nombre }}</td>
-        <td>{{ p.categoria or '-' }}</td>
-        <td>{{ p.marca or '-' }}</td>
-        <td>{{ p.caja or '-' }}</td>
-        <td>{{ p.costo|moneda(config_taller().moneda) }}</td>
-        <td>{{ p.precio_venta|moneda(config_taller().moneda) }}</td>
-        <td>
+        <td class="nw" style="font-weight:600;">{{ p.codigo }}</td>
+        <td class="inv-nombre">{{ p.nombre }}</td>
+        <td class="nw">{{ p.categoria or '-' }}</td>
+        <td class="nw">{{ p.marca or '-' }}</td>
+        <td class="nw">{{ p.caja or '-' }}</td>
+        <td class="nw num">{{ p.costo|moneda(config_taller().moneda) }}</td>
+        <td class="nw num">{{ p.precio_venta|moneda(config_taller().moneda) }}</td>
+        <td class="nw">
           {{ p.existencia }}
           {% if p.id in stock_bajo_ids %}<span class="badge badge-stock-bajo">Bajo</span>{% endif %}
         </td>

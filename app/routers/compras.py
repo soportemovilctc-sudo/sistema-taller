@@ -3,7 +3,7 @@ La lógica está en app/utils/compras.py."""
 from decimal import Decimal
 
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, Response
 from sqlalchemy.orm import Session, selectinload
 
 from app.templates_env import templates
@@ -128,6 +128,81 @@ def compras_producto_rapido(
                          "existencia": 0, "precio": str(p.precio_venta or 0)})
 
 
+# ---------------------------------------------------------------------------
+# Documentos: comprobante de cada recepción y reporte por período
+# ---------------------------------------------------------------------------
+def _cfg():
+    from app.templates_env import obtener_config_actual
+    cfg = obtener_config_actual()
+    return cfg.get("nombre_taller", "Mi Taller"), cfg.get("moneda", "L")
+
+
+def _reporte(db, desde, hasta, proveedor):
+    from app.routers.ajustes_inventario import _rango
+    from app.utils.pdf_compras import reporte_recepciones
+    d, h, inicio, fin = _rango(desde, hasta, por_defecto_mes=True)
+    rango_txt = f"{d.strftime('%d/%m/%Y') if d else 'inicio'} al {h.strftime('%d/%m/%Y') if h else 'hoy'}"
+    filtros = f"Proveedor: {proveedor.strip()}" if proveedor.strip() else ""
+    return d, h, reporte_recepciones(db, inicio, fin, proveedor), rango_txt, filtros
+
+
+@router.get(BASE + "/recepciones")
+def compras_recepciones(request: Request, desde: str = "", hasta: str = "", proveedor: str = "",
+                        db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from app.utils.turnos_caja import hoy_local
+    d, h, datos, rango_txt, _ = _reporte(db, desde, hasta, proveedor)
+    proveedores = [p for (p,) in db.query(RecepcionCompra.proveedor).distinct().order_by(RecepcionCompra.proveedor).all() if p]
+    return templates.TemplateResponse("compras/recepciones.html", {
+        "request": request, "usuario": usuario, "datos": datos, "rango_txt": rango_txt, "proveedor": proveedor,
+        "proveedores": proveedores, "desde": d.isoformat() if d else "", "hasta": h.isoformat() if h else "",
+        "hoy_iso": hoy_local().isoformat(),
+    })
+
+
+@router.get(BASE + "/recepciones/pdf")
+def compras_recepciones_pdf(desde: str = "", hasta: str = "", proveedor: str = "", descargar: int = 0,
+                            db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from app.utils.pdf_compras import pdf_reporte_recepciones
+    _, _, datos, rango_txt, filtros = _reporte(db, desde, hasta, proveedor)
+    nombre, moneda = _cfg()
+    modo = "attachment" if descargar else "inline"
+    return Response(pdf_reporte_recepciones(datos, rango_txt, nombre, moneda, filtros), media_type="application/pdf",
+                    headers={"Content-Disposition": f'{modo}; filename="reporte_recepciones_compra.pdf"'})
+
+
+@router.get(BASE + "/recepciones/excel")
+def compras_recepciones_excel(desde: str = "", hasta: str = "", proveedor: str = "",
+                              db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from app.utils.pdf_compras import excel_reporte_recepciones, XLSX
+    _, _, datos, rango_txt, filtros = _reporte(db, desde, hasta, proveedor)
+    nombre, moneda = _cfg()
+    return Response(excel_reporte_recepciones(datos, rango_txt, nombre, moneda, filtros), media_type=XLSX,
+                    headers={"Content-Disposition": 'attachment; filename="reporte_recepciones_compra.xlsx"'})
+
+
+@router.get(BASE + "/recepcion/{recepcion_id}/pdf")
+def compras_recepcion_pdf(recepcion_id: int, descargar: int = 0, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from app.utils.pdf_compras import pdf_recepcion, pagos_de_recepcion
+    rec = db.get(RecepcionCompra, recepcion_id)
+    if not rec:
+        return RedirectResponse(BASE, status_code=303)
+    nombre, moneda = _cfg()
+    modo = "attachment" if descargar else "inline"
+    return Response(pdf_recepcion(rec, pagos_de_recepcion(db, rec.id), nombre, moneda), media_type="application/pdf",
+                    headers={"Content-Disposition": f'{modo}; filename="recepcion_{rec.numero}.pdf"'})
+
+
+@router.get(BASE + "/recepcion/{recepcion_id}/excel")
+def compras_recepcion_excel(recepcion_id: int, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from app.utils.pdf_compras import excel_recepcion, pagos_de_recepcion, XLSX
+    rec = db.get(RecepcionCompra, recepcion_id)
+    if not rec:
+        return RedirectResponse(BASE, status_code=303)
+    nombre, moneda = _cfg()
+    return Response(excel_recepcion(rec, pagos_de_recepcion(db, rec.id), nombre, moneda), media_type=XLSX,
+                    headers={"Content-Disposition": f'attachment; filename="recepcion_{rec.numero}.xlsx"'})
+
+
 @router.get(BASE + "/{solicitud_id}")
 def compras_detalle(solicitud_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
     sol = db.get(SolicitudCompra, solicitud_id)
@@ -177,8 +252,9 @@ async def compras_recibir(solicitud_id: int, request: Request, db: Session = Dep
         return RedirectResponse(f"{BASE}/{solicitud_id}/recibir", status_code=303)
     db.commit()
     extra = " Quedó por pagar al proveedor." if rec.forma_pago == PAGO_COMPRA_CREDITO else ""
-    flash(request, f"Recepción {rec.numero} registrada: entraron {sum(d.cantidad for d in rec.detalles)} unidades al inventario.{extra}", "success")
-    return RedirectResponse(f"{BASE}/{solicitud_id}", status_code=303)
+    flash(request, f"Recepción {rec.numero} registrada: entraron {sum(d.cantidad for d in rec.detalles)} unidades al inventario.{extra}"
+          " El comprobante (PDF / Excel) está en la recepción.", "success")
+    return RedirectResponse(f"{BASE}/{solicitud_id}#rec-{rec.id}", status_code=303)
 
 
 @router.post(BASE + "/{solicitud_id}/anular")

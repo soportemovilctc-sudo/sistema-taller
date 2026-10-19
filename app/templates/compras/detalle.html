@@ -49,9 +49,15 @@
   {% for r in sol.recepciones %}
   <div class="m-sec" id="rec-{{ r.id }}">
     <div class="m-sec-t"><span>Recepción {{ r.numero }} · {{ r.fecha|hn }}</span><span class="m-muted" style="text-transform:none; letter-spacing:0; font-weight:500;">por {{ r.usuario_nombre }}{% if r.factura_proveedor %} · factura del proveedor {{ r.factura_proveedor }}{% endif %}</span></div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:-4px 0 12px;">
+      <span class="m-muted" style="font-size:13px;">Comprobante de ingreso:</span>
+      <a href="/compras/recepcion/{{ r.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF</a>
+      <a href="/compras/recepcion/{{ r.id }}/pdf?descargar=1" class="btn btn-outline btn-sm">Descargar PDF</a>
+      <a href="/compras/recepcion/{{ r.id }}/excel" class="btn btn-success btn-sm">Excel</a>
+    </div>
     <div class="table-wrap">
       <table class="m-table">
-        <thead><tr><th>Producto</th><th class="num">Llegó</th><th class="num">Costo c/u</th><th class="num">Subtotal</th><th class="num">Costo del producto</th><th class="num">Precio de venta</th></tr></thead>
+        <thead><tr><th>Producto</th><th class="num">Llegó</th><th class="num">Costo c/u</th><th class="num">Subtotal</th><th class="num">Había → Quedó</th><th class="num">Costo del producto</th><th class="num">Precio de venta</th></tr></thead>
         <tbody>
           {% for d in r.detalles %}
           <tr>
@@ -59,15 +65,16 @@
             <td class="num">{{ d.cantidad }}</td>
             <td class="num">{{ d.costo_unitario|moneda(moneda) }}</td>
             <td class="num">{{ d.subtotal|moneda(moneda) }}</td>
+            <td class="num m-muted">{{ d.existencia_anterior }} → <b style="color:var(--text);">{{ d.existencia_anterior + d.cantidad }}</b></td>
             <td class="num m-muted">{{ d.costo_anterior|moneda(moneda) }} → <b style="color:var(--text);">{{ d.costo_nuevo|moneda(moneda) }}</b></td>
             <td class="num m-muted">{% if d.precio_nuevo is not none and d.precio_anterior != d.precio_nuevo %}{{ d.precio_anterior|moneda(moneda) }} → <b style="color:var(--text);">{{ d.precio_nuevo|moneda(moneda) }}</b>{% elif d.precio_nuevo is not none %}{{ d.precio_nuevo|moneda(moneda) }}{% else %}—{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
         <tfoot>
-          <tr><td colspan="3" class="num m-muted" style="font-weight:500;">Mercadería</td><td class="num">{{ r.subtotal|moneda(moneda) }}</td><td colspan="2"></td></tr>
-          {% if r.isv %}<tr><td colspan="3" class="num m-muted" style="font-weight:500;">ISV de la factura</td><td class="num">{{ r.isv|moneda(moneda) }}</td><td colspan="2"></td></tr>{% endif %}
-          <tr><td colspan="3" class="num">Total</td><td class="num" style="font-size:18px;">{{ r.total|moneda(moneda) }}</td><td colspan="2"></td></tr>
+          <tr><td colspan="3" class="num m-muted" style="font-weight:500;">Mercadería</td><td class="num">{{ r.subtotal|moneda(moneda) }}</td><td colspan="3"></td></tr>
+          {% if r.isv %}<tr><td colspan="3" class="num m-muted" style="font-weight:500;">ISV de la factura</td><td class="num">{{ r.isv|moneda(moneda) }}</td><td colspan="3"></td></tr>{% endif %}
+          <tr><td colspan="3" class="num">Total</td><td class="num" style="font-size:18px;">{{ r.total|moneda(moneda) }}</td><td colspan="3"></td></tr>
         </tfoot>
       </table>
     </div>

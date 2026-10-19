@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Ingresos de mercadería{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+{% set t = datos.total %}
+{% set qs = 'desde=' ~ desde ~ '&hasta=' ~ hasta ~ '&proveedor=' ~ (proveedor|urlencode) %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <a href="/compras" class="m-muted" style="font-size:13px;">← Compras</a>
+      <h1 class="m-title" style="margin-top:6px;">Ingresos de mercadería</h1>
+      <div class="m-sub">Todas las recepciones de compra del período, con cantidades, costos y existencia antes y después. {{ rango_txt }}{% if proveedor %} · {{ proveedor }}{% endif %}</div>
+    </div>
+    <div class="m-acciones">
+      <a href="/compras/recepciones/pdf?{{ qs }}" target="_blank" class="btn btn-outline btn-sm">Ver PDF</a>
+      <a href="/compras/recepciones/pdf?{{ qs }}&descargar=1" class="btn btn-outline btn-sm">Descargar PDF</a>
+      <a href="/compras/recepciones/excel?{{ qs }}" class="btn btn-success btn-sm">Excel</a>
+    </div>
+  </div>
+
+  <form method="get" action="/compras/recepciones" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:22px;">
+    <div class="field" style="margin:0;"><label for="f-desde">Desde</label><input id="f-desde" type="date" name="desde" value="{{ desde }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="margin:0;"><label for="f-hasta">Hasta</label><input id="f-hasta" type="date" name="hasta" value="{{ hasta }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="margin:0; flex:1 1 220px;">
+      <label for="f-prov">Proveedor</label>
+      <input id="f-prov" type="search" name="proveedor" value="{{ proveedor }}" list="lista-prov" placeholder="Todos">
+      <datalist id="lista-prov">{% for p in proveedores %}<option value="{{ p }}">{% endfor %}</datalist>
+    </div>
+    <button type="submit" class="btn btn-outline">Ver</button>
+  </form>
+
+  <div class="m-stats" style="padding-bottom:22px; border-bottom:1px solid var(--border);">
+    <div><div class="m-label">Total comprado</div><div class="m-hero">{{ t.total|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Unidades que entraron</div><div class="m-val">{{ t.unidades }}</div></div>
+    <div><div class="m-label">Mercadería sin ISV</div><div class="m-val">{{ t.subtotal|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Saldo por pagar</div><div class="m-val {{ 'm-bad' if t.saldo > 0 else '' }}">{{ t.saldo|moneda(moneda) }}</div></div>
+  </div>
+
+  <div class="m-sec">
+    <div class="m-sec-t"><span>Recepciones ({{ t.recepciones }})</span></div>
+    <div class="table-wrap">
+      <table class="m-table">
+        <thead><tr><th>Fecha</th><th>Recepción</th><th>Proveedor</th><th>Factura</th><th>Pago</th><th class="num">Unid.</th><th class="num">Total</th><th class="num">Saldo</th><th class="num">Comprobante</th></tr></thead>
+        <tbody>
+          {% for x in datos.recepciones %}{% set r = x.rec %}
+          <tr>
+            <td class="m-muted">{{ r.fecha|hn('%d/%m/%Y') }}</td>
+            <td><a href="/compras/{{ r.solicitud_id }}#rec-{{ r.id }}" style="font-weight:700; color:var(--text);">{{ r.numero }}</a></td>
+            <td>{{ r.proveedor }}</td>
+            <td class="m-muted">{{ r.factura_proveedor or '—' }}</td>
+            <td class="m-muted">{{ r.forma_pago }}</td>
+            <td class="num">{{ x.unidades }}</td>
+            <td class="num" style="font-weight:700;">{{ r.total|moneda(moneda) }}</td>
+            <td class="num">{% if r.saldo > 0 %}<span class="m-bad">{{ r.saldo|moneda(moneda) }}</span>{% else %}<span class="m-muted">—</span>{% endif %}</td>
+            <td class="num" style="white-space:nowrap;"><a href="/compras/recepcion/{{ r.id }}/pdf" target="_blank">PDF</a> · <a href="/compras/recepcion/{{ r.id }}/excel">Excel</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="empty-state">No hay recepciones en este período{% if proveedor %} para ese proveedor{% endif %}.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if datos.por_producto %}
+  <div class="m-sec">
+    <div class="m-sec-t"><span>Por producto</span></div>
+    <div class="table-wrap">
+      <table class="m-table">
+        <thead><tr><th>Producto</th><th class="num">Unidades</th><th class="num">Costo promedio</th><th class="num">Valor sin ISV</th></tr></thead>
+        <tbody>
+          {% for g in datos.por_producto %}
+          <tr>
+            <td><b>{{ g.codigo }}</b> <span class="m-muted">· {{ g.nombre }}</span>{% if g.categoria %}<span class="cat-tag">{{ g.categoria }}</span>{% endif %}</td>
+            <td class="num">{{ g.unidades }}</td>
+            <td class="num">{{ g.costo_promedio|moneda(moneda) }}</td>
+            <td class="num" style="font-weight:700;">{{ g.valor|moneda(moneda) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

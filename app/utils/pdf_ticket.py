@@ -190,12 +190,10 @@ def generar_ticket_orden(data: dict) -> bytes:
         t.parrafo(f"IMEI: {equipo['imei']}", alto=9)
     t.espacio(2)
 
-    if data.get("mostrar_seguridad_en_pdf") and (data.get("pin") or data.get("patron")):
+    if data.get("mostrar_seguridad_en_pdf") and data.get("acceso_partes"):
         t.texto("ACCESO AL EQUIPO", tam=8, negrita=True, alto=10)
-        if data.get("pin"):
-            t.parrafo(f"PIN: {data['pin']}", alto=9)
-        if data.get("patron"):
-            t.parrafo(f"Patron: {data['patron']}", alto=9)
+        for linea in data["acceso_partes"]:
+            t.parrafo(linea, alto=9)
         t.espacio(2)
 
     if data.get("falla_reportada"):

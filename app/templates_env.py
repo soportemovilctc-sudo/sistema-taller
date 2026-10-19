@@ -132,3 +132,21 @@ def fmt_hora_local(valor, formato="%d/%m/%Y %I:%M %p"):
 
 
 templates.env.filters["hn"] = fmt_hora_local
+
+
+# Nombre legible de los estados de orden (con tildes y en minúscula).
+ESTADOS_LEGIBLES = {
+    "RECIBIDO": "Recibido", "EN DIAGNOSTICO": "En diagnóstico", "COTIZADO": "Cotizado",
+    "ESPERANDO APROBACION": "Esperando aprobación", "ESPERANDO REPUESTO": "Esperando repuesto",
+    "EN REPARACION": "En reparación", "LISTO PARA ENTREGAR": "Listo para entregar",
+    "ENTREGADO": "Entregado", "CANCELADO": "Cancelado",
+}
+
+
+def fmt_estado(valor):
+    if not valor:
+        return ""
+    return ESTADOS_LEGIBLES.get(valor, str(valor).capitalize())
+
+
+templates.env.filters["estado_txt"] = fmt_estado

@@ -134,12 +134,8 @@ def generar_pdf_orden(data: dict) -> bytes:
         [Paragraph("Observaciones:", styles["CeldaBold"]), Paragraph(data.get("observaciones", "") or "-", styles["Celda"])],
         [Paragraph("Técnico:", styles["CeldaBold"]), Paragraph(data.get("tecnico", "") or "-", styles["Celda"])],
     ]
-    if data.get("mostrar_seguridad_en_pdf") and (data.get("pin") or data.get("patron")):
-        seguridad_partes = []
-        if data.get("pin"):
-            seguridad_partes.append(f"PIN: {data['pin']}")
-        if data.get("patron"):
-            seguridad_partes.append(f"Patrón: {data['patron']}")
+    if data.get("mostrar_seguridad_en_pdf") and data.get("acceso_partes"):
+        seguridad_partes = data["acceso_partes"]
         filas_detalle.append([Paragraph("Acceso al equipo:", styles["CeldaBold"]), Paragraph(" / ".join(seguridad_partes), styles["Celda"])])
     detalle_tbl = Table(filas_detalle, colWidths=[3.2 * cm, 14.4 * cm])
     detalle_tbl.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
@@ -264,6 +260,7 @@ def construir_contexto_pdf(orden, config) -> dict:
         "pin": orden.pin,
         "patron": orden.patron,
         "mostrar_seguridad_en_pdf": bool(orden.mostrar_seguridad_en_pdf),
+        "acceso_partes": orden.acceso_partes(),
         "cliente": {
             "nombre": (orden.cliente.nombre or "") if orden.cliente else "",
             "telefono": (orden.cliente.telefono or "") if orden.cliente else "",
@@ -480,10 +477,7 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
             if items_servicios:
                 partes.append(f"Servicios adicionales: {items_servicios}")
         if getattr(orden, "mostrar_seguridad_en_pdf", False):
-            if orden.pin:
-                partes.append(f"PIN: {orden.pin}")
-            if orden.patron:
-                partes.append(f"Patrón: {orden.patron}")
+            partes.extend(orden.acceso_partes())
         descripcion = " · ".join(p for p in partes if p)
     elif venta:
         # Recibo generado a partir de una venta del Punto de Venta (no viene

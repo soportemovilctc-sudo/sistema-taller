@@ -24,7 +24,7 @@
   <div class="kpi {{ 'accent-green' if balance >= 0 else 'accent-red' }}"><div class="kpi-label">Balance</div><div class="kpi-value">{{ balance|moneda(config_taller().moneda) }}</div></div>
 </div>
 
-<div class="grid cols-2">
+<div class="grid" style="grid-template-columns: minmax(240px, 1fr) minmax(0, 2.6fr); align-items:start;">
   <div class="card">
     <div class="card-title">Registrar ingreso / gasto</div>
     <p class="help">Los ingresos y gastos ahora se registran desde <a href="/caja/registrar"><b>Caja → Registrar movimientos</b></a>, para que queden en la caja abierta y cuadren en el cierre del día.</p>
@@ -39,10 +39,10 @@
       <tbody>
         {% for m in movimientos %}
         <tr>
-          <td>{{ m.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
+          <td class="nw">{{ m.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
           <td>{% if m.tipo == 'ingreso' %}<span class="badge badge-listo-para-entregar">Ingreso</span>{% else %}<span class="badge badge-cancelado">Gasto</span>{% endif %}</td>
           <td>{{ m.categoria }}</td>
-          <td>{{ m.monto|moneda(config_taller().moneda) }}</td>
+          <td class="nw num">{{ m.monto|moneda(config_taller().moneda) }}</td>
           <td>{{ m.descripcion or m.referencia or '-' }}</td>
         </tr>
         {% else %}

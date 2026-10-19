@@ -7,7 +7,7 @@
   <div class="m-head">
     <div>
       <h1 class="m-title">Órdenes</h1>
-      <div class="m-sub">{{ ordenes|length }} de {{ total_ordenes }}{% if estado %} · {{ estado|lower }}{% endif %}{% if vencidas %} · solo vencidas{% endif %}</div>
+      <div class="m-sub">{{ ordenes|length }} de {{ total_ordenes }}{% if estado %} · {{ estado|estado_txt|lower }}{% endif %}{% if vencidas %} · solo vencidas{% endif %}</div>
     </div>
     <div class="m-acciones"><a href="/ordenes/nueva" class="btn btn-primary">+ Nueva orden</a></div>
   </div>
@@ -22,7 +22,7 @@
     <div class="m-chips" style="margin:14px 0 6px;" role="group" aria-label="Filtrar por estado">
       <a class="m-chip {{ 'on' if not estado and not vencidas else '' }}" href="/ordenes">Todas <b>{{ total_ordenes }}</b></a>
       {% for e in estados %}
-      <a class="m-chip {{ 'on' if e == estado else '' }}" href="/ordenes?estado={{ e|urlencode }}">{{ e|capitalize }} <b>{{ conteo_estados.get(e, 0) }}</b></a>
+      <a class="m-chip {{ 'on' if e == estado else '' }}" href="/ordenes?estado={{ e|urlencode }}">{{ e|estado_txt }} <b>{{ conteo_estados.get(e, 0) }}</b></a>
       {% endfor %}
       <a class="m-chip {{ 'on' if vencidas else '' }}" href="/ordenes?vencidas=1" style="{{ '' if vencidas else 'color:var(--danger-text);' }}">Vencidas</a>
     </div>
@@ -70,12 +70,12 @@
             <form method="post" action="/ordenes/{{ o.id }}/estado" class="quick-estado">
               <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
               <select name="nuevo_estado" class="badge badge-select {{ 'badge-' + o.estado.lower().replace(' ', '-') }}" onchange="this.form.submit()" title="Cambiar estado" aria-label="Estado de {{ o.numero_orden }}">
-                {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == o.estado else '' }}>{{ e }}</option>{% endfor %}
+                {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == o.estado else '' }}>{{ e|estado_txt }}</option>{% endfor %}
               </select>
             </form>
             {% if o.estado == 'LISTO PARA ENTREGAR' and not o.notificado_listo %}<div class="m-warn" style="font-size:11.5px; margin-top:3px;">Cliente sin avisar</div>{% endif %}
           </td>
-          <td data-label="Días" class="num {{ 'm-bad' if _venc else 'm-muted' }}" style="font-weight:{{ '700' if _venc else '400' }};">{{ o.dias_en_taller() }}{% if _venc %} · vencida{% endif %}</td>
+          <td data-label="Días" class="num">{% if _venc %}<span class="pill pill-bad" title="Vencida: más de {{ umbral }} días">{{ o.dias_en_taller() }} días</span>{% else %}<span class="m-muted">{{ o.dias_en_taller() }} días</span>{% endif %}</td>
           <td data-label="Saldo" class="num" style="font-weight:800; {{ 'color:var(--text-muted); font-weight:500;' if not o.saldo else '' }}">{{ o.saldo|moneda(moneda) }}</td>
         </tr>
         {% else %}

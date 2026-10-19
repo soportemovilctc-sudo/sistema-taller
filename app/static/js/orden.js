@@ -60,77 +60,188 @@ function inicializarValidacionEnvio() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Acceso al equipo: métodos de bloqueo, PIN, patrón y contraseña.
+// ---------------------------------------------------------------------------
 function inicializarPin() {
-  var display = document.getElementById("pinDisplay");
-  var hidden = document.getElementById("pinValor");
-  var pad = document.getElementById("pinPad");
-  var toggleBtn = document.getElementById("pinToggleVer");
-  if (!pad || !hidden || !display) return;
+  var card = document.querySelector(".acc-card");
+  if (!card) return;
+  var checks = card.querySelectorAll('input[name="tipo_bloqueo"]');
+  var resumen = document.getElementById("accResumen");
 
-  var oculto = true;
-
-  function actualizarDisplay() {
-    var valor = hidden.value || "";
-    display.textContent = valor ? (oculto ? "•".repeat(valor.length) : valor) : "Sin PIN";
+  function marcados() {
+    return Array.prototype.filter.call(checks, function (c) { return c.checked; }).map(function (c) { return c.value; });
   }
-
-  pad.querySelectorAll("button[data-num]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      if ((hidden.value || "").length >= 12) return;
-      hidden.value = (hidden.value || "") + btn.getAttribute("data-num");
-      actualizarDisplay();
+  function actualizarPaneles() {
+    var m = marcados();
+    card.querySelectorAll(".acc-panel").forEach(function (p) {
+      var claves = (p.getAttribute("data-metodo") || "").split(" ");
+      p.hidden = !claves.some(function (k) { return m.indexOf(k) >= 0; });
+    });
+    checks.forEach(function (c) { c.closest(".acc-metodo").classList.toggle("on", c.checked); });
+    if (resumen) {
+      var nombres = Array.prototype.filter.call(checks, function (c) { return c.checked; })
+        .map(function (c) { return c.closest(".acc-metodo").querySelector("span").textContent; });
+      resumen.textContent = nombres.length ? nombres.join(" · ") : (card.open ? "toca para ocultar" : "toca para registrar el bloqueo");
+    }
+  }
+  checks.forEach(function (c) {
+    c.addEventListener("change", function () {
+      var exclusivo = c.value === "sin" || c.value === "no_dio";
+      if (c.checked) {
+        checks.forEach(function (o) {
+          if (o === c) return;
+          var oExcl = o.value === "sin" || o.value === "no_dio";
+          if (exclusivo || oExcl) o.checked = false;
+        });
+      }
+      actualizarPaneles();
+      if (c.checked) {
+        var panel = card.querySelector('.acc-panel[data-metodo~="' + c.value + '"]');
+        var foco = panel && panel.querySelector("input:not([type=hidden])");
+        if (foco && window.matchMedia("(pointer:fine)").matches) foco.focus();
+      }
     });
   });
-  var borrarBtn = document.getElementById("pinBorrar");
-  var limpiarBtn = document.getElementById("pinLimpiar");
-  if (borrarBtn) borrarBtn.addEventListener("click", function () {
-    hidden.value = (hidden.value || "").slice(0, -1);
-    actualizarDisplay();
+  card.addEventListener("toggle", actualizarPaneles);
+
+  // Botón "Ver" de los campos de clave.
+  card.querySelectorAll(".acc-ojo").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var inp = document.getElementById(b.getAttribute("data-ver"));
+      if (!inp) return;
+      var ver = inp.type === "password";
+      inp.type = ver ? "text" : "password";
+      b.textContent = ver ? "Ocultar" : "Ver";
+    });
   });
-  if (limpiarBtn) limpiarBtn.addEventListener("click", function () {
-    hidden.value = "";
-    actualizarDisplay();
-  });
-  if (toggleBtn) toggleBtn.addEventListener("click", function () {
-    oculto = !oculto;
-    toggleBtn.textContent = oculto ? "Mostrar" : "Ocultar";
-    actualizarDisplay();
-  });
-  actualizarDisplay();
+
+  // Teclado del PIN (también se puede escribir con el teclado).
+  var pin = document.getElementById("pinValor");
+  var pad = document.getElementById("pinPad");
+  if (pin) {
+    pin.addEventListener("input", function () { pin.value = pin.value.replace(/\D/g, "").slice(0, 20); });
+  }
+  if (pad && pin) {
+    pad.querySelectorAll("button[data-num]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (pin.value.length >= 20) return;
+        pin.value += btn.getAttribute("data-num");
+        btn.classList.add("pulsado");
+        setTimeout(function () { btn.classList.remove("pulsado"); }, 120);
+      });
+    });
+    var borrar = document.getElementById("pinBorrar");
+    var limpiar = document.getElementById("pinLimpiar");
+    if (borrar) borrar.addEventListener("click", function () { pin.value = pin.value.slice(0, -1); });
+    if (limpiar) limpiar.addEventListener("click", function () { pin.value = ""; });
+  }
+  var sim = document.getElementById("pinSim");
+  if (sim) sim.addEventListener("input", function () { sim.value = sim.value.replace(/\D/g, "").slice(0, 20); });
+
+  actualizarPaneles();
 }
 
 function inicializarPatron() {
   var grid = document.getElementById("patronGrid");
   var hidden = document.getElementById("patronValor");
   var display = document.getElementById("patronDisplay");
+  var linea = document.getElementById("patronLinea");
   if (!grid || !hidden) return;
 
-  var seleccion = (hidden.value || "").split(",").filter(Boolean);
+  var seleccion = (hidden.value || "").split(",").filter(function (x) { return /^[1-9]$/.test(x); });
+  var dibujando = false;
+  var puntoMovil = null; // punto donde está el dedo mientras se arrastra
 
+  function centro(id) {
+    var n = parseInt(id, 10) - 1;
+    return { x: 50 + (n % 3) * 100, y: 50 + Math.floor(n / 3) * 100 };
+  }
   function pintar() {
-    grid.querySelectorAll(".patron-dot").forEach(function (dot) {
-      dot.classList.toggle("active", seleccion.includes(dot.getAttribute("data-id")));
+    grid.querySelectorAll(".acc-punto").forEach(function (p) {
+      var idx = seleccion.indexOf(p.getAttribute("data-id"));
+      p.classList.toggle("on", idx >= 0);
+      p.classList.toggle("inicio", idx === 0);
+      p.querySelector("span").textContent = idx >= 0 ? String(idx + 1) : "";
     });
-    if (display) display.textContent = seleccion.length ? ("Patrón: " + seleccion.join(" - ")) : "Sin patrón";
+    var pts = seleccion.map(function (id) { var c = centro(id); return c.x + "," + c.y; });
+    if (puntoMovil && seleccion.length) pts.push(puntoMovil.x + "," + puntoMovil.y);
+    if (linea) linea.setAttribute("points", pts.join(" "));
+    if (display) display.textContent = seleccion.length ? seleccion.join(" → ") : "sin dibujar";
     hidden.value = seleccion.join(",");
   }
-
-  grid.querySelectorAll(".patron-dot").forEach(function (dot) {
-    dot.addEventListener("click", function () {
-      var id = dot.getAttribute("data-id");
-      var idx = seleccion.indexOf(id);
-      if (idx >= 0) {
-        seleccion = seleccion.slice(0, idx); // deshacer desde ese punto
-      } else {
-        seleccion.push(id);
+  function agregar(id) {
+    if (seleccion.indexOf(id) >= 0) return;
+    // Como en Android: si se salta un punto que está en medio, también cuenta.
+    var ultimo = seleccion[seleccion.length - 1];
+    if (ultimo) {
+      var a = parseInt(ultimo, 10) - 1, b = parseInt(id, 10) - 1;
+      var fa = Math.floor(a / 3), ca = a % 3, fb = Math.floor(b / 3), cb = b % 3;
+      if ((fa + fb) % 2 === 0 && (ca + cb) % 2 === 0) {
+        var medio = String(((fa + fb) / 2) * 3 + (ca + cb) / 2 + 1);
+        if (seleccion.indexOf(medio) < 0) seleccion.push(medio);
       }
-      pintar();
+    }
+    seleccion.push(id);
+    if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
+  }
+  function puntoBajo(ev) {
+    var el = document.elementFromPoint(ev.clientX, ev.clientY);
+    var punto = el && el.closest ? el.closest(".acc-punto") : null;
+    if (!punto || !grid.contains(punto)) return null;
+    // Solo cuenta si el dedo está cerca del centro del punto.
+    var r = punto.getBoundingClientRect();
+    var dx = ev.clientX - (r.left + r.width / 2), dy = ev.clientY - (r.top + r.height / 2);
+    return Math.sqrt(dx * dx + dy * dy) <= r.width * 0.55 ? punto.getAttribute("data-id") : null;
+  }
+  function aCoordenadas(ev) {
+    var r = grid.getBoundingClientRect();
+    return { x: (ev.clientX - r.left) / r.width * 300, y: (ev.clientY - r.top) / r.height * 300 };
+  }
+
+  grid.addEventListener("pointerdown", function (ev) {
+    var id = puntoBajo(ev);
+    if (!id) return;
+    ev.preventDefault();
+    if (seleccion.length && seleccion.indexOf(id) < 0 && !dibujando) {
+      // Tocar puntos uno por uno también funciona (sigue el patrón).
+    }
+    dibujando = true;
+    try { grid.setPointerCapture(ev.pointerId); } catch (e) {}
+    agregar(id);
+    pintar();
+  });
+  grid.addEventListener("pointermove", function (ev) {
+    if (!dibujando) return;
+    ev.preventDefault();
+    var id = puntoBajo(ev);
+    if (id) agregar(id);
+    puntoMovil = aCoordenadas(ev);
+    pintar();
+  });
+  function terminar() {
+    dibujando = false;
+    puntoMovil = null;
+    pintar();
+  }
+  grid.addEventListener("pointerup", terminar);
+  grid.addEventListener("pointercancel", terminar);
+  // Con teclado: Enter/Espacio en un punto lo agrega.
+  grid.querySelectorAll(".acc-punto").forEach(function (p) {
+    p.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); agregar(p.getAttribute("data-id")); pintar(); }
     });
   });
-  var limpiarBtn = document.getElementById("patronLimpiar");
-  if (limpiarBtn) limpiarBtn.addEventListener("click", function () {
-    seleccion = [];
-    pintar();
+
+  var deshacer = document.getElementById("patronDeshacer");
+  var limpiar = document.getElementById("patronLimpiar");
+  if (deshacer) deshacer.addEventListener("click", function () { seleccion.pop(); pintar(); });
+  if (limpiar) limpiar.addEventListener("click", function () { seleccion = []; pintar(); });
+
+  // Al dibujar un patrón se marca solo el método «Patrón».
+  grid.addEventListener("pointerup", function () {
+    var chk = document.querySelector('input[name="tipo_bloqueo"][value="patron"]');
+    if (chk && seleccion.length && !chk.checked) { chk.checked = true; chk.dispatchEvent(new Event("change")); }
   });
   pintar();
 }

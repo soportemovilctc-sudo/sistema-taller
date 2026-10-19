@@ -35,7 +35,7 @@
     </div>
     <div class="field">
       <label>Estado</label>
-      <select name="estado"><option value="">Todos</option>{% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == estado else '' }}>{{ e }}</option>{% endfor %}</select>
+      <select name="estado"><option value="">Todos</option>{% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == estado else '' }}>{{ e|estado_txt }}</option>{% endfor %}</select>
     </div>
     {% endif %}
     <div class="field" style="flex:0; align-self:flex-end;"><button type="submit" class="btn btn-outline">Aplicar</button></div>
@@ -50,7 +50,7 @@
         {% for o in ordenes %}
         <tr><td>{{ o.numero_orden }}</td><td>{{ o.fecha|fecha }}</td><td>{{ o.cliente.nombre if o.cliente else '-' }}</td>
           <td>{{ o.marca }} {{ o.modelo }}</td><td>{{ o.tecnico.nombre if o.tecnico else '-' }}</td>
-          <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+          <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado|estado_txt }}</span></td>
           <td>{{ o.total|moneda(config_taller().moneda) }}</td><td>{{ o.saldo|moneda(config_taller().moneda) }}</td></tr>
         {% else %}<tr><td colspan="8" class="empty-state">Sin resultados.</td></tr>{% endfor %}
       </tbody>

@@ -30,7 +30,7 @@
 
   <div class="table-wrap">
     <table class="m-table">
-      <thead><tr><th>Solicitud</th><th>Fecha</th><th>Proveedor</th><th class="num">Productos</th><th class="num">Total</th><th>Estado</th><th class="num">Por pagar</th><th class="num">PDF</th></tr></thead>
+      <thead><tr><th>Solicitud</th><th>Fecha</th><th>Proveedor</th><th class="num">Productos</th><th class="num">Total (con ISV)</th><th>Estado</th><th class="num">Por pagar</th><th class="num">PDF</th></tr></thead>
       <tbody>
         {% for s in solicitudes %}
         {% set color = {'pendiente': 'm-warn', 'parcial': 'm-warn', 'recibida': 'm-ok', 'cerrada': 'm-muted', 'anulada': 'm-muted'}.get(s.estado, '') %}
@@ -39,7 +39,7 @@
           <td class="m-muted">{{ s.fecha|hn('%d/%m/%Y') }}</td>
           <td>{{ s.proveedor }}</td>
           <td class="num">{{ s.detalles|length }}</td>
-          <td class="num">{{ s.total_estimado|moneda(moneda) }}</td>
+          <td class="num" title="Sin ISV: {{ s.total_estimado|moneda(moneda) }}">{{ con_isv.get(s.id, s.total_estimado)|moneda(moneda) }}</td>
           <td><span class="m-dot {{ color }}" style="font-size:13px; font-weight:600;">{{ estados.get(s.estado, s.estado) }}</span></td>
           <td class="num" style="font-weight:700;">{% if saldos.get(s.id) %}<span class="m-bad">{{ saldos[s.id]|moneda(moneda) }}</span>{% else %}<span class="m-muted">—</span>{% endif %}</td>
           <td class="num"><a href="/compras/{{ s.id }}/pdf?descargar=1" title="Descargar la solicitud en PDF">PDF</a></td>

@@ -47,7 +47,7 @@
         <td><a href="/ordenes/{{ o.id }}">{{ o.numero_orden }}</a></td>
         <td>{{ o.fecha|fecha }}</td>
         <td>{{ o.marca }} {{ o.modelo }}</td>
-        <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado }}</span></td>
+        <td><span class="{{ 'badge badge-' + o.estado.lower().replace(' ', '-') }}">{{ o.estado|estado_txt }}</span></td>
         <td>{{ o.total|moneda(config_taller().moneda) }}</td>
         <td>{{ o.saldo|moneda(config_taller().moneda) }}</td>
       </tr>

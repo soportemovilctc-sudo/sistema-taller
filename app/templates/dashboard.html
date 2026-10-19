@@ -5,97 +5,115 @@
 {% set dias_semana = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'] %}
 {% set meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'] %}
 <div class="m-wrap">
-  <div class="m-head" style="align-items:center; margin-bottom:22px;">
-    <div class="m-muted" style="font-size:14px;">{{ dias_semana[hoy.weekday()]|capitalize }} {{ hoy.day }} de {{ meses[hoy.month - 1] }}</div>
-    {% if turno %}
-    <a href="/caja/turnos" class="m-ok" style="font-size:13px; font-weight:600;"><span class="m-dot"></span>Caja abierta desde {{ turno.fecha_apertura|hn('%I:%M %p') }}</a>
-    {% else %}
-    <a href="/caja/turnos" class="m-warn" style="font-size:13px; font-weight:600;"><span class="m-dot"></span>Caja cerrada</a>
-    {% endif %}
-  </div>
-
-  <section aria-label="Dinero de hoy" class="m-stats" style="gap:56px;">
+  {% set primer_nombre = (usuario.nombre_completo or usuario.username or '').split(' ')[0] %}
+  {% set saludo = 'Buenos días' if hora_local < 12 else ('Buenas tardes' if hora_local < 19 else 'Buenas noches') %}
+  <header class="d5-head">
     <div>
-      <div class="m-label">Cobrado hoy</div>
-      {% set cob = cobrado_hoy|moneda(moneda) %}
-      <div class="m-hero">{{ cob[:-3] }}<small>{{ cob[-3:] }}</small></div>
+      <h1 class="d5-saludo">{{ saludo }}, {{ primer_nombre }}</h1>
+      <div class="d5-fecha">{{ dias_semana[hoy.weekday()]|capitalize }} {{ hoy.day }} de {{ meses[hoy.month - 1] }}</div>
     </div>
-    <div class="m-stats" style="padding-bottom:6px;">
-      <div><div class="m-label">Efectivo en caja</div><div class="m-val">{{ efectivo_caja|moneda(moneda) if efectivo_caja is not none else '—' }}</div></div>
-      <div><div class="m-label">Gastos hoy</div><div class="m-val m-bad">{{ gastos_dia|moneda(moneda) }}</div></div>
-      <div><div class="m-label">Ingresos del mes</div><div class="m-val">{{ ingresos_mes|moneda(moneda) }}</div></div>
-      <div><div class="m-label">Por cobrar en órdenes</div><div class="m-val">{{ saldos_pendientes|moneda(moneda) }}</div></div>
+    {% if turno %}
+    <a href="/caja/turnos" class="pill pill-ok" style="height:30px; padding:0 12px; font-size:13px;">Caja abierta desde {{ turno.fecha_apertura|hn('%I:%M %p') }}</a>
+    {% else %}
+    <a href="/caja/turnos" class="pill pill-warn" style="height:30px; padding:0 12px; font-size:13px;">Caja cerrada · ábrela para cobrar</a>
+    {% endif %}
+  </header>
+
+  <section class="d5-kpis" aria-label="Dinero">
+    {% set cob = cobrado_hoy|moneda(moneda) %}
+    <div class="d5-kpi">
+      <div class="k"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><circle cx="12" cy="12" r="2.5"/></svg>Cobrado hoy</div>
+      <div class="v">{{ cob[:-3] }}<small>{{ cob[-3:] }}</small></div>
+      <div class="s">7 días: {{ (serie_ingresos|sum(attribute='total'))|moneda(moneda) }}</div>
+    </div>
+    <a class="d5-kpi" href="/caja">
+      <div class="k"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 11h18M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"/></svg>Efectivo en caja</div>
+      <div class="v">{{ efectivo_caja|moneda(moneda) if efectivo_caja is not none else '—' }}</div>
+      <div class="s">Gastos de hoy: {{ gastos_dia|moneda(moneda) }}</div>
+    </a>
+    <a class="d5-kpi" href="/cuentas-por-cobrar">
+      <div class="k"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Por cobrar</div>
+      <div class="v">{{ saldos_pendientes|moneda(moneda) }}</div>
+      <div class="s">Saldo pendiente en órdenes</div>
+    </a>
+    <div class="d5-kpi">
+      <div class="k"><svg viewBox="0 0 24 24"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg>Ingresos del mes</div>
+      <div class="v">{{ ingresos_mes|moneda(moneda) }}</div>
+      <div class="s">{{ meses[hoy.month - 1]|capitalize }} {{ hoy.year }}</div>
     </div>
   </section>
 
-  <nav aria-label="Órdenes por estado" class="m-strip">
-    <a href="/ordenes"><div class="n">{{ recibidas_hoy }}</div><div class="m-label">Recibidas hoy</div></a>
-    <a href="/ordenes?estado={{ 'EN DIAGNOSTICO'|urlencode }}"><div class="n">{{ en_diagnostico }}</div><div class="m-label">En diagnóstico</div></a>
-    <a href="/ordenes?estado={{ 'EN REPARACION'|urlencode }}"><div class="n">{{ en_reparacion }}</div><div class="m-label">En reparación</div></a>
-    <a href="/ordenes?estado={{ 'LISTO PARA ENTREGAR'|urlencode }}"><div class="n m-ok">{{ listas }}</div><div class="m-label">Listas para entregar</div></a>
-    <a href="/ordenes?vencidas=1"><div class="n {{ 'm-bad' if total_vencidas else '' }}">{{ total_vencidas }}</div><div class="m-label">Vencidas</div></a>
+  <nav class="d5-flujo" aria-label="Órdenes por estado">
+    <a href="/ordenes" style="--c: var(--text-muted);"><div class="n">{{ recibidas_hoy }}</div><div class="l">Recibidas hoy</div></a>
+    <a href="/ordenes?estado={{ 'EN DIAGNOSTICO'|urlencode }}" style="--c: var(--warning);"><div class="n">{{ en_diagnostico }}</div><div class="l">En diagnóstico</div></a>
+    <a href="/ordenes?estado={{ 'EN REPARACION'|urlencode }}" style="--c: var(--primary);"><div class="n">{{ en_reparacion }}</div><div class="l">En reparación</div></a>
+    <a href="/ordenes?estado={{ 'LISTO PARA ENTREGAR'|urlencode }}" style="--c: var(--success);"><div class="n">{{ listas }}</div><div class="l">Listas para entregar</div></a>
+    <a href="/ordenes?vencidas=1" style="--c: var(--danger);"><div class="n">{{ total_vencidas }}</div><div class="l">Vencidas</div></a>
   </nav>
 
-  <div class="m-grid2">
-    <section aria-label="Para atender">
-      <div class="m-sec-t"><span>Para atender</span><a href="/ordenes">Ver todas →</a></div>
+  <div class="d5-grid">
+    <section class="d5-card" aria-label="Para atender">
+      <div class="d5-card-t"><h2>Para atender</h2><a href="/ordenes">Ver todas</a></div>
       {% for o in ordenes_vencidas %}
-      <div class="m-row">
-        <a href="/ordenes/{{ o.id }}" style="color:var(--text); min-width:0;">
-          <b>{{ o.numero_orden }}</b> <span class="m-muted">· {{ o.cliente.nombre if o.cliente else '-' }} · {{ o.marca }} {{ o.modelo }}</span>
-          <div class="m-bad" style="font-size:12px; margin-top:2px;">Vencida · {{ o.dias_en_taller() }} días en el taller · {{ o.estado|lower }}</div>
-        </a>
-        <div style="display:flex; gap:6px; align-items:center;">
-          <span class="r">{{ o.saldo|moneda(moneda) }}</span>
+      <div class="d5-orden">
+        <a class="t" href="/ordenes/{{ o.id }}"><b>{{ o.numero_orden }}</b> · {{ o.cliente.nombre if o.cliente else '-' }}
+          <span class="m">{{ o.marca }} {{ o.modelo }} · {{ o.estado|estado_txt }}</span></a>
+        <div class="der">
+          <span class="pill pill-bad">{{ o.dias_en_taller() }} días</span>
+          <span class="saldo">{{ o.saldo|moneda(moneda) }}</span>
+        </div>
+        <div class="acc">
           <form method="post" action="/ordenes/{{ o.id }}/estado">
             <input type="hidden" name="nuevo_estado" value="ENTREGADO">
             <input type="hidden" name="observacion" value="Marcado como entregado desde el aviso de atención urgente.">
             <input type="hidden" name="redirect_to" value="/">
-            <button type="submit" class="icon-btn icon-btn-success" title="El cliente ya se llevó el equipo" aria-label="Marcar {{ o.numero_orden }} como entregada"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></button>
+            <button type="submit" class="btn btn-outline btn-sm" title="El cliente ya se llevó el equipo">Ya se entregó</button>
           </form>
           <form method="post" action="/ordenes/{{ o.id }}/estado">
             <input type="hidden" name="nuevo_estado" value="{{ o.estado }}">
             <input type="hidden" name="observacion" value="Confirmado: el equipo sigue en el taller (revisión de atención urgente).">
             <input type="hidden" name="redirect_to" value="/">
-            <button type="submit" class="icon-btn icon-btn-outline" title="El equipo todavía está en el taller" aria-label="{{ o.numero_orden }} sigue en el taller"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            <button type="submit" class="btn btn-outline btn-sm" title="El equipo todavía está en el taller">Sigue en el taller</button>
           </form>
         </div>
       </div>
       {% endfor %}
       {% set ids_vencidas = ordenes_vencidas|map(attribute='id')|list %}
       {% for o in listas_entregar if o.id not in ids_vencidas %}
-      <a class="m-row" href="/ordenes/{{ o.id }}">
-        <span style="min-width:0;"><b>{{ o.numero_orden }}</b> <span class="m-muted">· {{ o.cliente.nombre if o.cliente else '-' }} · {{ o.marca }} {{ o.modelo }}</span>
-          <span class="m-ok" style="display:block; font-size:12px; margin-top:2px;">Lista para entregar</span></span>
-        <span class="r">{{ o.saldo|moneda(moneda) }}</span>
+      <a class="d5-orden" href="/ordenes/{{ o.id }}">
+        <span class="t"><b>{{ o.numero_orden }}</b> · {{ o.cliente.nombre if o.cliente else '-' }}<span class="m">{{ o.marca }} {{ o.modelo }}</span></span>
+        <span class="der"><span class="pill pill-ok">Lista</span><span class="saldo">{{ o.saldo|moneda(moneda) }}</span></span>
       </a>
       {% endfor %}
-      {% if not ordenes_vencidas and not listas_entregar %}<p class="m-muted" style="font-size:14px;">Nada pendiente por ahora.</p>{% endif %}
+      {% if not ordenes_vencidas and not listas_entregar %}<p class="d5-vacio">Todo al día. No hay órdenes vencidas ni equipos esperando entrega.</p>{% endif %}
     </section>
 
-    <section aria-label="Cobrado últimos 7 días">
-      {% set maximo = (serie_ingresos|map(attribute='total')|list + [1])|max %}
-      <div class="m-sec-t"><span>Cobrado · últimos 7 días</span><span style="color:var(--text); font-size:15px; letter-spacing:0;">{{ (serie_ingresos|sum(attribute='total'))|moneda(moneda) }}</span></div>
-      <div role="img" aria-label="Barras de lo cobrado por día en los últimos 7 días" style="display:flex; align-items:flex-end; gap:10px; height:170px; padding-top:22px;">
-        {% for p in serie_ingresos %}
-        <div style="flex:1 1 0; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end;" title="{{ p.fecha }}: {{ p.total|moneda(moneda) }}">
-          <div style="font-size:10.5px; color:var(--text-muted); white-space:nowrap;">{{ '{:,.0f}'.format(p.total) if p.total else '' }}</div>
-          <div style="width:100%; max-width:34px; border-radius:4px 4px 0 0; min-height:2px; height:{{ (p.total / maximo * 100)|round(1) }}%; background:{{ 'var(--primary)' if loop.last else 'var(--border)' }};"></div>
-          <div style="font-size:11px; color:{{ 'var(--text)' if loop.last else 'var(--text-muted)' }}; font-weight:{{ '700' if loop.last else '400' }};">{{ p.dia }}</div>
+    <div>
+      <section class="d5-card" aria-label="Cobrado últimos 7 días">
+        {% set maximo = (serie_ingresos|map(attribute='total')|list + [1])|max %}
+        <div class="d5-card-t"><h2>Cobrado · 7 días</h2><span class="d5-total">{{ (serie_ingresos|sum(attribute='total'))|moneda(moneda) }}</span></div>
+        <div class="d5-barras" role="img" aria-label="Lo cobrado por día en los últimos 7 días">
+          {% for p in serie_ingresos %}
+          <div class="b {{ 'hoy' if loop.last else '' }}" title="{{ p.fecha }}: {{ p.total|moneda(moneda) }}">
+            <em>{{ '{:,.0f}'.format(p.total) if p.total else '' }}</em>
+            <i style="height:{{ (p.total / maximo * 100)|round(1) }}%;"></i>
+            <span>{{ p.dia }}</span>
+          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
-      </div>
-
+      </section>
       {% if stock_bajo %}
-      <div class="m-sec-t" style="margin-top:30px;"><span>Stock bajo el mínimo · {{ stock_bajo|length }}</span><a href="/inventario">Inventario →</a></div>
-      {% for p in stock_bajo[:6] %}
-      <a class="m-row" href="/inventario/{{ p.id }}/movimiento"><span>{{ p.nombre }}{% if p.categoria %} <span class="m-muted" style="font-size:12px;">· {{ p.categoria }}</span>{% endif %}</span><span class="r m-bad">{{ p.existencia }} <span class="m-muted" style="font-weight:400;">/ {{ p.stock_minimo }}</span></span></a>
-      {% endfor %}
+      <section class="d5-card" aria-label="Stock bajo">
+        <div class="d5-card-t"><h2>Stock bajo el mínimo</h2>{% if usuario.rol == 'admin' %}<a href="/inventario/reorden">Pedir</a>{% else %}<a href="/inventario">Inventario</a>{% endif %}</div>
+        {% for p in stock_bajo[:5] %}
+        <a class="d5-stock" href="/inventario/{{ p.id }}/movimiento"><span>{{ p.nombre }}</span><span class="pill pill-warn">{{ p.existencia }} de {{ p.stock_minimo }}</span></a>
+        {% endfor %}
+      </section>
       {% endif %}
-    </section>
+    </div>
   </div>
 
-  <details class="m-more">
+  <details class="m-more" style="margin-top:24px;">
     <summary>Más estadísticas (tendencia, equipos, marcas, técnicos y productos)</summary>
     <div class="m-grid2" style="margin-top:20px;">
       <div>
@@ -157,7 +175,7 @@
       <div class="modal-list-item">
         <div>
           <b>{{ o.marca }} {{ o.modelo }}</b> · {{ o.cliente.nombre if o.cliente else '-' }}<br>
-          <span class="help">{{ o.numero_orden }} · {{ o.estado }}</span>
+          <span class="help">{{ o.numero_orden }} · {{ o.estado|estado_txt }}</span>
         </div>
         <div class="modal-list-actions">
           <span class="dias-chip dias-chip-alerta">+{{ o.dias_en_taller() - umbral_vencido }}d</span>

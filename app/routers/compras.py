@@ -35,6 +35,15 @@ def _saldos_por_solicitud(db: Session) -> dict:
     return saldos
 
 
+def _totales_con_isv(db: Session, solicitudes) -> dict:
+    """Total de cada solicitud con el ISV ya sumado (igual que el PDF), para
+    que en pantalla no se vea el monto sin impuesto."""
+    from app.utils.pdf_solicitud_compra import totales
+    from app.routers.inventario import _isv_tasa
+    tasa = _isv_tasa(db)
+    return {s.id: totales(s, True, tasa)["total"] for s in solicitudes}
+
+
 @router.get(BASE)
 def compras_lista(request: Request, estado: str = "", q: str = "", db: Session = Depends(get_db), usuario=Depends(solo_admin)):
     consulta = db.query(SolicitudCompra).options(selectinload(SolicitudCompra.detalles))
@@ -52,6 +61,7 @@ def compras_lista(request: Request, estado: str = "", q: str = "", db: Session =
     abiertas = db.query(SolicitudCompra).filter(SolicitudCompra.estado.in_([COMPRA_PENDIENTE, COMPRA_PARCIAL])).count()
     return templates.TemplateResponse("compras/lista.html", {
         "request": request, "usuario": usuario, "solicitudes": solicitudes, "saldos": saldos,
+        "con_isv": _totales_con_isv(db, solicitudes),
         "total_por_pagar": sum(saldos.values(), Decimal("0.00")), "abiertas": abiertas,
         "estado": estado, "q": q, "estados": ESTADOS_COMPRA,
     })
@@ -225,6 +235,7 @@ def compras_detalle(solicitud_id: int, request: Request, db: Session = Depends(g
     return templates.TemplateResponse("compras/detalle.html", {
         "request": request, "usuario": usuario, "sol": sol, "pagos": pagos, "estados": ESTADOS_COMPRA,
         "puede_recibir": sol.estado in (COMPRA_PENDIENTE, COMPRA_PARCIAL),
+        "total_con_isv": _totales_con_isv(db, [sol])[sol.id],
     })
 
 

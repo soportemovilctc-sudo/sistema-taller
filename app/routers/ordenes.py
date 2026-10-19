@@ -12,6 +12,7 @@ from io import BytesIO
 from app.templates_env import templates
 from app.database import get_db
 from app.models import (
+    METODOS_BLOQUEO,
     OrdenServicio, Cliente, Tecnico, HistorialEstado, Pago, Configuracion,
     TIPOS_EQUIPO, ESTADOS_ORDEN, PRIORIDADES, FORMAS_PAGO,
     ACCESORIOS_DISPONIBLES, CONDICIONES_FISICAS, MarcaEquipo, ServicioRapido,
@@ -194,6 +195,11 @@ def ordenes_crear(
     pin: str = Form(""),
     patron: str = Form(""),
     mostrar_seguridad_en_pdf: bool = Form(False),
+    tipo_bloqueo: list[str] = Form([]),
+    contrasena: str = Form(""),
+    pin_sim: str = Form(""),
+    cuenta_correo: str = Form(""),
+    cuenta_contrasena: str = Form(""),
     cotizacion: str = Form("0"),
     recargo_pct: str = Form("0"),
     forma_pago: str = Form("Efectivo"),
@@ -273,7 +279,7 @@ def ordenes_crear(
         observaciones_condicion=observaciones_condicion,
         falla_reportada=falla_reportada, diagnostico=diagnostico, trabajo_realizado=trabajo_realizado,
         observaciones=observaciones, prioridad=prioridad, estado=estado,
-        pin=pin or None, patron=patron or None, mostrar_seguridad_en_pdf=mostrar_seguridad_en_pdf,
+        mostrar_seguridad_en_pdf=mostrar_seguridad_en_pdf,
         cotizacion=cot, recargo_pct=pct, recargo_monto=recargo, total=total, abonado=Decimal("0"), saldo=total,
         forma_pago=forma_pago,
         fecha=fecha_dt,
@@ -281,6 +287,7 @@ def ordenes_crear(
         fecha_entrega=datetime.strptime(fecha_entrega, "%Y-%m-%d").date() if fecha_entrega else None,
         fecha_cierre=fecha_dt if estado in ("ENTREGADO", "CANCELADO") else None,
     )
+    _aplicar_acceso(orden, tipo_bloqueo, pin, patron, contrasena, pin_sim, cuenta_correo, cuenta_contrasena)
     db.add(orden)
     db.flush()
 
@@ -478,6 +485,7 @@ def ordenes_detalle(orden_id: int, request: Request, db: Session = Depends(get_d
     )
 
     return templates.TemplateResponse("ordenes/detail.html", {
+        "metodos_bloqueo": METODOS_BLOQUEO,
         "request": request, "orden": orden, "usuario": usuario,
         "productos_disponibles": productos_disponibles, "tasa_isv": tasa,
         "servicios_disponibles": _servicios_disponibles(db),
@@ -581,6 +589,11 @@ def ordenes_actualizar(
     pin: str = Form(""),
     patron: str = Form(""),
     mostrar_seguridad_en_pdf: bool = Form(False),
+    tipo_bloqueo: list[str] = Form([]),
+    contrasena: str = Form(""),
+    pin_sim: str = Form(""),
+    cuenta_correo: str = Form(""),
+    cuenta_contrasena: str = Form(""),
     cotizacion: str = Form("0"),
     recargo_pct: str = Form("0"),
     forma_pago: str = Form("Efectivo"),
@@ -651,8 +664,7 @@ def ordenes_actualizar(
     orden.trabajo_realizado = trabajo_realizado
     orden.observaciones = observaciones
     orden.prioridad = prioridad
-    orden.pin = pin or None
-    orden.patron = patron or None
+    _aplicar_acceso(orden, tipo_bloqueo, pin, patron, contrasena, pin_sim, cuenta_correo, cuenta_contrasena)
     orden.mostrar_seguridad_en_pdf = mostrar_seguridad_en_pdf
     orden.forma_pago = forma_pago
     orden.fecha_entrega = datetime.strptime(fecha_entrega, "%Y-%m-%d").date() if fecha_entrega else None
@@ -680,6 +692,32 @@ def ordenes_actualizar(
         flash(request, "Atención: " + "; ".join(errores_items) + ".", "error")
     flash(request, mensaje, "success")
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
+def _aplicar_acceso(orden, tipo_bloqueo, pin, patron, contrasena, pin_sim, cuenta_correo, cuenta_contrasena):
+    """Guarda el «Acceso al equipo». Si se marcó «Sin bloqueo» o «El
+    cliente no la dio», no se guarda PIN, patrón ni contraseña."""
+    from app.models import METODOS_BLOQUEO
+    metodos = [m for m in dict.fromkeys(tipo_bloqueo or []) if m in METODOS_BLOQUEO]
+    exclusivo = next((m for m in ("sin", "no_dio") if m in metodos), None)
+    if exclusivo:
+        metodos = [exclusivo]
+    limpio = lambda v, n: ((v or "").strip()[:n] or None)  # noqa: E731
+    pin_v = "".join(ch for ch in (pin or "") if ch.isdigit())[:20] or None
+    patron_v = ",".join(p for p in (patron or "").split(",") if p.strip().isdigit() and 1 <= int(p) <= 9)[:50] or None
+    contrasena_v = limpio(contrasena, 100)
+    if exclusivo:
+        pin_v = patron_v = contrasena_v = None
+    else:
+        # Si escribieron PIN/patrón/contraseña, ese método queda marcado aunque no tocaran el botón.
+        for clave, valor in (("pin", pin_v), ("patron", patron_v), ("contrasena", contrasena_v)):
+            if valor and clave not in metodos:
+                metodos.append(clave)
+    orden.tipo_bloqueo = ",".join(metodos) or None
+    orden.pin, orden.patron, orden.contrasena = pin_v, patron_v, contrasena_v
+    orden.pin_sim = "".join(ch for ch in (pin_sim or "") if ch.isdigit())[:20] or None
+    orden.cuenta_correo = limpio(cuenta_correo, 150)
+    orden.cuenta_contrasena = limpio(cuenta_contrasena, 100)
 
 
 def _agregar_items_desde_formulario(db, orden, usuario_nombre, repuesto_producto_id, repuesto_cantidad, repuesto_precio,

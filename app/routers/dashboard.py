@@ -202,6 +202,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request, "usuario": usuario,
+        "hora_local": (datetime.utcnow() - timedelta(hours=6)).hour,
         "recibidas_hoy": recibidas_hoy, "en_diagnostico": en_diagnostico,
         "en_reparacion": en_reparacion, "listas": listas, "entregadas": entregadas,
         "saldos_pendientes": saldos_pendientes,

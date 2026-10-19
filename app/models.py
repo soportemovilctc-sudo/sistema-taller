@@ -245,6 +245,13 @@ class Configuracion(Base):
     caja_obligatoria_desde = Column(DateTime, nullable=True)
 
 
+# Métodos de bloqueo de un equipo (orden de servicio: Acceso al equipo).
+METODOS_BLOQUEO = {
+    "sin": "Sin bloqueo", "pin": "PIN", "patron": "Patrón", "contrasena": "Contraseña",
+    "huella": "Huella", "rostro": "Rostro (Face ID)", "no_dio": "El cliente no la dio",
+}
+
+
 class OrdenServicio(Base):
     __tablename__ = "ordenes_servicio"
 
@@ -280,6 +287,12 @@ class OrdenServicio(Base):
     pin = Column(String(20), nullable=True)
     patron = Column(String(50), nullable=True)  # ej: "1,2,3,6,9"
     mostrar_seguridad_en_pdf = Column(Boolean, default=False, nullable=False)
+    # Métodos de bloqueo que tiene el equipo (ver METODOS_BLOQUEO), separados por coma.
+    tipo_bloqueo = Column(String(80), nullable=True)
+    contrasena = Column(String(100), nullable=True)        # contraseña de letras/números
+    pin_sim = Column(String(20), nullable=True)
+    cuenta_correo = Column(String(150), nullable=True)     # cuenta Google / iCloud del equipo
+    cuenta_contrasena = Column(String(100), nullable=True)  # nunca se imprime
 
     # Financiero
     cotizacion = Column(Numeric(10, 2), default=0)
@@ -320,6 +333,44 @@ class OrdenServicio(Base):
 
     def lista_condicion(self):
         return [c for c in (self.condicion_fisica or "").split(",") if c]
+
+    def metodos_bloqueo(self) -> list:
+        """Claves de METODOS_BLOQUEO marcadas. Las órdenes viejas (antes de
+        este campo) se deducen de si tienen PIN o patrón."""
+        metodos = [m for m in (self.tipo_bloqueo or "").split(",") if m in METODOS_BLOQUEO]
+        if not metodos:
+            if self.pin:
+                metodos.append("pin")
+            if self.patron:
+                metodos.append("patron")
+        return metodos
+
+    def patron_lista(self) -> list:
+        return [p for p in (self.patron or "").split(",") if p.isdigit()]
+
+    def tiene_datos_acceso(self) -> bool:
+        return bool(self.tipo_bloqueo or self.pin or self.patron or self.contrasena or self.pin_sim
+                    or self.cuenta_correo or self.cuenta_contrasena)
+
+    def acceso_partes(self) -> list:
+        """Líneas de acceso para los documentos impresos (solo si el cliente
+        lo autorizó con mostrar_seguridad_en_pdf). La contraseña de la
+        cuenta Google/iCloud nunca se imprime."""
+        partes = []
+        metodos = self.metodos_bloqueo()
+        if metodos:
+            partes.append("Bloqueo: " + ", ".join(METODOS_BLOQUEO[m] for m in metodos))
+        if self.pin:
+            partes.append(f"PIN: {self.pin}")
+        if self.patron:
+            partes.append("Patrón: " + "-".join(self.patron_lista()))
+        if self.contrasena:
+            partes.append(f"Contraseña: {self.contrasena}")
+        if self.pin_sim:
+            partes.append(f"PIN de la SIM: {self.pin_sim}")
+        if self.cuenta_correo:
+            partes.append(f"Cuenta: {self.cuenta_correo}")
+        return partes
 
     def dias_en_taller(self):
         """Días calendario (hora de Honduras, UTC-6) desde que se recibió

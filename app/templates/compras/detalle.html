@@ -23,7 +23,7 @@
 
   <div class="m-stats" style="padding-bottom:22px; border-bottom:1px solid var(--border);">
     <div><div class="m-label">Estado</div><div class="m-val m-dot {{ color }}" style="font-size:18px; margin-top:8px;">{{ estados.get(sol.estado, sol.estado) }}</div></div>
-    <div><div class="m-label">Total estimado</div><div class="m-val">{{ sol.total_estimado|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Total estimado (con ISV)</div><div class="m-val">{{ total_con_isv|moneda(moneda) }}</div><div class="m-muted" style="font-size:12px;">sin ISV {{ sol.total_estimado|moneda(moneda) }}</div></div>
     <div><div class="m-label">Recibido</div><div class="m-val">{{ por_pagar.recibido|moneda(moneda) }}</div></div>
     <div><div class="m-label">Por pagar</div><div class="m-val {{ 'm-bad' if por_pagar.v > 0 else '' }}">{{ por_pagar.v|moneda(moneda) }}</div></div>
   </div>

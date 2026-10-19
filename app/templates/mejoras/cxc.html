@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Cuentas por cobrar{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Cuentas por cobrar</h1>
+      <div class="m-sub">Órdenes con saldo pendiente, por antigüedad (días desde que se recibió el equipo).</div>
+    </div>
+    <div class="m-acciones"><a href="/cuentas-por-cobrar/excel?tramo={{ tramo }}&q={{ q|urlencode }}" class="btn btn-success btn-sm">Excel</a></div>
+  </div>
+  <section class="m-stats" style="padding-bottom:20px; border-bottom:1px solid var(--border);">
+    {% set tot = d.total|moneda(moneda) %}
+    <div><div class="m-label">Total por cobrar · {{ d.n }} orden{{ 'es' if d.n != 1 else '' }}</div><div class="m-hero">{{ tot[:-3] }}<small>{{ tot[-3:] }}</small></div></div>
+  </section>
+  <nav class="m-strip" aria-label="Antigüedad" style="margin-top:0;">
+    <a href="/cuentas-por-cobrar?q={{ q|urlencode }}" style="{{ 'color:var(--primary-light);' if not tramo else '' }}"><div class="m-label">Todas</div><div class="n" style="font-size:20px;">{{ d.total|moneda(moneda) }}</div></a>
+    {% for k, v in d.tramos.items() %}
+    <a href="/cuentas-por-cobrar?tramo={{ k }}&q={{ q|urlencode }}" style="{{ 'color:var(--primary-light);' if tramo == k else '' }}"><div class="m-label">{{ v.nombre }} · {{ v.n }}</div><div class="n {{ 'm-bad' if k in ['61-90', '90+'] and v.saldo > 0 else '' }}" style="font-size:20px;">{{ v.saldo|moneda(moneda) }}</div></a>
+    {% endfor %}
+  </nav>
+  <form method="get" action="/cuentas-por-cobrar" style="display:flex; gap:8px; margin-bottom:10px;">
+    {% if tramo %}<input type="hidden" name="tramo" value="{{ tramo }}">{% endif %}
+    <input type="search" name="q" value="{{ q }}" placeholder="Buscar cliente, teléfono u orden" style="flex:1;">
+    <button class="btn btn-outline btn-sm" type="submit">Buscar</button>
+  </form>
+  <div class="m-grid2" style="gap:28px; align-items:start; grid-template-columns: 2fr 1fr;">
+    <section>
+      <div class="m-sec-t">Órdenes{% if tramo %} · {{ d.tramos[tramo].nombre }}{% endif %}</div>
+      <div class="table-wrap">
+        <table class="m-table responsive-table">
+          <thead><tr><th>Orden</th><th>Cliente</th><th class="num">Días</th><th>Estado</th><th class="num">Saldo</th><th></th></tr></thead>
+          <tbody>
+            {% for f in d.filas %}
+            <tr>
+              <td class="nw"><a href="/ordenes/{{ f.orden.id }}" style="font-weight:800; color:var(--text);">{{ f.orden.numero_orden }}</a><div class="m-muted" style="font-size:11.5px;">{{ f.orden.fecha|hn('%d/%m/%Y') }}</div></td>
+              <td>{{ f.cliente }}<div class="m-muted" style="font-size:12px;">{{ f.orden.marca or '' }} {{ f.orden.modelo or '' }}</div></td>
+              <td class="num {{ 'm-bad' if f.dias > 60 else ('m-warn' if f.dias > 30 else '') }}" style="font-weight:700;">{{ f.dias }}</td>
+              <td class="m-muted" style="font-size:12.5px;">{{ f.orden.estado }}</td>
+              <td class="num" style="font-weight:800;">{{ f.saldo|moneda(moneda) }}<div class="m-muted" style="font-size:11.5px; font-weight:500;">de {{ f.total|moneda(moneda) }}</div></td>
+              <td class="nw"><a href="/ordenes/{{ f.orden.id }}#abonar" class="btn btn-outline btn-sm">Abonar</a>{% if f.whatsapp %} <a href="{{ f.whatsapp }}" target="_blank" rel="noopener" class="btn btn-success btn-sm">Recordar</a>{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty-state">No hay saldos pendientes{% if tramo or q %} con ese filtro{% endif %}. 🎉</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <div class="m-sec-t">Por cliente</div>
+      {% for c in d.por_cliente[:30] %}
+      <div class="m-row"><span>{{ c.cliente }} <span class="m-muted" style="font-size:12px;">· {{ c.n }} orden{{ 'es' if c.n != 1 else '' }} · {{ c.dias_max }} días</span></span><span class="r" style="font-weight:700;">{{ c.saldo|moneda(moneda) }}</span></div>
+      {% else %}
+      <div class="m-row"><span class="m-muted">—</span><span></span></div>
+      {% endfor %}
+    </section>
+  </div>
+</div>
+{% endblock %}

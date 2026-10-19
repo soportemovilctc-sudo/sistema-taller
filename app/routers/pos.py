@@ -10,7 +10,7 @@ from app.templates_env import templates
 from app.database import get_db
 from app.models import (
     Producto, Venta, DetalleVenta, MovimientoInventario, MovimientoFinanciero, Cliente,
-    ConfiguracionFacturacion, Factura,
+    ConfiguracionFacturacion, Factura, Cotizacion, COTIZACION_VIGENTE, COTIZACION_ACEPTADA,
 )
 from app.schemas import VentaIn
 from app.utils.numbering import generar_numero_venta, generar_numero_factura
@@ -40,12 +40,27 @@ def _isv_tasa(db: Session) -> Decimal:
 
 
 @router.get("/pos")
-def pos_index(request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
+def pos_index(request: Request, cotizacion: int = 0, db: Session = Depends(get_db), usuario=Depends(login_required)):
     productos = db.query(Producto).filter(Producto.estado == "activo", Producto.existencia > 0).order_by(Producto.nombre).all()
     clientes = db.query(Cliente).order_by(Cliente.nombre).all()
+    # Venta desde una cotización: el carrito se carga con sus productos y
+    # precios (sin ISV, igual que el carrito) y la venta queda ligada a ella.
+    cot_datos = None
+    if cotizacion:
+        cot = db.get(Cotizacion, cotizacion)
+        if cot and cot.estado == COTIZACION_VIGENTE:
+            items = []
+            for d in cot.detalles:
+                p = db.get(Producto, d.producto_id) if d.producto_id else None
+                if not p:
+                    continue
+                items.append({"id": p.id, "nombre": p.nombre, "categoria": p.categoria or "",
+                              "precio": float(d.precio_unitario or 0), "precioLista": float(p.precio_venta or 0),
+                              "cantidad": int(d.cantidad or 1), "existencia": int(p.existencia or 0)})
+            cot_datos = {"id": cot.id, "numero": cot.numero, "cliente_id": cot.cliente_id, "items": items}
     return templates.TemplateResponse("pos/index.html", {
         "request": request, "productos": productos, "clientes": clientes, "usuario": usuario,
-        "tasa_isv": _isv_tasa(db),
+        "tasa_isv": _isv_tasa(db), "cotizacion": cot_datos,
     })
 
 
@@ -159,6 +174,12 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
     )
     db.add(recibo)
     db.flush()
+
+    if venta_in.cotizacion_id:
+        cot = db.get(Cotizacion, venta_in.cotizacion_id)
+        if cot and cot.estado == COTIZACION_VIGENTE:
+            cot.estado = COTIZACION_ACEPTADA
+            cot.venta_id = venta.id
 
     db.commit()
     return JSONResponse({

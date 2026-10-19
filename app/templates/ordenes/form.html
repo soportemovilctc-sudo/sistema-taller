@@ -238,10 +238,26 @@
     </div>
   </div>
 
-  {% if not orden %}
-  <details class="card">
-    <summary class="card-title" style="cursor:pointer;">Repuestos utilizados (opcional) <span class="help" style="font-weight:400;">— toca para mostrar</span></summary>
-    <p class="help">Si ya sabes qué repuestos vas a usar en esta reparación, agrégalos aquí: se descontarán del inventario, se registrarán como venta y se sumarán al total en cuanto crees la orden. También puedes agregarlos más adelante desde el detalle de la orden.</p>
+  {% if orden %}
+  <div class="card" id="itemsOrden">
+    <div class="card-title">Repuestos y servicios de esta orden</div>
+    {% if facturada %}<p class="help m-warn">Esta orden ya tiene una factura vigente: para cambiar repuestos o servicios, primero hay que anular la factura (administrador).</p>{% endif %}
+    {% for r in orden.repuestos %}
+    <div class="m-row"><span><b>{{ r.producto.codigo if r.producto else '' }}</b> {{ r.producto.nombre if r.producto else '(producto eliminado)' }} <span class="m-muted">· repuesto · {{ r.cantidad }} × {{ r.precio_unitario|moneda(config_taller().moneda) }}</span></span>
+      <span class="r" style="display:inline-flex; gap:10px; align-items:center;">{{ r.subtotal|moneda(config_taller().moneda) }}{% if not facturada %}<button type="submit" form="quitarRep{{ r.id }}" class="btn btn-outline btn-sm" title="Quitar y devolver al inventario">Quitar</button>{% endif %}</span></div>
+    {% endfor %}
+    {% for sx in orden.servicios_extra %}
+    <div class="m-row"><span>{{ sx.servicio.nombre if sx.servicio else '(servicio)' }} <span class="m-muted">· servicio · {{ sx.cantidad }} × {{ sx.precio_unitario|moneda(config_taller().moneda) }}</span></span>
+      <span class="r" style="display:inline-flex; gap:10px; align-items:center;">{{ sx.subtotal|moneda(config_taller().moneda) }}{% if not facturada %}<button type="submit" form="quitarSrv{{ sx.id }}" class="btn btn-outline btn-sm">Quitar</button>{% endif %}</span></div>
+    {% endfor %}
+    {% if not orden.repuestos and not orden.servicios_extra %}<p class="help">Todavía no tiene repuestos ni servicios (solo la cotización).</p>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if not orden or not facturada %}
+  <details class="card" {{ 'open' if orden else '' }}>
+    <summary class="card-title" style="cursor:pointer;">{{ 'Agregar repuestos' if orden else 'Repuestos utilizados' }} (opcional) <span class="help" style="font-weight:400;">— toca para {{ 'ocultar' if orden else 'mostrar' }}</span></summary>
+    <p class="help">{% if orden %}Elige el repuesto que se va a usar: se descuenta del inventario y se suma al total cuando guardes los cambios.{% else %}Si ya sabes qué repuestos vas a usar en esta reparación, agrégalos aquí: se descontarán del inventario, se registrarán como venta y se sumarán al total en cuanto crees la orden. También puedes agregarlos más adelante desde el detalle de la orden.{% endif %}</p>
     <div id="repuestosFilas">
       <div class="form-row repuesto-fila">
         <div class="field" style="flex:3;">
@@ -270,8 +286,8 @@
     <p class="help">El precio unitario se llena solo con el precio de venta del producto ya con el {{ tasa_isv }}% de impuesto incluido, pero puedes cambiarlo si vas a cobrar un precio distinto para esta orden.</p>
   </details>
 
-  <details class="card">
-    <summary class="card-title" style="cursor:pointer;">Servicios adicionales (opcional) <span class="help" style="font-weight:400;">— toca para mostrar</span></summary>
+  <details class="card" {{ 'open' if orden else '' }}>
+    <summary class="card-title" style="cursor:pointer;">{{ 'Agregar servicios' if orden else 'Servicios adicionales' }} (opcional) <span class="help" style="font-weight:400;">— toca para {{ 'ocultar' if orden else 'mostrar' }}</span></summary>
     <p class="help">Si ya sabes qué servicios vas a cobrar en esta orden (cambio de pantalla, formateo, diagnóstico, etc.), agrégalos aquí: se sumarán al total en cuanto crees la orden. Escribe el nombre: si ya existe en el <a href="/servicios">catálogo</a>, elígelo de la lista para autocompletar el precio; si es nuevo, escribe su precio (y costo, si tiene) y se crea solo, guardado para la próxima vez. También puedes agregarlos más adelante desde el detalle de la orden.</p>
     <datalist id="listaServiciosNuevaOrden">
       {% for s in servicios_disponibles %}
@@ -310,6 +326,10 @@
     <a href="{{ '/ordenes/' + orden.id|string if orden else '/ordenes' }}" class="btn btn-outline">Cancelar</a>
   </div>
 </form>
+{% if orden and not facturada %}
+{% for r in orden.repuestos %}<form id="quitarRep{{ r.id }}" method="post" action="/ordenes/{{ orden.id }}/repuestos/{{ r.id }}/eliminar?volver=editar" onsubmit="return confirm('¿Quitar este repuesto de la orden? Vuelve al inventario. Los demás cambios que no hayas guardado se pierden.');"></form>{% endfor %}
+{% for sx in orden.servicios_extra %}<form id="quitarSrv{{ sx.id }}" method="post" action="/ordenes/{{ orden.id }}/servicios/{{ sx.id }}/eliminar?volver=editar" onsubmit="return confirm('¿Quitar este servicio de la orden? Los demás cambios que no hayas guardado se pierden.');"></form>{% endfor %}
+{% endif %}
 
 <div class="modal-overlay" id="clienteRapidoModalOverlay" style="display:none;">
   <div class="modal-box card">

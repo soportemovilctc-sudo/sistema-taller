@@ -20,6 +20,7 @@ class VentaIn(BaseModel):
     forma_pago: str = "Efectivo"
     monto_recibido: Decimal = Decimal("0")
     cliente_id: Optional[int] = None
+    cotizacion_id: Optional[int] = None
 
 
 class VentaOut(BaseModel):

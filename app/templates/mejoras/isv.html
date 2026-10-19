@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Declaración de ISV{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Declaración de ISV · {{ meses[d.mes] }} {{ d.anio }}</h1>
+      <div class="m-sub">ISV cobrado en ventas menos el ISV pagado en compras (crédito fiscal). Del {{ d.desde.strftime('%d/%m/%Y') }} al {{ d.hasta.strftime('%d/%m/%Y') }}.</div>
+    </div>
+    <div class="m-acciones"><a href="/impuestos/isv/excel?anio={{ d.anio }}&mes={{ d.mes }}" class="btn btn-success btn-sm">Excel</a></div>
+  </div>
+  <form method="get" action="/impuestos/isv" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:18px;">
+    <div class="field" style="margin:0;"><label for="iMes">Mes</label><select id="iMes" name="mes">{% for i in range(1, 13) %}<option value="{{ i }}" {{ 'selected' if i == d.mes else '' }}>{{ meses[i] }}</option>{% endfor %}</select></div>
+    <div class="field" style="margin:0;"><label for="iAnio">Año</label><select id="iAnio" name="anio">{% for a in anios %}<option {{ 'selected' if a == d.anio else '' }}>{{ a }}</option>{% endfor %}</select></div>
+    <button class="btn btn-outline" type="submit">Ver</button>
+  </form>
+  <section class="m-stats" style="padding-bottom:20px; border-bottom:1px solid var(--border);">
+    <div><div class="m-label">ISV de ventas (facturas fiscales)</div><div class="m-val">{{ d.fiscales.isv|moneda(moneda) }}</div></div>
+    <div><div class="m-label">− ISV de compras (crédito fiscal)</div><div class="m-val m-ok">{{ d.compras.isv|moneda(moneda) }}</div></div>
+    {% set ap = d.a_pagar|moneda(moneda) %}
+    <div><div class="m-label">{{ 'ISV a pagar a la SAR' if d.a_pagar >= 0 else 'Saldo a favor' }}</div><div class="m-hero {{ 'm-bad' if d.a_pagar > 0 else 'm-ok' }}">{{ ap[:-3] }}<small>{{ ap[-3:] }}</small></div></div>
+  </section>
+  <div class="m-grid2" style="gap:28px; margin-top:20px; align-items:start;">
+    <section>
+      <div class="m-sec-t">Ventas</div>
+      <div class="m-row"><span>Facturas fiscales · {{ d.fiscales.n }}</span><span></span></div>
+      <div class="m-row"><span class="m-muted">&nbsp;&nbsp;Importe exento</span><span class="r">{{ d.fiscales.exento|moneda(moneda) }}</span></div>
+      <div class="m-row"><span class="m-muted">&nbsp;&nbsp;Importe gravado 15%</span><span class="r">{{ d.fiscales.gravado|moneda(moneda) }}</span></div>
+      <div class="m-row"><span class="m-muted">&nbsp;&nbsp;ISV cobrado</span><span class="r" style="font-weight:700;">{{ d.fiscales.isv|moneda(moneda) }}</span></div>
+      <div class="m-row"><span>Comprobantes internos · {{ d.internas.n }} <span class="m-muted" style="font-size:12px;">(no son facturas de la SAR)</span></span><span class="r">{{ d.internas.total|moneda(moneda) }}</span></div>
+      <div class="m-row"><span class="m-muted">&nbsp;&nbsp;ISV incluido en esos comprobantes</span><span class="r">{{ d.internas.isv|moneda(moneda) }}</span></div>
+      {% if d.anuladas %}<div class="m-row"><span class="m-muted">Facturas anuladas (no cuentan)</span><span class="r">{{ d.anuladas }}</span></div>{% endif %}
+    </section>
+    <section>
+      <div class="m-sec-t">Compras (crédito fiscal)</div>
+      <div class="m-row"><span>Compras con factura y ISV · {{ d.compras.n }}</span><span></span></div>
+      <div class="m-row"><span class="m-muted">&nbsp;&nbsp;Base</span><span class="r">{{ d.compras.base|moneda(moneda) }}</span></div>
+      <div class="m-row"><span class="m-muted">&nbsp;&nbsp;ISV pagado</span><span class="r" style="font-weight:700;">{{ d.compras.isv|moneda(moneda) }}</span></div>
+      <div class="m-row"><span class="m-muted">Compras sin ISV</span><span class="r">{{ d.compras.sin_isv|moneda(moneda) }}</span></div>
+      <p class="help" style="margin-top:8px;">El ISV de compras sale de las recepciones de Compras donde se anotó el ISV de la factura del proveedor.</p>
+    </section>
+  </div>
+  {% if d.internas.isv > 0 %}
+  <p class="help" style="margin-top:12px;">Si declaras también lo vendido con comprobante interno, el ISV a pagar sería <b>{{ d.a_pagar_todas|moneda(moneda) }}</b>.</p>
+  {% endif %}
+  <details class="m-more" style="margin-top:14px;"><summary>Ver cada factura y compra del mes</summary>
+    <div class="table-wrap" style="margin-top:10px;">
+      <table class="m-table">
+        <thead><tr><th>Documento</th><th>Fecha</th><th>Cliente / proveedor</th><th>Clase</th><th class="num">Gravado / base</th><th class="num">ISV</th><th class="num">Total</th></tr></thead>
+        <tbody>
+          {% for f in d.lista_fiscales + d.lista_internas %}
+          <tr><td class="nw"><a href="/facturas/{{ f.id }}">{{ f.numero_documento }}</a></td><td class="m-muted nw">{{ f.fecha_emision|hn('%d/%m/%Y') }}</td><td>{{ f.cliente_nombre }}</td><td class="m-muted">{{ 'Fiscal' if f.tipo == 'fiscal' else 'Interna' }}</td><td class="num">{{ f.importe_gravado|moneda(moneda) }}</td><td class="num">{{ f.isv_monto|moneda(moneda) }}</td><td class="num">{{ f.total|moneda(moneda) }}</td></tr>
+          {% endfor %}
+          {% for r in d.lista_compras %}
+          <tr><td class="nw"><a href="/compras/{{ r.solicitud_id }}#rec-{{ r.id }}">{{ r.factura_proveedor or r.numero }}</a></td><td class="m-muted nw">{{ r.fecha|hn('%d/%m/%Y') }}</td><td>{{ r.proveedor }}</td><td class="m-ok">Compra</td><td class="num">{{ r.subtotal|moneda(moneda) }}</td><td class="num">{{ r.isv|moneda(moneda) }}</td><td class="num">{{ r.total|moneda(moneda) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  <p class="help" style="margin-top:12px;">Es una guía para preparar la declaración; revísala con tu contador antes de presentarla a la SAR.</p>
+</div>
+{% endblock %}

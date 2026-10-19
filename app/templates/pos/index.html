@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Punto de Venta{% endblock %}
 {% block content %}
+{% if cotizacion %}
+<div class="flash flash-info" style="margin-bottom:12px;">Vendiendo la cotización <a href="/cotizaciones/{{ cotizacion.id }}"><strong>{{ cotizacion.numero }}</strong></a>: el carrito ya trae sus productos y precios. Al finalizar la venta, la cotización queda como <strong>Vendida</strong>.</div>
+<script id="posCotizacion" type="application/json">{{ cotizacion|tojson }}</script>
+{% endif %}
 <div class="pos-layout" data-tasa-isv="{{ tasa_isv }}">
   <div class="card">
     <div class="card-title">Productos</div>
@@ -36,7 +40,7 @@
         <label>Cliente (opcional)</label>
         <select id="posCliente" class="js-buscar-select" data-placeholder="Escribe el nombre del cliente (opcional)...">
           <option value="">Cliente general</option>
-          {% for c in clientes %}<option value="{{ c.id }}">{{ c.nombre }}</option>{% endfor %}
+          {% for c in clientes %}<option value="{{ c.id }}" {{ 'selected' if cotizacion and cotizacion.cliente_id == c.id else '' }}>{{ c.nombre }}</option>{% endfor %}
         </select>
       </div>
       <div class="field">

@@ -44,6 +44,7 @@
       <div class="field"><label>Existencia</label><div class="help" style="padding-top:8px;">Empieza en 0. Las unidades entran con una <b>Compra</b> (solicitud y recepción).</div></div>
       {% endif %}
       <div class="field"><label>Stock mínimo</label><input type="number" min="0" name="stock_minimo" value="{{ producto.stock_minimo if producto else '0' }}"></div>
+      <div class="field"><label>Stock máximo <span class="m-muted" style="font-weight:400;">(opcional)</span></label><input type="number" min="0" name="stock_maximo" value="{{ producto.stock_maximo if producto and producto.stock_maximo else '' }}" placeholder="Automático: el doble del mínimo"><div class="help">Hasta cuántas unidades pedir en <b>Reorden</b>.</div></div>
     </div>
     <div class="form-row">
       <div class="field"><label>Proveedor</label><input type="text" name="proveedor" value="{{ producto.proveedor if producto else '' }}"></div>

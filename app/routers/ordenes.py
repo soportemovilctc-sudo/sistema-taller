@@ -543,10 +543,18 @@ def ordenes_editar_form(orden_id: int, request: Request, db: Session = Depends(g
     if not orden:
         flash(request, "Orden no encontrada.", "error")
         return RedirectResponse("/ordenes", status_code=303)
+    tasa = _isv_tasa(db)
+    productos_disponibles = (
+        db.query(Producto).filter(Producto.estado == "activo").order_by(Producto.categoria, Producto.nombre).all()
+    )
+    _anotar_precios_con_impuesto(productos_disponibles, tasa)
     return templates.TemplateResponse("ordenes/form.html", {
         "request": request, "orden": orden, "usuario": usuario,
         "recargo_default": orden.recargo_pct,
         "hoy_iso": date.today().isoformat(),
+        "productos_disponibles": productos_disponibles, "tasa_isv": tasa,
+        "servicios_disponibles": _servicios_disponibles(db),
+        "facturada": any(not f.anulada for f in orden.facturas),
         **_opciones_formulario(db),
     })
 
@@ -578,6 +586,13 @@ def ordenes_actualizar(
     forma_pago: str = Form("Efectivo"),
     fecha_orden: str = Form(""),
     fecha_entrega: str = Form(""),
+    repuesto_producto_id: list[str] = Form([]),
+    repuesto_cantidad: list[str] = Form([]),
+    repuesto_precio: list[str] = Form([]),
+    servicio_nombre: list[str] = Form([]),
+    servicio_cantidad: list[str] = Form([]),
+    servicio_precio: list[str] = Form([]),
+    servicio_costo: list[str] = Form([]),
     db: Session = Depends(get_db),
     usuario=Depends(login_required),
 ):
@@ -642,10 +657,81 @@ def ordenes_actualizar(
     orden.forma_pago = forma_pago
     orden.fecha_entrega = datetime.strptime(fecha_entrega, "%Y-%m-%d").date() if fecha_entrega else None
 
+    # Repuestos y servicios nuevos agregados desde la edición (igual que al
+    # crear la orden). No se permite si la orden ya tiene factura vigente.
+    hay_nuevos = any((x or "").strip() for x in repuesto_producto_id) or any((x or "").strip() for x in servicio_nombre)
+    agregados, errores_items = [], []
+    if hay_nuevos:
+        if any(not f.anulada for f in orden.facturas):
+            errores_items.append("no se agregaron repuestos ni servicios porque la orden ya tiene una factura vigente (anúlala primero)")
+        else:
+            agregados, errores_items = _agregar_items_desde_formulario(
+                db, orden, usuario["nombre_completo"], repuesto_producto_id, repuesto_cantidad, repuesto_precio,
+                servicio_nombre, servicio_cantidad, servicio_precio, servicio_costo)
+            db.flush()
+            db.refresh(orden)
+
     recalcular_orden(orden)
     db.commit()
-    flash(request, "Orden actualizada correctamente.", "success")
+    mensaje = "Orden actualizada correctamente."
+    if agregados:
+        mensaje += " Se agregó: " + ", ".join(agregados) + "."
+    if errores_items:
+        flash(request, "Atención: " + "; ".join(errores_items) + ".", "error")
+    flash(request, mensaje, "success")
     return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
+def _agregar_items_desde_formulario(db, orden, usuario_nombre, repuesto_producto_id, repuesto_cantidad, repuesto_precio,
+                                    servicio_nombre, servicio_cantidad, servicio_precio, servicio_costo):
+    """Agrega a una orden ya creada los repuestos y servicios escritos en el
+    formulario de edición (mismas reglas que al crear la orden). Devuelve
+    (nombres agregados, errores). No hace commit."""
+    agregados, errores = [], []
+    n = len(repuesto_producto_id)
+    for pid_raw, cant_raw, precio_raw in zip(repuesto_producto_id, repuesto_cantidad or ["1"] * n, repuesto_precio or [""] * n):
+        pid_raw = (pid_raw or "").strip()
+        if not pid_raw:
+            continue
+        try:
+            producto = db.get(Producto, int(pid_raw))
+            cantidad_val = int(cant_raw or 1)
+        except (TypeError, ValueError):
+            continue
+        if not producto or cantidad_val <= 0:
+            continue
+        if cantidad_val > (producto.existencia or 0):
+            errores.append(f"{producto.nombre}: solo hay {producto.existencia}")
+            continue
+        precio_override = None
+        if (precio_raw or "").strip():
+            pv = to_decimal(precio_raw)
+            if pv > 0:
+                precio_override = pv.quantize(Decimal("0.01"))
+        _agregar_repuesto_a_orden(db, orden, producto, cantidad_val, usuario_nombre, precio_override)
+        agregados.append(producto.nombre)
+    m = len(servicio_nombre)
+    for nombre_raw, cant_raw, precio_raw, costo_raw in zip(servicio_nombre, servicio_cantidad or ["1"] * m,
+                                                           servicio_precio or [""] * m, servicio_costo or [""] * m):
+        nombre_raw = (nombre_raw or "").strip()
+        if not nombre_raw:
+            continue
+        try:
+            cantidad_val = int(cant_raw or 1)
+        except (TypeError, ValueError):
+            cantidad_val = 0
+        precio_dec = to_decimal(precio_raw or 0)
+        if cantidad_val <= 0 or precio_dec < 0:
+            continue
+        costo_dec = to_decimal(costo_raw) if (costo_raw or "").strip() else None
+        servicio = db.query(Servicio).filter(Servicio.nombre.ilike(nombre_raw)).first()
+        if not servicio:
+            servicio = Servicio(nombre=nombre_raw, precio_venta=precio_dec, costo=costo_dec, activo=True)
+            db.add(servicio)
+            db.flush()
+        _agregar_servicio_a_orden(db, orden, servicio, cantidad_val, usuario_nombre, precio_override=precio_dec)
+        agregados.append(servicio.nombre)
+    return agregados, errores
 
 
 def _orden_ya_revertida(db: Session, orden: OrdenServicio) -> bool:
@@ -1014,7 +1100,7 @@ def ordenes_quitar_repuesto(
     recalcular_orden(orden)
     db.commit()
     flash(request, f"Se quitó '{nombre_producto}' de la orden y se repuso al inventario.", "success")
-    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+    return RedirectResponse(f"/ordenes/{orden_id}/editar" if request.query_params.get("volver") == "editar" else f"/ordenes/{orden_id}", status_code=303)
 
 
 @router.post("/ordenes/{orden_id}/servicios")
@@ -1115,7 +1201,7 @@ def ordenes_quitar_servicio(
     recalcular_orden(orden)
     db.commit()
     flash(request, f"Se quitó '{nombre_servicio}' de la orden.", "success")
-    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+    return RedirectResponse(f"/ordenes/{orden_id}/editar" if request.query_params.get("volver") == "editar" else f"/ordenes/{orden_id}", status_code=303)
 
 
 # NOTA: la orden eliminar() se removió a propósito (ver /ordenes/{orden_id}/anular

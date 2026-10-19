@@ -16,7 +16,7 @@
     <div class="form-row">
       <div class="field" style="flex:1 1 280px;">
         <label for="proveedor">Proveedor *</label>
-        <input id="proveedor" type="text" name="proveedor" list="listaProveedores" required placeholder="Nombre del proveedor">
+        <input id="proveedor" type="text" name="proveedor" list="listaProveedores" required placeholder="Nombre del proveedor" value="{{ proveedor_inicial or '' }}">
         <datalist id="listaProveedores">{% for p in proveedores %}<option value="{{ p }}">{% endfor %}</datalist>
       </div>
       <div class="field" style="flex:2 1 320px;"><label for="notas">Notas</label><input id="notas" type="text" name="notas" placeholder="Opcional: condiciones, fecha de entrega..."></div>

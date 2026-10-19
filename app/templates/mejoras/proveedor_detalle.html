@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ p.nombre }}{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <a href="/proveedores" class="m-muted" style="font-size:13px;">← Proveedores</a>
+      <h1 class="m-title" style="margin-top:6px;">{{ p.nombre }}</h1>
+      <div class="m-sub">{% if p.rtn %}RTN {{ p.rtn }} · {% endif %}{{ p.telefono or '' }}{% if p.direccion %} · {{ p.direccion }}{% endif %}</div>
+    </div>
+    <div class="m-acciones"><a href="/compras/nueva?proveedor={{ p.nombre|urlencode }}" class="btn btn-primary btn-sm">+ Solicitud de compra</a></div>
+  </div>
+  <section class="m-stats" style="padding-bottom:20px; border-bottom:1px solid var(--border);">
+    <div><div class="m-label">Comprado (recibido)</div><div class="m-val">{{ comprado|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Recepciones</div><div class="m-val">{{ n_recepciones }}</div></div>
+    <div><div class="m-label">Se le debe</div><div class="m-val {{ 'm-bad' if saldo > 0 else '' }}">{{ saldo|moneda(moneda) }}</div></div>
+  </section>
+  <div class="m-grid2" style="gap:28px; align-items:start; margin-top:20px;">
+    <section>
+      <div class="m-sec-t">Compras a este proveedor</div>
+      <div class="table-wrap">
+        <table class="m-table responsive-table">
+          <thead><tr><th>Solicitud</th><th>Fecha</th><th>Estado</th><th class="num">Total</th></tr></thead>
+          <tbody>
+            {% for s in solicitudes %}
+            <tr><td><a href="/compras/{{ s.id }}" style="font-weight:700; color:var(--text);">{{ s.numero }}</a></td><td class="m-muted nw">{{ s.fecha|hn('%d/%m/%Y') }}</td><td>{{ s.estado|capitalize }}</td><td class="num">{{ s.total_estimado|moneda(moneda) }}</td></tr>
+            {% else %}
+            <tr><td colspan="4" class="empty-state">Sin compras todavía.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <form method="post" action="/proveedores/{{ p.id }}/editar" class="m-box">
+        <div class="m-sec-t">Datos del proveedor</div>
+        <div class="field"><label for="eNombre">Nombre *</label><input id="eNombre" type="text" name="nombre" value="{{ p.nombre }}" required></div>
+        <div class="form-row">
+          <div class="field"><label for="eRtn">RTN</label><input id="eRtn" type="text" name="rtn" value="{{ p.rtn or '' }}"></div>
+          <div class="field"><label for="eTel">Teléfono</label><input id="eTel" type="text" name="telefono" value="{{ p.telefono or '' }}"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label for="eWa">WhatsApp</label><input id="eWa" type="text" name="whatsapp" value="{{ p.whatsapp or '' }}"></div>
+          <div class="field"><label for="eCorreo">Correo</label><input id="eCorreo" type="email" name="correo" value="{{ p.correo or '' }}"></div>
+        </div>
+        <div class="field"><label for="eDir">Dirección</label><input id="eDir" type="text" name="direccion" value="{{ p.direccion or '' }}"></div>
+        <div class="field"><label for="eCont">Persona de contacto</label><input id="eCont" type="text" name="contacto" value="{{ p.contacto or '' }}"></div>
+        <div class="field"><label for="eNotas">Notas</label><input id="eNotas" type="text" name="notas" value="{{ p.notas or '' }}"></div>
+        <div class="field"><label for="eAct">Estado</label><select id="eAct" name="activo"><option value="si" {{ 'selected' if p.activo else '' }}>Activo</option><option value="no" {{ '' if p.activo else 'selected' }}>Inactivo</option></select></div>
+        <button class="btn btn-primary btn-sm" type="submit">Guardar cambios</button>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}

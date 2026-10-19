@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Cotizaciones{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Cotizaciones</h1>
+      <div class="m-sub">Precios que le das a un cliente: se mandan por WhatsApp o PDF y, si compra, se pasan al Punto de Venta con un clic.</div>
+    </div>
+    <div class="m-acciones"><a href="/cotizaciones/nueva" class="btn btn-primary">+ Nueva cotización</a></div>
+  </div>
+  <section class="m-stats" style="padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:16px;">
+    <div><div class="m-label">Vigentes</div><div class="m-val">{{ n_vigentes }}</div></div>
+    <div><div class="m-label">Valor de las vigentes</div><div class="m-val">{{ total_vigentes|moneda(moneda) }}</div></div>
+  </section>
+  <form method="get" action="/cotizaciones" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+    <input type="search" name="q" value="{{ q }}" placeholder="Buscar por número o cliente" style="flex:1 1 240px; min-width:0;">
+    <div class="m-chips">
+      <a class="m-chip {{ 'on' if not estado else '' }}" href="/cotizaciones?q={{ q|urlencode }}">Todas</a>
+      {% for k, v in estados.items() %}<a class="m-chip {{ 'on' if estado == k else '' }}" href="/cotizaciones?estado={{ k }}&q={{ q|urlencode }}">{{ v }}</a>{% endfor %}
+    </div>
+  </form>
+  <div class="table-wrap">
+    <table class="m-table responsive-table">
+      <thead><tr><th>Cotización</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th><th>Válida hasta</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for c in cotizaciones %}{% set e = c.estado_actual %}
+        <tr style="cursor:pointer;" onclick="window.location='/cotizaciones/{{ c.id }}'">
+          <td><a href="/cotizaciones/{{ c.id }}" style="font-weight:800; color:var(--text);">{{ c.numero }}</a></td>
+          <td class="m-muted nw">{{ c.fecha|hn('%d/%m/%Y') }}</td>
+          <td>{{ c.cliente_nombre }}</td>
+          <td class="num" style="font-weight:800;">{{ c.total|moneda(moneda) }}</td>
+          <td class="m-muted nw">{{ c.vence|hn('%d/%m/%Y') }}</td>
+          <td><span class="m-dot {{ {'vigente':'m-warn','aceptada':'m-ok','anulada':'m-muted','vencida':'m-muted'}.get(e,'') }}" style="font-size:13px; font-weight:600;">{{ estados.get(e, e) }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">No hay cotizaciones{% if q or estado %} con ese filtro{% endif %}.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

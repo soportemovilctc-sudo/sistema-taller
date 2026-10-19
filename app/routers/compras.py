@@ -58,11 +58,14 @@ def compras_lista(request: Request, estado: str = "", q: str = "", db: Session =
 
 
 @router.get(BASE + "/nueva")
-def compras_nueva(request: Request, producto_id: int = 0, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+def compras_nueva(request: Request, producto_id: int = 0, proveedor: str = "", db: Session = Depends(get_db), usuario=Depends(solo_admin)):
     from app.routers.inventario import _categorias_disponibles, _isv_tasa, ultimos_codigos
-    proveedores = [p for (p,) in db.query(SolicitudCompra.proveedor).distinct().order_by(SolicitudCompra.proveedor).all() if p]
+    from app.models import Proveedor
+    registrados = [p.nombre for p in db.query(Proveedor).filter(Proveedor.activo == True).order_by(Proveedor.nombre).all()]  # noqa: E712
+    usados = [p for (p,) in db.query(SolicitudCompra.proveedor).distinct().order_by(SolicitudCompra.proveedor).all() if p]
+    proveedores = registrados + [p for p in usados if p.lower() not in {r.lower() for r in registrados}]
     return templates.TemplateResponse("compras/nueva.html", {
-        "request": request, "usuario": usuario, "productos": _productos(db), "preseleccion": producto_id,
+        "request": request, "usuario": usuario, "productos": _productos(db), "preseleccion": producto_id, "proveedor_inicial": proveedor,
         "categorias": _categorias_disponibles(db), "proveedores": proveedores, "tasa_isv": _isv_tasa(db),
         "ultimos_codigos": ultimos_codigos(db),
     })
@@ -85,6 +88,11 @@ def compras_crear(
         db.rollback()
         flash(request, "No se creó la solicitud: " + " ".join(errores), "error")
         return RedirectResponse(BASE + "/nueva", status_code=303)
+    from app.models import Proveedor
+    from sqlalchemy import func as _f
+    prov = db.query(Proveedor).filter(_f.lower(Proveedor.nombre) == (proveedor or "").strip().lower()).first()
+    if prov:
+        sol.proveedor_id = prov.id
     db.commit()
     flash(request, f"Solicitud {sol.numero} guardada. Puedes descargarla en PDF para el proveedor; cuando llegue la mercadería, confirma la recepción.", "success")
     return RedirectResponse(f"{BASE}/{sol.id}", status_code=303)
@@ -227,7 +235,11 @@ def compras_solicitud_pdf(solicitud_id: int, descargar: int = 0, isv: int = 1, d
     sol = db.get(SolicitudCompra, solicitud_id)
     if not sol:
         return RedirectResponse(BASE, status_code=303)
-    contenido = pdf_solicitud(sol, db.get(Configuracion, 1), db.query(ConfiguracionFacturacion).first(), con_isv=bool(isv))
+    from app.models import Proveedor
+    pv = db.get(Proveedor, sol.proveedor_id) if sol.proveedor_id else None
+    datos = " · ".join(x for x in ((f"Dirección: {pv.direccion}" if pv and pv.direccion else ""), (f"R.T.N.: {pv.rtn}" if pv and pv.rtn else ""),
+                                   (f"Tel.: {pv.telefono}" if pv and pv.telefono else "")) if x)
+    contenido = pdf_solicitud(sol, db.get(Configuracion, 1), db.query(ConfiguracionFacturacion).first(), con_isv=bool(isv), datos_parte=datos)
     modo = "attachment" if descargar else "inline"
     return Response(contenido, media_type="application/pdf",
                     headers={"Content-Disposition": f'{modo}; filename="solicitud_compra_{sol.numero}.pdf"'})
@@ -280,7 +292,8 @@ def compras_anular(solicitud_id: int, request: Request, motivo: str = Form(""), 
         flash(request, error, "error")
     else:
         db.commit()
-        flash(request, f"Solicitud {sol.numero} anulada.", "success")
+        flash(request, f"Solicitud {sol.numero} anulada." + (" Se sacó del inventario lo que había entrado y sus pagos ya no cuentan en la contabilidad."
+                                                             if sol.recepciones else ""), "success")
     return RedirectResponse(f"{BASE}/{solicitud_id}", status_code=303)
 
 

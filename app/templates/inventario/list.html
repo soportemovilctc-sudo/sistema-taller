@@ -15,6 +15,7 @@
       {% if usuario.rol == 'admin' %}<a href="/ajustes-inventario" class="btn btn-outline btn-sm">Ajustes de inventario (varios productos)</a>{% endif %}
       <a href="/inventario/precios" class="btn btn-outline btn-sm">Ver precios con impuesto</a>
       <a href="/inventario/categorias" class="btn btn-outline btn-sm">Categorías</a>
+      {% if usuario.rol == 'admin' %}<a href="/inventario/reorden" class="btn btn-outline btn-sm">Reorden (qué pedir)</a>{% endif %}
       {% if usuario.rol == 'admin' %}<a href="/compras" class="btn btn-outline btn-sm">Compras</a>
       <a href="/inventario/editar-varios" class="btn btn-outline btn-sm">Editar productos (costo, precio, categoría…)</a>{% endif %}
       <a href="/inventario/nuevo" class="btn btn-primary btn-sm">+ Nuevo producto</a>
@@ -40,9 +41,32 @@
       </button>
     </div>
   </form>
+  {% if resumen and productos %}
+  <details class="m-box" style="margin-bottom:14px;">
+    <summary style="cursor:pointer; display:flex; flex-wrap:wrap; gap:6px 18px; align-items:baseline;">
+      <b>Valor del inventario</b>
+      <span>Costo: <b class="num">{{ resumen.costo|moneda(config_taller().moneda) }}</b></span>
+      <span>A precio de venta: <b class="num">{{ resumen.venta|moneda(config_taller().moneda) }}</b></span>
+      <span>Ganancia esperada: <b class="num" style="color:var(--success);">{{ resumen.ganancia|moneda(config_taller().moneda) }}</b></span>
+      {% if resumen.margen is not none %}<span>Margen: <b>{{ resumen.margen }}%</b></span>{% endif %}
+      <span class="m-muted" style="font-size:.85em;">Ver por categoría ▾</span>
+    </summary>
+    <div class="table-wrap" style="margin-top:10px;">
+    <table class="m-table">
+      <thead><tr><th>Categoría</th><th class="num">Productos</th><th class="num">Unidades</th><th class="num">Costo total</th><th class="num">A precio de venta</th><th class="num">Margen</th></tr></thead>
+      <tbody>
+      {% for nombre, c in resumen.por_categoria %}
+        <tr><td>{{ nombre }}</td><td class="num">{{ c.productos }}</td><td class="num">{{ c.unidades }}</td><td class="num">{{ c.costo|moneda(config_taller().moneda) }}</td><td class="num">{{ c.venta|moneda(config_taller().moneda) }}</td><td class="num">{{ (c.margen ~ '%') if c.margen is not none else '-' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="help" style="margin-bottom:0;">Costo y precio sin ISV, por las unidades que hay hoy. Margen = (precio − costo) ÷ precio.</p>
+  </details>
+  {% endif %}
   <div class="table-wrap">
   <table class="inv-tabla">
-    <thead><tr><th style="width:52px;">Historial</th><th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Caja</th><th>Costo</th><th>Precio</th><th>Existencia</th><th>Mín.</th><th>Estado</th><th></th></tr></thead>
+    <thead><tr><th style="width:52px;">Historial</th><th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Caja</th><th>Costo</th><th>Precio</th><th title="(precio − costo) ÷ precio">Margen</th><th>Existencia</th><th>Mín.</th><th>Estado</th><th></th></tr></thead>
     <tbody>
       {% for p in productos %}
       <tr>
@@ -54,6 +78,8 @@
         <td class="nw">{{ p.caja or '-' }}</td>
         <td class="nw num">{{ p.costo|moneda(config_taller().moneda) }}</td>
         <td class="nw num">{{ p.precio_venta|moneda(config_taller().moneda) }}</td>
+        {% set mg = margen(p) %}
+        <td class="nw num" {% if mg is not none and mg < 15 %}style="color:var(--danger);" title="Margen bajo"{% endif %}>{{ (mg ~ '%') if mg is not none else '-' }}</td>
         <td class="nw">
           {{ p.existencia }}
           {% if p.id in stock_bajo_ids %}<span class="badge badge-stock-bajo">Bajo</span>{% endif %}
@@ -70,7 +96,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="12" class="empty-state">No hay productos registrados.</td></tr>
+      <tr><td colspan="13" class="empty-state">No hay productos registrados.</td></tr>
       {% endfor %}
     </tbody>
     {% if productos %}
@@ -78,7 +104,7 @@
       <tr>
         <td colspan="6" style="text-align:right; font-weight:600;">Inversión total en inventario (costo &times; existencia):</td>
         <td style="font-weight:700;">{{ total_inversion|moneda(config_taller().moneda) }}</td>
-        <td colspan="5"></td>
+        <td colspan="6"></td>
       </tr>
     </tfoot>
     {% endif %}

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Nueva cotización{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap" style="max-width:1100px;">
+  <div class="m-head">
+    <div>
+      <a href="/cotizaciones" class="m-muted" style="font-size:13px;">← Cotizaciones</a>
+      <h1 class="m-title" style="margin-top:6px;">Nueva cotización</h1>
+      <div class="m-sub">Elige productos del inventario o servicios, o escribe cualquier otra cosa (por ejemplo "Cambio de pantalla").</div>
+    </div>
+  </div>
+  <form method="post" action="/cotizaciones/nueva" id="formCot">
+    <div class="form-row">
+      <div class="field" style="flex:2 1 260px;">
+        <label for="cotCliente">Cliente</label>
+        <input id="cotCliente" type="text" name="cliente_nombre" list="listaClientes" placeholder="Nombre del cliente (o déjalo vacío: Consumidor final)" autocomplete="off">
+        <input type="hidden" name="cliente_id" id="cotClienteId">
+        <datalist id="listaClientes">{% for c in clientes %}<option value="{{ c.nombre }}" data-id="{{ c.id }}" data-tel="{{ c.whatsapp or c.telefono or '' }}"></option>{% endfor %}</datalist>
+      </div>
+      <div class="field" style="flex:1 1 160px;"><label for="cotTel">WhatsApp / teléfono</label><input id="cotTel" type="text" name="cliente_telefono" placeholder="Para mandarla"></div>
+      <div class="field" style="flex:0 0 140px;"><label for="cotValidez">Válida por (días)</label><input id="cotValidez" type="number" min="1" name="validez_dias" value="15"></div>
+    </div>
+    <div class="isv-bar" style="margin:6px 0 12px;">
+      <label class="isv-switch"><input type="checkbox" name="precios_con_isv" value="true" id="cotConIsv" checked><span class="sw" aria-hidden="true"></span><span class="tx"><b>Precios con ISV incluido</b><small>Escribo el precio que paga el cliente (con el {{ tasa_isv|int }}%)</small></span></label>
+    </div>
+    <datalist id="listaItems">
+      {% for p in productos %}<option value="{{ p.codigo }} · {{ p.nombre }}" data-id="{{ p.id }}" data-precio="{{ p.precio_venta }}" data-tipo="p" data-hay="{{ p.existencia }}"></option>{% endfor %}
+      {% for s in servicios if s.activo %}<option value="Servicio · {{ s.nombre }}" data-precio="{{ s.precio_venta }}" data-tipo="s"></option>{% endfor %}
+    </datalist>
+    <div class="table-wrap">
+      <table class="m-table">
+        <thead><tr><th style="min-width:320px;">Producto o servicio</th><th class="num" style="width:110px;">Cantidad</th><th class="num" style="width:170px;" id="thPrecioCot">Precio c/u (con ISV)</th><th class="num" style="width:140px;">Total</th><th></th></tr></thead>
+        <tbody id="filasCot"></tbody>
+        <tfoot>
+          <tr><td colspan="5"><button type="button" class="btn btn-outline btn-sm" id="agregarFila">+ Agregar otra línea</button></td></tr>
+          <tr><td colspan="3" class="num m-muted">Subtotal (sin ISV)</td><td class="num" id="cotSub">0.00</td><td></td></tr>
+          <tr><td colspan="3" class="num m-muted">ISV ({{ tasa_isv|int }}%)</td><td class="num" id="cotIsv">0.00</td><td></td></tr>
+          <tr><td colspan="3" class="num" style="font-weight:800;">Total</td><td class="num" style="font-size:20px; font-weight:800;" id="cotTotal">0.00</td><td></td></tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="field" style="margin-top:12px;"><label for="cotNotas">Notas para el cliente</label><input id="cotNotas" type="text" name="notas" placeholder="Ej: incluye garantía de 30 días; precio sujeto a existencia"></div>
+    <button type="submit" class="btn btn-primary">Guardar cotización</button>
+    <a href="/cotizaciones" class="btn btn-outline">Cancelar</a>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var tasa = {{ tasa_isv|float }};
+  var moneda = {{ config_taller().moneda|tojson }};
+  var cuerpo = document.getElementById("filasCot"), conIsv = document.getElementById("cotConIsv");
+  var opciones = Array.prototype.slice.call(document.querySelectorAll("#listaItems option"));
+  function fmt(n) { return moneda + " " + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fila() {
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td><input type="text" name="descripcion" list="listaItems" placeholder="Busca por código o nombre, o escribe la descripción" autocomplete="off" style="width:100%;"><input type="hidden" name="producto_id"><div class="m-muted info" style="font-size:12px; margin-top:3px;"></div></td>' +
+      '<td class="num"><input type="number" name="cantidad" min="1" value="1" style="width:90px; text-align:right;"></td>' +
+      '<td class="num"><input type="number" name="precio" min="0" step="0.01" placeholder="0.00" style="width:140px; text-align:right;"></td>' +
+      '<td class="num tot" style="font-weight:700;">0.00</td>' +
+      '<td><button type="button" class="btn btn-outline btn-sm quitar" title="Quitar">✕</button></td>';
+    cuerpo.appendChild(tr);
+    var desc = tr.querySelector('input[name="descripcion"]');
+    desc.addEventListener("change", function () {
+      var op = opciones.find(function (o) { return o.value === desc.value; });
+      var pid = tr.querySelector('input[name="producto_id"]'), info = tr.querySelector(".info"), precio = tr.querySelector('input[name="precio"]');
+      pid.value = ""; info.textContent = "";
+      if (!op) { recalcular(); return; }
+      var base = parseFloat(op.dataset.precio) || 0;
+      if (op.dataset.tipo === "p") {
+        pid.value = op.dataset.id;
+        precio.value = (conIsv.checked ? base * (1 + tasa / 100) : base).toFixed(2);
+        info.textContent = "Del inventario · hay " + op.dataset.hay;
+        desc.value = op.value.split(" · ").slice(1).join(" · ");
+      } else {
+        precio.value = base.toFixed(2);
+        info.textContent = "Servicio del catálogo";
+        desc.value = op.value.replace(/^Servicio · /, "");
+      }
+      recalcular();
+    });
+    tr.querySelectorAll('input[name="cantidad"], input[name="precio"]').forEach(function (i) { i.addEventListener("input", recalcular); });
+    tr.querySelector(".quitar").addEventListener("click", function () { tr.remove(); if (!cuerpo.children.length) fila(); recalcular(); });
+    return tr;
+  }
+  function recalcular() {
+    var total = 0;
+    cuerpo.querySelectorAll("tr").forEach(function (tr) {
+      var c = parseFloat(tr.querySelector('input[name="cantidad"]').value) || 0, p = parseFloat(tr.querySelector('input[name="precio"]').value) || 0;
+      tr.querySelector(".tot").textContent = fmt(c * p); total += c * p;
+    });
+    var sub = conIsv.checked ? total / (1 + tasa / 100) : total;
+    var tot = conIsv.checked ? total : total * (1 + tasa / 100);
+    document.getElementById("cotSub").textContent = fmt(sub);
+    document.getElementById("cotIsv").textContent = fmt(tot - sub);
+    document.getElementById("cotTotal").textContent = fmt(tot);
+    document.getElementById("thPrecioCot").textContent = conIsv.checked ? "Precio c/u (con ISV)" : "Precio c/u (sin ISV)";
+  }
+  conIsv.addEventListener("change", function () {
+    cuerpo.querySelectorAll('input[name="precio"]').forEach(function (i) {
+      var v = parseFloat(i.value); if (isNaN(v)) return;
+      i.value = (conIsv.checked ? v * (1 + tasa / 100) : v / (1 + tasa / 100)).toFixed(2);
+    });
+    recalcular();
+  });
+  var cli = document.getElementById("cotCliente");
+  cli.addEventListener("change", function () {
+    var op = document.querySelector('#listaClientes option[value="' + cli.value.replace(/"/g, '\\"') + '"]');
+    document.getElementById("cotClienteId").value = op ? op.dataset.id : "";
+    if (op && op.dataset.tel && !document.getElementById("cotTel").value) document.getElementById("cotTel").value = op.dataset.tel;
+  });
+  document.getElementById("agregarFila").addEventListener("click", function () { fila().querySelector("input").focus(); });
+  document.getElementById("formCot").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.tagName === "INPUT") e.preventDefault(); });
+  fila(); fila();
+})();
+</script>
+{% endblock %}

@@ -13,7 +13,7 @@ from app.utils.calculations import to_decimal
 CENT = Decimal("0.01")
 CAMPOS = {
     "nombre": "Nombre", "categoria": "Categoría", "marca": "Marca", "costo": "Costo",
-    "precio_venta": "Precio de venta", "stock_minimo": "Stock mínimo", "caja": "Caja",
+    "precio_venta": "Precio de venta", "stock_minimo": "Stock mínimo", "stock_maximo": "Stock máximo", "caja": "Caja",
     "proveedor": "Proveedor", "estado": "Estado",
 }
 
@@ -27,6 +27,8 @@ def _texto(campo, valor) -> str:
         return ""
     if campo in ("costo", "precio_venta"):
         return f"{to_decimal(valor):,.2f}"
+    if campo == "stock_maximo" and not valor:
+        return "automático"
     return str(valor)
 
 

@@ -463,6 +463,7 @@ class Producto(Base):
     precio_venta = Column(Numeric(10, 2), default=0)
     existencia = Column(Integer, default=0)
     stock_minimo = Column(Integer, default=0)
+    stock_maximo = Column(Integer, nullable=True)  # para el reorden: hasta cuánto pedir
     proveedor = Column(String(150))
     caja = Column(String(40), default="")  # número/nombre de la caja o casillero donde está guardado
     estado = Column(String(20), default="activo")  # activo | inactivo
@@ -1024,6 +1025,7 @@ class SolicitudCompra(Base):
     numero = Column(String(20), unique=True, nullable=False, index=True)  # SC-000001
     fecha = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
     proveedor = Column(String(150), nullable=False, default="")
+    proveedor_id = Column(Integer, nullable=True)  # ver Proveedor (si se eligió de la lista)
     notas = Column(Text, default="")
     estado = Column(String(12), nullable=False, default=COMPRA_PENDIENTE, index=True)
     total_estimado = Column(Numeric(12, 2), nullable=False, default=0)
@@ -1072,6 +1074,10 @@ class RecepcionCompra(Base):
     pagado = Column(Numeric(12, 2), nullable=False, default=0)
     notas = Column(Text, default="")
     usuario_nombre = Column(String(150), default="")
+    anulada = Column(Boolean, nullable=False, default=False)   # se anuló la compra: no cuenta en nada
+    anulada_en = Column(DateTime, nullable=True)
+    anulada_por = Column(String(150), nullable=True)
+    motivo_anulacion = Column(Text, nullable=True)
 
     solicitud = relationship("SolicitudCompra", back_populates="recepciones")
     detalles = relationship("RecepcionCompraDetalle", back_populates="recepcion", cascade="all,delete-orphan",
@@ -1079,6 +1085,8 @@ class RecepcionCompra(Base):
 
     @property
     def saldo(self):
+        if self.anulada:
+            return 0
         return (self.total or 0) - (self.pagado or 0)
 
 
@@ -1114,3 +1122,95 @@ class HistorialProducto(Base):
     antes = Column(String(200), default="")
     despues = Column(String(200), default="")
     origen = Column(String(30), default="")  # editar | editar_varios
+
+
+
+# ---------------------------------------------------------------------------
+# Mejoras tomadas de Zafra (migración 0033)
+# ---------------------------------------------------------------------------
+class Proveedor(Base):
+    __tablename__ = "proveedores"
+
+    id = Column(Integer, primary_key=True)
+    nombre = Column(String(150), nullable=False, index=True)
+    rtn = Column(String(20), default="")
+    telefono = Column(String(30), default="")
+    whatsapp = Column(String(30), default="")
+    correo = Column(String(150), default="")
+    direccion = Column(String(255), default="")
+    contacto = Column(String(150), default="")
+    notas = Column(Text, default="")
+    activo = Column(Boolean, nullable=False, default=True)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
+
+COTIZACION_VIGENTE = "vigente"
+COTIZACION_ACEPTADA = "aceptada"
+COTIZACION_ANULADA = "anulada"
+ESTADOS_COTIZACION = {COTIZACION_VIGENTE: "Vigente", COTIZACION_ACEPTADA: "Vendida", COTIZACION_ANULADA: "Anulada", "vencida": "Vencida"}
+
+
+class Cotizacion(Base):
+    __tablename__ = "cotizaciones"
+
+    id = Column(Integer, primary_key=True)
+    numero = Column(String(20), unique=True, nullable=False)  # COT-000001
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=True)
+    cliente_nombre = Column(String(150), default="")
+    cliente_telefono = Column(String(30), default="")
+    validez_dias = Column(Integer, nullable=False, default=15)
+    notas = Column(Text, default="")
+    estado = Column(String(12), nullable=False, default=COTIZACION_VIGENTE)
+    precios_con_isv = Column(Boolean, nullable=False, default=True)
+    subtotal = Column(Numeric(12, 2), nullable=False, default=0)   # sin ISV
+    isv = Column(Numeric(12, 2), nullable=False, default=0)
+    total = Column(Numeric(12, 2), nullable=False, default=0)      # lo que paga el cliente
+    venta_id = Column(Integer, ForeignKey("ventas.id"), nullable=True)
+    usuario_nombre = Column(String(150), default="")
+
+    cliente = relationship("Cliente")
+    detalles = relationship("CotizacionDetalle", back_populates="cotizacion", cascade="all,delete-orphan",
+                            order_by="CotizacionDetalle.id")
+
+    @property
+    def vence(self):
+        from datetime import timedelta
+        return (self.fecha or datetime.utcnow()) + timedelta(days=self.validez_dias or 0)
+
+    @property
+    def estado_actual(self):
+        if self.estado == COTIZACION_VIGENTE and datetime.utcnow() > self.vence:
+            return "vencida"
+        return self.estado
+
+
+class CotizacionDetalle(Base):
+    __tablename__ = "cotizaciones_detalle"
+
+    id = Column(Integer, primary_key=True)
+    cotizacion_id = Column(Integer, ForeignKey("cotizaciones.id"), nullable=False, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id"), nullable=True)
+    descripcion = Column(String(200), nullable=False)
+    cantidad = Column(Integer, nullable=False, default=1)
+    precio_unitario = Column(Numeric(10, 2), nullable=False, default=0)  # sin ISV
+    subtotal = Column(Numeric(12, 2), nullable=False, default=0)
+
+    cotizacion = relationship("Cotizacion", back_populates="detalles")
+    producto = relationship("Producto")
+
+
+class Bitacora(Base):
+    """Quién hizo qué y cuándo (cada acción que guarda algo en el sistema)."""
+    __tablename__ = "bitacora"
+
+    id = Column(Integer, primary_key=True)
+    fecha = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    usuario_nombre = Column(String(150), default="")
+    usuario_rol = Column(String(20), default="")
+    modulo = Column(String(40), default="")
+    accion = Column(String(200), nullable=False)
+    ruta = Column(String(255), default="")
+    enlace = Column(String(255), default="")
+    resultado = Column(String(10), default="")
+    ip = Column(String(60), default="")

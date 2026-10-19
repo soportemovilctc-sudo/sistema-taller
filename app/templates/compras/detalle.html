@@ -3,7 +3,7 @@
 {% block content %}
 {% set moneda = config_taller().moneda %}
 {% set color = {'pendiente': 'm-warn', 'parcial': 'm-warn', 'recibida': 'm-ok', 'cerrada': 'm-muted', 'anulada': 'm-muted'}.get(sol.estado, '') %}
-{% set por_pagar = namespace(v=0) %}{% for r in sol.recepciones %}{% set por_pagar.v = por_pagar.v + (r.total - r.pagado) %}{% endfor %}
+{% set por_pagar = namespace(v=0, recibido=0) %}{% for r in sol.recepciones if not r.anulada %}{% set por_pagar.v = por_pagar.v + (r.total - r.pagado) %}{% set por_pagar.recibido = por_pagar.recibido + r.total %}{% endfor %}
 <div class="m-wrap">
   <div class="m-head">
     <div>
@@ -16,6 +16,7 @@
       <a href="/compras/{{ sol.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF</a>
       <a href="/compras/{{ sol.id }}/pdf?descargar=1" class="btn btn-outline btn-sm">Descargar PDF</a>
       <a href="/compras/{{ sol.id }}/pdf?isv=0" target="_blank" class="btn btn-outline btn-sm" title="Sin ISV: compra exenta">PDF sin ISV</a>
+      {% if sol.estado != 'anulada' and usuario.rol == 'admin' %}<a href="#anularSolicitud" class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="var d=document.getElementById('anularSolicitud'); d.open=true; d.scrollIntoView({behavior:'smooth'}); return false;">Anular</a>{% endif %}
       {% if puede_recibir %}<a href="/compras/{{ sol.id }}/recibir" class="btn btn-primary">Confirmar recepción</a>{% endif %}
     </div>
   </div>
@@ -23,7 +24,7 @@
   <div class="m-stats" style="padding-bottom:22px; border-bottom:1px solid var(--border);">
     <div><div class="m-label">Estado</div><div class="m-val m-dot {{ color }}" style="font-size:18px; margin-top:8px;">{{ estados.get(sol.estado, sol.estado) }}</div></div>
     <div><div class="m-label">Total estimado</div><div class="m-val">{{ sol.total_estimado|moneda(moneda) }}</div></div>
-    <div><div class="m-label">Recibido</div><div class="m-val">{{ sol.recepciones|sum(attribute='total')|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Recibido</div><div class="m-val">{{ por_pagar.recibido|moneda(moneda) }}</div></div>
     <div><div class="m-label">Por pagar</div><div class="m-val {{ 'm-bad' if por_pagar.v > 0 else '' }}">{{ por_pagar.v|moneda(moneda) }}</div></div>
   </div>
   {% if sol.motivo_cierre %}<div class="flash flash-info" style="margin-top:16px;">{{ 'Anulada' if sol.estado == 'anulada' else 'Cerrada' }} el {{ sol.cerrada_en|hn }} por {{ sol.cerrada_por }}: {{ sol.motivo_cierre }}</div>{% endif %}
@@ -51,6 +52,7 @@
 
   {% for r in sol.recepciones %}
   <div class="m-sec" id="rec-{{ r.id }}">
+    {% if r.anulada %}<div class="flash flash-error" style="margin-bottom:10px;">Recepción ANULADA el {{ r.anulada_en|hn }} por {{ r.anulada_por }}: {{ r.motivo_anulacion }}. Ya no cuenta en inventario, pagos ni contabilidad.</div>{% endif %}
     <div class="m-sec-t"><span>Recepción {{ r.numero }} · {{ r.fecha|hn }}</span><span class="m-muted" style="text-transform:none; letter-spacing:0; font-weight:500;">por {{ r.usuario_nombre }}{% if r.factura_proveedor %} · factura del proveedor {{ r.factura_proveedor }}{% endif %}</span></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:-4px 0 12px;">
       <span class="m-muted" style="font-size:13px;">Comprobante de ingreso:</span>
@@ -85,13 +87,13 @@
       <div>
         <div class="m-label" style="margin-bottom:4px;">Pagos ({{ 'al crédito' if r.forma_pago == 'Crédito' else r.forma_pago }})</div>
         {% for m in pagos.get(r.id, []) %}
-        <div class="m-row"><span>{{ m.fecha|hn }} · {{ 'Efectivo de caja' if m.cuenta == 'caja_chica' else 'Banco' }} <span class="m-muted">· {{ m.usuario_nombre }}</span></span><span class="r m-ok">{{ m.monto|moneda(moneda) }}</span></div>
+        <div class="m-row"><span>{{ m.fecha|hn }} · {{ 'Efectivo de caja' if m.cuenta == 'caja_chica' else 'Banco' }} <span class="m-muted">· {{ m.usuario_nombre }}</span></span>{% if m.excluir_de_contabilidad %}<span class="r m-muted"><s>{{ m.monto|moneda(moneda) }}</s> anulado</span>{% else %}<span class="r m-ok">{{ m.monto|moneda(moneda) }}</span>{% endif %}</div>
         {% else %}
         <div class="m-row"><span class="m-muted">Sin pagos todavía.</span><span></span></div>
         {% endfor %}
         <div class="m-row" style="border-bottom:0;"><span style="font-weight:700;">Saldo</span><span class="r {{ 'm-bad' if r.saldo > 0 else '' }}" style="font-size:18px;">{{ r.saldo|moneda(moneda) }}</span></div>
       </div>
-      {% if r.saldo > 0 %}
+      {% if r.saldo > 0 and not r.anulada %}
       <form method="post" action="/compras/recepcion/{{ r.id }}/pagar" class="m-box" onsubmit="return confirm('¿Registrar este pago al proveedor?');">
         <div class="m-sec-t">Registrar pago</div>
         <div class="form-row">
@@ -109,12 +111,25 @@
   </div>
   {% endfor %}
 
-  {% if sol.estado in ['pendiente', 'parcial'] %}
+  {% if sol.estado == 'parcial' %}
   <details class="m-more">
-    <summary>{{ 'Anular esta solicitud' if sol.estado == 'pendiente' else 'Cerrar: ya no va a llegar lo que falta' }}</summary>
-    <form method="post" action="/compras/{{ sol.id }}/{{ 'anular' if sol.estado == 'pendiente' else 'cerrar' }}" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;" onsubmit="return confirm('¿Seguro?');">
+    <summary>Cerrar: ya no va a llegar lo que falta</summary>
+    <form method="post" action="/compras/{{ sol.id }}/cerrar" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;" onsubmit="return confirm('¿Seguro?');">
       <input type="text" name="motivo" placeholder="Motivo" required style="flex:1 1 280px;" aria-label="Motivo">
-      <button class="btn btn-danger btn-sm" type="submit">{{ 'Anular' if sol.estado == 'pendiente' else 'Cerrar solicitud' }}</button>
+      <button class="btn btn-danger btn-sm" type="submit">Cerrar solicitud</button>
+    </form>
+  </details>
+  {% endif %}
+  {% if sol.estado != 'anulada' and usuario.rol == 'admin' %}
+  {% set recibida = sol.recepciones|rejectattr('anulada')|list %}
+  <details class="m-more" id="anularSolicitud">
+    <summary>Anular esta solicitud{{ ' (ya recibida)' if recibida else '' }}</summary>
+    {% if recibida %}
+    <p class="help" style="margin-top:10px;">Se deshace todo, como si la compra no hubiera existido: <b>salen del inventario</b> las unidades que entraron (si todavía están), el costo y el precio de venta vuelven a los de antes, <b>la deuda con el proveedor desaparece</b> y <b>los pagos ya hechos dejan de contar</b> en caja, banco y contabilidad. Queda registrado quién lo anuló y por qué.</p>
+    {% endif %}
+    <form method="post" action="/compras/{{ sol.id }}/anular" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;" onsubmit="return confirm('¿Anular la solicitud {{ sol.numero }}?{{ ' Se sacará del inventario lo recibido y sus pagos dejarán de contar.' if recibida else '' }}');">
+      <input type="text" name="motivo" placeholder="Motivo (ej: se devolvió al proveedor, se registró por error)" required style="flex:1 1 280px;" aria-label="Motivo">
+      <button class="btn btn-danger btn-sm" type="submit">Anular solicitud</button>
     </form>
   </details>
   {% endif %}

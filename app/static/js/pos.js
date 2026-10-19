@@ -1,12 +1,27 @@
 // Lógica del carrito del Punto de Venta.
 var carrito = [];
 var TASA_ISV = 15;
+var COTIZACION_ID = null;
 
 document.addEventListener("DOMContentLoaded", function () {
   var posLayout = document.querySelector(".pos-layout");
   if (posLayout) {
     var tasaAttr = parseFloat(posLayout.getAttribute("data-tasa-isv"));
     if (!isNaN(tasaAttr)) TASA_ISV = tasaAttr;
+  }
+
+  // Venta desde una cotización: precarga el carrito con sus productos.
+  var cotEl = document.getElementById("posCotizacion");
+  if (cotEl) {
+    try {
+      var cot = JSON.parse(cotEl.textContent);
+      COTIZACION_ID = cot.id;
+      (cot.items || []).forEach(function (it) {
+        carrito.push({ id: it.id, nombre: it.nombre, categoria: it.categoria, precio: it.precio, precioLista: it.precioLista,
+                       cantidad: Math.min(it.cantidad, it.existencia || it.cantidad), existencia: it.existencia });
+      });
+      setTimeout(renderCarrito, 0);
+    } catch (e) {}
   }
 
   document.querySelectorAll(".product-card").forEach(function (card) {
@@ -169,6 +184,7 @@ function finalizarVenta() {
     forma_pago: (document.getElementById("posFormaPago") || {}).value || "Efectivo",
     monto_recibido: parseFloat((document.getElementById("posMontoRecibido") || {}).value) || 0,
     cliente_id: (document.getElementById("posCliente") || {}).value || null,
+    cotizacion_id: COTIZACION_ID,
   };
   var mensajeEl = document.getElementById("posMensaje");
 
@@ -206,6 +222,7 @@ function finalizarVenta() {
           }
         }
         carrito = [];
+        COTIZACION_ID = null;
         renderCarrito();
         var recibidoInput = document.getElementById("posMontoRecibido");
         if (recibidoInput) recibidoInput.value = "";

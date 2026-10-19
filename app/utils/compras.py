@@ -117,10 +117,14 @@ def crear_solicitud(db: Session, proveedor: str, notas: str, lineas: list[dict],
 
 
 def anular_solicitud(db: Session, sol: SolicitudCompra, motivo: str, usuario_nombre: str) -> str | None:
-    if sol.estado != COMPRA_PENDIENTE or sol.recepciones:
-        return "Solo se anula una solicitud a la que todavía no se le ha recibido nada."
+    if sol.estado == COMPRA_ANULADA:
+        return "Esta solicitud ya está anulada."
     if not (motivo or "").strip():
         return "Escribe el motivo."
+    if any(not r.anulada for r in sol.recepciones):
+        error = anular_recepciones(db, sol, motivo, usuario_nombre)
+        if error:
+            return error
     sol.estado = COMPRA_ANULADA
     sol.cerrada_en, sol.cerrada_por, sol.motivo_cierre = datetime.utcnow(), usuario_nombre, motivo.strip()
     return None
@@ -159,6 +163,8 @@ def _registrar_pago(db: Session, rec: RecepcionCompra, monto: Decimal, forma: st
 
 
 def pagar_recepcion(db: Session, rec: RecepcionCompra, monto_texto: str, forma: str, nota: str, usuario_nombre: str) -> str | None:
+    if rec.anulada:
+        return "Esta compra fue anulada: ya no se le puede pagar."
     try:
         monto = _num(monto_texto, "Monto")
     except ValueError as e:
@@ -283,15 +289,95 @@ def recibir(db: Session, sol: SolicitudCompra, lineas: dict, forma_pago: str, fa
 def compras_recibidas(db: Session, inicio: datetime, fin: datetime) -> dict:
     """Mercadería recibida en el período (al costo, sin ISV) y su ISV."""
     sub, isv = db.query(func.coalesce(func.sum(RecepcionCompra.subtotal), 0), func.coalesce(func.sum(RecepcionCompra.isv), 0)).filter(
-        RecepcionCompra.fecha >= inicio, RecepcionCompra.fecha < fin).one()
+        RecepcionCompra.fecha >= inicio, RecepcionCompra.fecha < fin, RecepcionCompra.anulada == False).one()  # noqa: E712
     return {"subtotal": to_decimal(sub).quantize(CENT), "isv": to_decimal(isv).quantize(CENT)}
 
 
 def por_pagar_a(db: Session, instante: datetime) -> Decimal:
     """Lo que se le debe a proveedores por compras recibidas hasta `instante`."""
-    total = db.query(func.coalesce(func.sum(RecepcionCompra.total), 0)).filter(RecepcionCompra.fecha < instante).scalar()
+    total = db.query(func.coalesce(func.sum(RecepcionCompra.total), 0)).filter(
+        RecepcionCompra.fecha < instante, RecepcionCompra.anulada == False).scalar()  # noqa: E712
     pagado = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
         MovimientoFinanciero.recepcion_compra_id.isnot(None), MovimientoFinanciero.fecha < instante,
         MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     ).scalar()
     return max(CERO, (to_decimal(total) - to_decimal(pagado)).quantize(CENT))
+
+
+
+# ---------------------------------------------------------------------------
+# Anular una compra ya recibida
+# ---------------------------------------------------------------------------
+def anular_recepciones(db: Session, sol: SolicitudCompra, motivo: str, usuario_nombre: str) -> str | None:
+    """Deshace todo lo que hicieron las recepciones de la solicitud, como si la
+    compra no hubiera existido en la contabilidad:
+      * Inventario: salen las unidades que entraron (si todavía están), con su
+        movimiento de salida; el costo y el precio de venta regresan a los de
+        antes (si nadie los cambió después; si cambiaron, el costo se
+        recalcula quitando esta compra del promedio).
+      * Dinero: los pagos al proveedor dejan de contar (se excluyen de la
+        contabilidad y se borra su asiento); si alguno salió de una caja ya
+        cerrada, se recalcula su arqueo y queda en su bitácora.
+      * La deuda con el proveedor desaparece y la compra deja de contar en
+        reportes, ISV y Estados Financieros.
+    Nada se borra de la base: todo queda marcado como anulado. No hace commit."""
+    from app.models import TurnoCaja, TurnoCajaEvento, TURNO_ABIERTO
+    from app.utils.libro_diario import eliminar_asiento_de_movimiento
+    vivas = [r for r in sol.recepciones if not r.anulada]
+    # 1) ¿Todavía están las unidades?
+    necesita = {}
+    for r in vivas:
+        for d in r.detalles:
+            necesita[d.producto_id] = necesita.get(d.producto_id, 0) + (d.cantidad or 0)
+    faltan = []
+    for pid, cant in necesita.items():
+        p = db.get(Producto, pid)
+        if p and (p.existencia or 0) < cant:
+            faltan.append(f"{p.codigo} (entraron {cant}, quedan {p.existencia})")
+    if faltan:
+        return ("No se puede anular: parte de lo que entró ya se vendió o se usó: " + ", ".join(faltan)
+                + ". Haz un ajuste de inventario o una devolución parcial en vez de anular.")
+    ahora = datetime.utcnow()
+    turnos = {}
+    for r in sorted(vivas, key=lambda x: x.id, reverse=True):
+        for d in r.detalles:
+            p = db.get(Producto, d.producto_id)
+            if not p:
+                continue
+            exist_antes = p.existencia or 0
+            costo_act = to_decimal(p.costo or 0)
+            p.existencia = exist_antes - (d.cantidad or 0)
+            if costo_act.quantize(CENT) == to_decimal(d.costo_nuevo or 0).quantize(CENT):
+                p.costo = to_decimal(d.costo_anterior or 0).quantize(CENT)
+            elif p.existencia > 0:
+                nuevo = (costo_act * exist_antes - to_decimal(d.costo_unitario or 0) * (d.cantidad or 0)) / p.existencia
+                if nuevo > 0:
+                    p.costo = nuevo.quantize(CENT)
+            if d.precio_anterior is not None and d.precio_nuevo is not None and \
+                    to_decimal(p.precio_venta or 0).quantize(CENT) == to_decimal(d.precio_nuevo).quantize(CENT):
+                p.precio_venta = to_decimal(d.precio_anterior).quantize(CENT)
+            db.add(MovimientoInventario(
+                producto_id=p.id, tipo="salida", cantidad=d.cantidad, existencia_anterior=exist_antes,
+                existencia_resultante=p.existencia, costo_unitario=d.costo_unitario, usuario_nombre=usuario_nombre,
+                motivo=f"Anulación de la compra {sol.numero} ({r.numero}): {motivo.strip()}", fecha=ahora,
+            ))
+        for m in db.query(MovimientoFinanciero).filter(MovimientoFinanciero.recepcion_compra_id == r.id,
+                                                       MovimientoFinanciero.excluir_de_contabilidad == False).all():  # noqa: E712
+            m.excluir_de_contabilidad = True
+            m.descripcion = f"{m.descripcion or ''} (ANULADO: compra anulada por {usuario_nombre})".strip()
+            eliminar_asiento_de_movimiento(db, m.id)
+            if m.turno_caja_id:
+                turnos.setdefault(m.turno_caja_id, CERO)
+                turnos[m.turno_caja_id] += to_decimal(m.monto)
+        r.anulada, r.anulada_en, r.anulada_por, r.motivo_anulacion = True, ahora, usuario_nombre, motivo.strip()
+    db.flush()
+    for turno_id, monto in turnos.items():
+        t = db.get(TurnoCaja, turno_id)
+        if t and t.estado != TURNO_ABIERTO:
+            from app.routers.turnos_caja import _recalcular_arqueo
+            antes_e = to_decimal(t.efectivo_esperado or 0)
+            _recalcular_arqueo(db, t)
+            db.add(TurnoCajaEvento(turno_id=t.id, accion="edicion", usuario_nombre=usuario_nombre, fecha=ahora,
+                                   detalle=(f"Se anuló la compra {sol.numero}: su pago de L {monto:,.2f} ya no cuenta en esta caja. "
+                                            f"Esperado: L {antes_e:,.2f} → L {to_decimal(t.efectivo_esperado):,.2f}")))
+    return None

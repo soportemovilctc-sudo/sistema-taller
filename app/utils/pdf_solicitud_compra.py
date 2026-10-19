@@ -71,7 +71,11 @@ def totales(sol, con_isv: bool, tasa) -> dict:
             "total": subtotal + isv}
 
 
-def pdf_solicitud(sol, cfg, cfg_fact, con_isv: bool = True) -> bytes:
+def pdf_solicitud(sol, cfg, cfg_fact, con_isv: bool = True, titulo: str = "Solicitud de Compra",
+                  parte: str = "Proveedor", hecho_por: str = "Solicitado por", datos_parte: str = "",
+                  col_precio: str = "Costo", prefijo_totales: str = "COMPRAS", totales_fijos: dict | None = None) -> bytes:
+    """También sirve para la cotización (ver pdf_cotizacion): cambian los
+    títulos y, si se pasa `totales_fijos`, se usan esos totales tal cual."""
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.units import cm
@@ -117,18 +121,19 @@ def pdf_solicitud(sol, cfg, cfg_fact, con_isv: bool = True) -> bytes:
                                     ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 10)]))
 
     fecha = a_hora_local(sol.fecha)
-    barra = Table([[Paragraph(f"Solicitud de Compra: {escape(sol.numero)}", st["barra"]),
+    barra = Table([[Paragraph(f"{escape(titulo)}: {escape(sol.numero)}", st["barra"]),
                     Paragraph(f"Fecha Emisión: {fecha.strftime('%d-%m-%Y %H:%M:%S')}", st["barra"])]], colWidths=[ancho / 2, ancho / 2])
     barra.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f1f5f9")), ("BOX", (0, 0), (-1, -1), 0.6, linea)]))
-    prov = Table([[Paragraph(f"Proveedor: <b>{escape(sol.proveedor or '—')}</b>", st["txt"]),
-                   Paragraph(f"Solicitado por: {escape(sol.usuario_nombre or '')}", st["txt"])]], colWidths=[ancho * 0.62, ancho * 0.38])
-    prov.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.6, linea), ("TOPPADDING", (0, 0), (-1, -1), 6)]))
+    texto_parte = f"{escape(parte)}: <b>{escape(sol.proveedor or '—')}</b>" + (f"<br/>{escape(datos_parte)}" if datos_parte else "")
+    prov = Table([[Paragraph(texto_parte, st["txt"]),
+                   Paragraph(f"{escape(hecho_por)}: {escape(sol.usuario_nombre or '')}", st["txt"])]], colWidths=[ancho * 0.62, ancho * 0.38])
+    prov.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.6, linea), ("TOPPADDING", (0, 0), (-1, -1), 6), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
 
-    filas = [["Cant.", "Descripción", "Costo", "Descuentos y\nRebajas Otorgados", "Total"]]
+    filas = [["Cant.", "Descripción", col_precio, "Descuentos y\nRebajas Otorgados", "Total"]]
     for d in sol.detalles:
         p = d.producto
         codigo = escape(p.codigo) if p else ""
-        desc = escape(p.nombre) if p else "(producto eliminado)"
+        desc = escape(getattr(d, "descripcion", None) or (p.nombre if p else "(producto eliminado)"))
         costo = to_decimal(d.costo_unitario or 0)
         filas.append([f"{d.cantidad:.4f}", Paragraph(f"{codigo} <b>{desc}</b>", st["celda"]), f"{costo:,.2f}", "0.00",
                       f"{(costo * d.cantidad).quantize(CENT):,.2f}"])
@@ -139,17 +144,18 @@ def pdf_solicitud(sol, cfg, cfg_fact, con_isv: bool = True) -> bytes:
         ("ALIGN", (2, 0), (-1, -1), "RIGHT"), ("ALIGN", (0, 0), (0, 0), "CENTER"),
     ]))
 
-    t = totales(sol, con_isv, cfg_fact.isv_tasa if cfg_fact else 15)
+    t = totales_fijos or totales(sol, con_isv, cfg_fact.isv_tasa if cfg_fact else 15)
+    px = prefijo_totales
     resumen = [
-        ("SUB TOTAL " + moneda + ".", t["subtotal"]), ("COMPRAS EXONERADAS " + moneda + ".", Decimal("0")),
-        ("COMPRAS EXENTAS " + moneda + ".", t["exentas"]), ("COMPRAS GRAVADAS " + moneda + ".", t["gravadas"]),
+        ("SUB TOTAL " + moneda + ".", t["subtotal"]), (f"{px} EXONERADAS " + moneda + ".", Decimal("0")),
+        (f"{px} EXENTAS " + moneda + ".", t["exentas"]), (f"{px} GRAVADAS " + moneda + ".", t["gravadas"]),
         ("DESCUENTOS Y REBAJAS OTORGADOS " + moneda + ".", Decimal("0")),
         (f"IMPUESTOS {t['tasa']:.0f}%", t["isv"]), ("TOTAL " + moneda + ".", t["total"]),
     ]
     der = Table([[Paragraph(escape(e), st["celda"]), Paragraph(f"{v:,.2f}", st["celda_r"])] for e, v in resumen], colWidths=[4.8 * cm, 3.0 * cm])
     der.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.5, linea), ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
                              ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f1f5f9"))]))
-    obs = escape(sol.notas.strip()) if sol.notas and sol.notas.strip() else "Solicitud de Compra"
+    obs = escape(sol.notas.strip()) if sol.notas and sol.notas.strip() else escape(titulo)
     izq = [Paragraph(escape(monto_en_letras(t["total"])), st["celda"]), Spacer(1, 40),
            Paragraph("<b>Observaciones</b>", st["celda"]), Paragraph(obs, st["celda"])]
     pie = Table([[izq, der]], colWidths=[ancho - 7.8 * cm, 7.8 * cm])
@@ -159,10 +165,30 @@ def pdf_solicitud(sol, cfg, cfg_fact, con_isv: bool = True) -> bytes:
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1.2 * cm, bottomMargin=1.2 * cm, leftMargin=1.5 * cm,
-                            rightMargin=1.5 * cm, title=f"Solicitud de compra {sol.numero}")
+                            rightMargin=1.5 * cm, title=f"{titulo} {sol.numero}")
     altura_productos = 13 * cm  # espacio para los productos, como el formato original
     filas_h = 0.5 * cm * len(filas)
     story = [encabezado, Spacer(1, 4), barra, prov, Spacer(1, 4), tabla,
              Spacer(1, max(0.4 * cm, altura_productos - filas_h)), pie]
     doc.build(story)
     return buffer.getvalue()
+
+
+def pdf_cotizacion(cot, cfg, cfg_fact) -> bytes:
+    """La cotización con el mismo formato (encabezado del negocio, total en letras)."""
+    from types import SimpleNamespace
+    from app.utils.turnos_caja import a_hora_local as _hl
+    detalles = [SimpleNamespace(producto=d.producto, descripcion=d.descripcion, cantidad=d.cantidad, costo_unitario=d.precio_unitario)
+                for d in cot.detalles]
+    sub = to_decimal(cot.subtotal or 0)
+    isv = to_decimal(cot.isv or 0)
+    tasa = (isv / sub * 100).quantize(Decimal("1")) if sub > 0 else Decimal("0")
+    fijos = {"subtotal": sub, "gravadas": sub if isv > 0 else Decimal("0.00"), "exentas": Decimal("0.00") if isv > 0 else sub,
+             "isv": isv, "tasa": tasa, "total": to_decimal(cot.total or 0)}
+    obj = SimpleNamespace(numero=cot.numero, fecha=cot.fecha, proveedor=cot.cliente_nombre, usuario_nombre=cot.usuario_nombre,
+                          notas=((cot.notas or "") + (" · " if cot.notas else "") + f"Válida hasta el {_hl(cot.vence).strftime('%d/%m/%Y')}."),
+                          detalles=detalles)
+    datos = f"Tel.: {cot.cliente_telefono}" if cot.cliente_telefono else ""
+    return pdf_solicitud(obj, cfg, cfg_fact, titulo="Cotización", parte="Cliente", hecho_por="Atendido por", datos_parte=datos,
+                         col_precio="Precio", prefijo_totales="VENTAS", totales_fijos=fijos)
+

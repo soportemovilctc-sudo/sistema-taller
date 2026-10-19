@@ -13,7 +13,7 @@ from app import models
 from app.security import hash_password
 
 from app.routers import auth, dashboard, clientes, ordenes, tecnicos, inventario, pos, contabilidad, reportes, configuracion, api, catalogo, facturacion, servicio_rapido, servicios, caja
-from app.routers import turnos_caja, ajustes_inventario, estados_financieros, revision, compras, banco, inventario_editar
+from app.routers import turnos_caja, ajustes_inventario, estados_financieros, revision, compras, banco, inventario_editar, mejoras
 from app.utils.turnos_caja import registrar_vinculacion_automatica
 from app.utils.inventario_costos import registrar_costos_automaticos
 
@@ -26,6 +26,9 @@ registrar_costos_automaticos()
 
 app = FastAPI(title="Sistema de Taller", version="1.0.0")
 
+# La bitácora va DENTRO de la sesión (se agrega antes), así puede leer el usuario.
+from app.utils.bitacora import BitacoraMiddleware
+app.add_middleware(BitacoraMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY, session_cookie="taller_session")
 
 os.makedirs("app/static/uploads", exist_ok=True)
@@ -118,6 +121,7 @@ def health_check():
     return {"status": "ok"}
 
 
+app.include_router(mejoras.router)  # antes que inventario: /inventario/reorden
 app.include_router(dashboard.router)
 app.include_router(auth.router)
 app.include_router(clientes.router)

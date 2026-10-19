@@ -174,11 +174,13 @@ def inventario_list(request: Request, q: str = "", categoria: str = "", db: Sess
     stock_bajo_ids = {p.id for p in productos if p.existencia <= p.stock_minimo}
     total_inversion = sum((to_decimal(p.costo) * p.existencia for p in productos), to_decimal(0))
     ultimo_producto = _ultimo_producto(db)
+    from app.utils.mejoras import margen, resumen_inventario
     return templates.TemplateResponse("inventario/list.html", {
         "request": request, "productos": productos, "q": q, "categoria": categoria,
         "categorias_disponibles": _categorias_disponibles(db),
         "usuario": usuario, "stock_bajo_ids": stock_bajo_ids, "total_inversion": total_inversion,
-        "ultimo_producto": ultimo_producto,
+        "ultimo_producto": ultimo_producto, "margen": margen,
+        "resumen": resumen_inventario(productos) if usuario.get("rol") == "admin" else None,
     })
 
 
@@ -280,12 +282,21 @@ def _categoria_valida(db: Session, categoria: str) -> bool:
     return db.query(Categoria).filter(Categoria.nombre.ilike(categoria)).first() is not None
 
 
+def _stock_max(texto: str):
+    """Stock máximo opcional: vacío o 0 = automático (el doble del mínimo)."""
+    try:
+        n = int((texto or "").strip() or 0)
+    except ValueError:
+        return None
+    return n if n > 0 else None
+
+
 @router.post("/inventario/nuevo")
 def inventario_crear(
     request: Request,
     codigo: str = Form(...), nombre: str = Form(...), categoria: str = Form(""), marca: str = Form(""),
     costo: str = Form("0"), precio_venta: str = Form("0"), existencia: int = Form(0),
-    stock_minimo: int = Form(0), proveedor: str = Form(""), caja: str = Form(""),
+    stock_minimo: int = Form(0), stock_maximo: str = Form(""), proveedor: str = Form(""), caja: str = Form(""),
     precios_incluyen_impuesto: bool = Form(False), costo_incluye_isv: bool = Form(False), precio_incluye_isv: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
@@ -308,7 +319,7 @@ def inventario_crear(
         costo=costo_final, precio_venta=precio_final,
         # Las unidades ya no se cargan al crear el producto: solo entran con
         # una Recepción de compra (ver app/utils/compras.py).
-        existencia=0, stock_minimo=max(0, stock_minimo), proveedor=proveedor,
+        existencia=0, stock_minimo=max(0, stock_minimo), stock_maximo=_stock_max(stock_maximo), proveedor=proveedor,
         caja=caja.strip(), estado="activo",
     )
     db.add(producto)
@@ -336,7 +347,7 @@ def inventario_editar_form(producto_id: int, request: Request, db: Session = Dep
 def inventario_actualizar(
     producto_id: int, request: Request,
     nombre: str = Form(...), categoria: str = Form(""), marca: str = Form(""),
-    costo: str = Form("0"), precio_venta: str = Form("0"), stock_minimo: int = Form(0),
+    costo: str = Form("0"), precio_venta: str = Form("0"), stock_minimo: int = Form(0), stock_maximo: str = Form(""),
     proveedor: str = Form(""), caja: str = Form(""), estado: str = Form("activo"),
     precios_incluyen_impuesto: bool = Form(False), costo_incluye_isv: bool = Form(False), precio_incluye_isv: bool = Form(False),
     db: Session = Depends(get_db), usuario=Depends(login_required),
@@ -357,7 +368,7 @@ def inventario_actualizar(
         cambiados = aplicar(db, producto, {
             "nombre": nombre.strip(), "categoria": categoria, "marca": marca,
             "costo": costo_final.quantize(to_decimal("0.01")), "precio_venta": precio_final.quantize(to_decimal("0.01")),
-            "stock_minimo": max(0, stock_minimo), "proveedor": proveedor, "caja": caja.strip(),
+            "stock_minimo": max(0, stock_minimo), "stock_maximo": _stock_max(stock_maximo), "proveedor": proveedor, "caja": caja.strip(),
             "estado": "inactivo" if estado == "inactivo" else "activo",
         }, usuario["nombre_completo"], "editar")
         db.commit()

@@ -80,6 +80,11 @@ def pdf_recepcion(rec, pagos: list, nombre_taller: str, moneda: str) -> bytes:
              Paragraph(f"Recibido por {escape(rec.usuario_nombre or '')} · Pago: {escape(_forma_txt(rec.forma_pago))}", e["sub"])]
     if rec.notas:
         story.append(Paragraph(f"Notas: {escape(rec.notas)}", e["sub"]))
+    if getattr(rec, "anulada", False):
+        story.append(Paragraph(
+            f"<font color='#c0392b'><b>ANULADA</b> el {_f(rec.anulada_en)} por {escape(rec.anulada_por or '')}"
+            + (f" · Motivo: {escape(rec.motivo_anulacion)}" if rec.motivo_anulacion else "")
+            + ". Las unidades se sacaron del inventario y los pagos se quitaron de la contabilidad.</font>", e["sub"]))
     story += [Spacer(1, 8),
               _resumen([("Unidades que entraron", f"{unidades}"), ("Mercadería (sin ISV)", _m(rec.subtotal, moneda)),
                         ("ISV de la factura", _m(rec.isv, moneda)), ("Total de la compra", _m(rec.total, moneda))], moneda),
@@ -100,10 +105,11 @@ def pdf_recepcion(rec, pagos: list, nombre_taller: str, moneda: str) -> bytes:
     story.append(Paragraph("Pagos al proveedor", e["seccion"]))
     datos_p = [["Fecha", "De dónde salió", "Registrado por", "Monto"]]
     for m in pagos:
-        datos_p.append([_f(m.fecha), _origen_pago(m), escape(m.usuario_nombre or ""), _m(m.monto, moneda)])
+        datos_p.append([_f(m.fecha), _origen_pago(m), escape(m.usuario_nombre or ""),
+                        _m(m.monto, moneda) + (" (anulado)" if getattr(m, "excluir_de_contabilidad", False) else "")])
     if len(datos_p) == 1:
         datos_p.append(["—", "Sin pagos todavía", "", ""])
-    datos_p.append(["", "", "Pagado", _m(rec.pagado, moneda)])
+    datos_p.append(["", "", "Pagado (anulado)" if getattr(rec, "anulada", False) else "Pagado", _m(rec.pagado, moneda)])
     datos_p.append(["", "", "Saldo pendiente", _m(rec.saldo, moneda)])
     story.append(_tabla(datos_p, [4.2 * cm, 4.6 * cm, 5.0 * cm, 3.0 * cm], num_cols=(3,), negrita_ultima=True))
     story += [Spacer(1, 14), Paragraph(f"Documento generado el {_f(datetime.utcnow())}.", e["sub"])]
@@ -196,6 +202,7 @@ def reporte_recepciones(db: Session, inicio, fin, proveedor: str = "") -> dict:
         consulta = consulta.filter(RecepcionCompra.fecha < fin)
     if proveedor.strip():
         consulta = consulta.filter(RecepcionCompra.proveedor.ilike(f"%{proveedor.strip()}%"))
+    consulta = consulta.filter(RecepcionCompra.anulada == False)  # noqa: E712
     recepciones = consulta.order_by(RecepcionCompra.fecha, RecepcionCompra.id).all()
 
     total, por_proveedor, por_forma, por_producto, filas, lista = _acum(), {}, {}, {}, [], []

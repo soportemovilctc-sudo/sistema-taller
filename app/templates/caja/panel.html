@@ -16,6 +16,22 @@
   <div class="kpi accent-blue"><div class="kpi-label">Liquidez Total</div><div class="kpi-value">{{ liquidez.liquidez_total|moneda(config_taller().moneda) }}</div></div>
 </div>
 
+{% set eb = entradas_banco %}{% set mon = config_taller().moneda %}
+{% set qs_eb = 'desde=' ~ eb.desde.isoformat() ~ '&hasta=' ~ eb.hasta.isoformat() %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-title">
+    Entradas al banco este mes <span class="m-muted" style="font-weight:500; font-size:13px;">· del {{ eb.desde.strftime('%d/%m/%Y') }} al {{ eb.hasta.strftime('%d/%m/%Y') }}</span>
+    <span class="actions"><a href="/banco/estado-cuenta?{{ qs_eb }}" class="btn btn-outline btn-sm">Ver estado de cuenta</a></span>
+  </div>
+  <div class="grid cols-4" style="gap:14px;">
+    <a href="/banco/estado-cuenta?{{ qs_eb }}&tipo=transferencia" class="kpi accent-blue" style="text-decoration:none; color:inherit;"><div class="kpi-label">Transferencias · {{ eb.transferencia.n }}</div><div class="kpi-value">{{ eb.transferencia.monto|moneda(mon) }}</div></a>
+    <a href="/banco/estado-cuenta?{{ qs_eb }}&tipo=tarjeta" class="kpi accent-blue" style="text-decoration:none; color:inherit;"><div class="kpi-label">Tarjeta / POS · {{ eb.tarjeta.n }}</div><div class="kpi-value">{{ eb.tarjeta.monto|moneda(mon) }}</div></a>
+    <a href="/banco/estado-cuenta?{{ qs_eb }}&tipo=deposito" class="kpi accent-blue" style="text-decoration:none; color:inherit;"><div class="kpi-label">Depósitos · {{ eb.deposito.n }}</div><div class="kpi-value">{{ eb.deposito.monto|moneda(mon) }}</div></a>
+    <div class="kpi accent-green"><div class="kpi-label">Total (los tres)</div><div class="kpi-value">{{ eb.total|moneda(mon) }}</div></div>
+  </div>
+  {% if eb.otro_ingreso.n %}<p class="help" style="margin-top:8px;">Además hay {{ eb.otro_ingreso.n }} otra(s) entrada(s) al banco sin forma de pago ({{ eb.otro_ingreso.monto|moneda(mon) }}), que no entran en este total: <a href="/banco/estado-cuenta?{{ qs_eb }}&tipo=otro_ingreso">verlas</a>.</p>{% endif %}
+</div>
+
 <div class="grid cols-2" style="align-items:start;">
   <div class="card">
     <div class="card-title">Configuración de saldos — {{ ("%02d"|format(mes)) }}/{{ anio }}</div>

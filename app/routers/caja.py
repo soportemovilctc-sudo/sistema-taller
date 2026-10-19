@@ -710,9 +710,22 @@ def caja_panel(
     ini, fin = _rango_fechas(periodo, desde, hasta)
     utilidad = calcular_utilidad_neta(db, ini, fin)
     cierre_hoy = calcular_cierre_dia(db)  # detalle de caja chica de hoy, para supervisar a la Cajera
+    # Entradas al banco del mes (transferencias + tarjeta/POS + depósitos),
+    # con la misma clasificación del Estado de cuenta bancario.
+    from app.utils.estado_cuenta_banco import estado_cuenta
+    from app.utils.turnos_caja import hoy_local
+    hoy_hn = hoy_local()
+    ec = estado_cuenta(db, hoy_hn.replace(day=1), hoy_hn)
+    tot = ec["totales"]
+    entradas_banco = {
+        "desde": hoy_hn.replace(day=1), "hasta": hoy_hn,
+        "transferencia": tot["transferencia"], "tarjeta": tot["tarjeta"], "deposito": tot["deposito"],
+        "otro_ingreso": tot["otro_ingreso"],
+        "total": (tot["transferencia"]["monto"] + tot["tarjeta"]["monto"] + tot["deposito"]["monto"]).quantize(Decimal("0.01")),
+    }
 
     return templates.TemplateResponse("caja/panel.html", {
-        "request": request, "usuario": usuario,
+        "request": request, "usuario": usuario, "entradas_banco": entradas_banco,
         "liquidez": liquidez, "utilidad": utilidad, "cierre_hoy": cierre_hoy,
         "periodo": periodo, "desde": desde, "hasta": hasta,
         "anio": anio, "mes": mes,

@@ -77,6 +77,47 @@ def revision_quitar_mov(
     return _volver(f"caja-{turno.id}")
 
 
+# ---------------------------------------------------------------------------
+# Depósitos registrados como entrada al banco (no salieron de Caja Chica)
+# ---------------------------------------------------------------------------
+def _volver_a(volver: str, ancla: str) -> RedirectResponse:
+    if volver.startswith("/banco/estado-cuenta"):
+        return RedirectResponse(volver, status_code=303)
+    return _volver(ancla)
+
+
+@router.post(URL + "/deposito/{mov_id}/convertir")
+def revision_convertir_deposito(
+    mov_id: int, request: Request, volver: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    from app.utils.depositos import convertir_en_deposito
+    mov = db.get(MovimientoFinanciero, mov_id)
+    salida, error = convertir_en_deposito(db, mov, usuario["nombre_completo"])
+    if error:
+        db.rollback()
+        flash(request, error, "error")
+        return _volver_a(volver, "depositos-sin-caja")
+    db.commit()
+    flash(request, f"Listo: la entrada #{mov.id} de {_l(mov.monto)} ahora es un Depósito bancario y se restó de Caja Chica"
+          + (" (y del cierre de su caja)." if mov.turno_caja_id else "."), "success")
+    return _volver_a(volver, "depositos-sin-caja")
+
+
+@router.post(URL + "/depositos/convertir-todos")
+def revision_convertir_depositos_todos(request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    from app.utils.depositos import convertir_en_deposito, sospechosos
+    n, total = 0, Decimal("0.00")
+    for mov in sospechosos(db):
+        salida, error = convertir_en_deposito(db, mov, usuario["nombre_completo"])
+        if not error:
+            n += 1
+            total += to_decimal(mov.monto)
+    db.commit()
+    flash(request, f"Listo: {n} depósito(s) corregidos; se restaron {_l(total)} de Caja Chica.", "success")
+    return _volver("depositos-sin-caja")
+
+
 @router.post(URL + "/caja/{turno_id}/recalcular")
 def revision_recalcular_caja(
     turno_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),

@@ -177,6 +177,10 @@
     var t = document.createElement("span"); t.textContent = "Último" + (c ? " en " + c : "") + ": ";
     var b = document.createElement("b"); b.textContent = u.codigo;
     cajaU.append(t, b);
+    if (c && ultimos[""] && ultimos[""].codigo !== u.codigo) {
+      var g = document.createElement("span"); g.className = "m-muted"; g.textContent = " · último en general: " + ultimos[""].codigo;
+      cajaU.appendChild(g);
+    }
     if (u.siguiente) {
       var btn = document.createElement("button");
       btn.type = "button"; btn.className = "btn btn-outline btn-sm"; btn.style.marginLeft = "6px";
@@ -211,6 +215,8 @@
         picker.appendChild(op);
         agregar(desdeOpcion(op));
         ["npCodigo", "npNombre", "npPrecio", "npCosto"].forEach(function (id) { document.getElementById(id).value = (id === "npPrecio" || id === "npCosto") ? "0" : ""; });
+        if (res.ultimos_codigos) { ultimos = res.ultimos_codigos; }
+        pintarUltimo();
         caja.style.display = "none";
       })
       .catch(function () { msg.textContent = "Error de conexión."; });

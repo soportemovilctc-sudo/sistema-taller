@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.models import MovimientoFinanciero, CATEGORIA_DEPOSITO_BANCO
 from app.utils.calculations import to_decimal
 from app.utils.caja_calculos import CUENTA_BANCO
+from app.utils.depositos import es_convertible
 from app.utils.turnos_caja import inicio_dia_local_en_utc, a_hora_local, hoy_local
 
 CERO = Decimal("0.00")
@@ -143,6 +144,7 @@ def estado_cuenta(db: Session, desde: date, hasta: date, tipo: str = "") -> dict
             "detalle": _detalle(m), "referencia": _referencia(m),
             "entrada": monto if m.tipo == "ingreso" else CERO, "salida": monto if m.tipo != "ingreso" else CERO,
             "saldo": saldo, "conciliacion": _conciliacion(m), "id": m.id, "usuario": m.usuario_nombre or "",
+            "convertible": es_convertible(m),
         })
     while i_corte < len(cortes):
         aplicar_corte(cortes[i_corte])

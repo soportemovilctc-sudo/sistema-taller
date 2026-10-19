@@ -24,6 +24,19 @@
   <div class="kpi accent-red"><div class="kpi-label">Egresos del mes en Caja Chica</div><div class="kpi-value">{{ saldo.egresos_caja_chica_mes|moneda(config_taller().moneda) }}</div></div>
 </div>
 
+<div class="card" style="margin-bottom:18px; border-left:4px solid var(--primary, #1d4ed8);">
+  <div class="card-title">Depósito al banco <span class="help" style="font-weight:400;">— efectivo de la caja que llevas al banco</span></div>
+  <form method="post" action="/caja/salida" class="form-row" style="align-items:flex-end;" onsubmit="return confirm('¿Registrar el depósito? Se resta de la caja y se suma al banco.');">
+    <input type="hidden" name="categoria" value="{{ categoria_deposito_banco }}">
+    <input type="hidden" name="cuenta" value="caja_chica">
+    <div class="field" style="flex:0 0 180px;"><label for="depMonto">Monto *</label><input id="depMonto" type="number" step="0.01" min="0.01" name="monto" required></div>
+    <div class="field"><label for="depDesc">Boleta / referencia</label><input id="depDesc" type="text" name="descripcion" placeholder="N. de boleta del depósito (opcional)"></div>
+    <div class="field" style="flex:0 0 170px;"><label for="depFecha">Fecha</label><input id="depFecha" type="date" name="fecha" max="{{ hoy_iso }}"></div>
+    <div class="field" style="flex:0 0 auto;"><button type="submit" class="btn btn-primary">Registrar depósito</button></div>
+  </form>
+  <p class="help" style="margin-top:6px;">Se resta automáticamente del efectivo de la caja (y del cierre) y entra al banco como <b>Depósito</b>. No es un gasto ni un cobro. Si fue un <b>cliente</b> el que pagó depositando, eso sí es un cobro por transferencia.</p>
+</div>
+
 <div class="grid cols-3" style="align-items:start; margin-bottom:18px;">
   <div class="card">
     <div class="card-title">Registrar cobro</div>
@@ -43,6 +56,7 @@
       </div>
       <div class="field"><label>Fecha</label><input type="date" name="fecha" max="{{ hoy_iso }}" placeholder="Hoy"></div>
       <div class="help" style="margin-bottom:10px;">Déjalo vacío para hoy. Cámbialo solo si estás registrando un cobro de un día anterior.</div>
+      <div class="help" style="margin-bottom:10px;">¿Llevaste efectivo de la caja al banco? No es un cobro: usa <b>Depósito al banco</b> (arriba).</div>
       <button type="submit" class="btn btn-primary">Registrar cobro</button>
     </form>
   </div>

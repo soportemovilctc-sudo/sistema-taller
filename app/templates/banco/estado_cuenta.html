@@ -74,7 +74,14 @@
           <td class="num m-ok" style="font-weight:700;">{{ f.entrada|moneda(moneda) if f.entrada else '' }}</td>
           <td class="num m-bad" style="font-weight:700;">{{ f.salida|moneda(moneda) if f.salida else '' }}</td>
           <td class="num" style="font-weight:800;">{{ f.saldo|moneda(moneda) }}</td>
-          <td style="font-size:12.5px;" class="{{ 'm-ok' if f.conciliacion == 'Conciliada' else 'm-warn' }}">{{ f.conciliacion }}</td>
+          <td style="font-size:12.5px;" class="{{ 'm-ok' if f.conciliacion == 'Conciliada' else 'm-warn' }}">{{ f.conciliacion }}
+            {% if f.convertible %}
+            <form method="post" action="/revision/deposito/{{ f.id }}/convertir" style="margin-top:4px;" onsubmit="return confirm('¿Esta entrada era un depósito del efectivo de la caja? Se convierte en Depósito bancario: se resta de Caja Chica (y del cierre de su caja) y deja de contar como venta. Si fue un cliente que pagó depositando, NO lo hagas.');">
+              <input type="hidden" name="volver" value="{{ request.url.path }}?{{ request.url.query }}">
+              <button type="submit" class="btn btn-outline btn-sm" style="padding:2px 8px; font-size:11.5px; white-space:nowrap;" title="Convertir en depósito de caja">Era depósito de caja</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
         <tr><td colspan="8" class="empty-state">No hay movimientos en Banco{% if ec.tipo %} de ese tipo{% endif %} en estas fechas.</td></tr>

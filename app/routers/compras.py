@@ -98,7 +98,7 @@ def compras_producto_rapido(
     db: Session = Depends(get_db), usuario=Depends(solo_admin),
 ):
     """Crea un producto nuevo (con 0 unidades) desde la solicitud de compra."""
-    from app.routers.inventario import _categoria_valida, _isv_tasa, _quitar_impuesto
+    from app.routers.inventario import _categoria_valida, _isv_tasa, _quitar_impuesto, ultimos_codigos
     codigo, nombre = codigo.strip(), nombre.strip()
     if not codigo or not nombre:
         return JSONResponse({"ok": False, "mensaje": "Escribe el código y el nombre."}, status_code=400)
@@ -125,7 +125,7 @@ def compras_producto_rapido(
     db.add(p)
     db.commit()
     return JSONResponse({"ok": True, "id": p.id, "codigo": p.codigo, "nombre": p.nombre, "costo": f"{to_decimal(p.costo or 0):.2f}",
-                         "existencia": 0, "precio": str(p.precio_venta or 0)})
+                         "existencia": 0, "precio": str(p.precio_venta or 0), "ultimos_codigos": ultimos_codigos(db)})
 
 
 # ---------------------------------------------------------------------------

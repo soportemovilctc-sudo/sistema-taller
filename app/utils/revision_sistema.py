@@ -192,6 +192,28 @@ def _revisar_dinero(db: Session) -> list[dict]:
                                    "Un depósito debe ser una salida de Caja Chica y una entrada a Banco por el mismo monto.",
                                    enlace=("Abrir la auditoría de depósitos", "/caja/conciliacion/depositos/auditoria")))
 
+    from app.utils.depositos import sospechosos
+    sosp = sospechosos(db)
+    if sosp:
+        total_s = sum((to_decimal(m.monto) for m in sosp), CERO)
+        problemas.append(_problema(
+            "error", f"{len(sosp)} depósito(s) al banco que no salieron de Caja Chica ({_l(total_s)})",
+            "Se registraron como una entrada al banco (cobro o ingreso), no como Depósito bancario: el dinero sigue sumando en la caja "
+            "y además cuenta como venta. Al convertirlos, se restan de Caja Chica (y del cierre de esa caja) y dejan de contar como ingreso. "
+            "Si alguno era un cliente que pagó depositando en el banco, NO lo conviertas. También puedes convertir cualquier otra entrada "
+            "desde el Estado de cuenta bancario.",
+            items=[{"texto": f"#{m.id} · {a_hora_local(m.fecha).strftime('%d/%m/%Y %I:%M %p')} · {_l(m.monto)} · {m.categoria}"
+                             + (f" · {m.metodo_pago}" if m.metodo_pago else "") + f" · {(m.cliente_nombre or m.descripcion or '').strip()[:80]}"
+                             + (f" · por {m.usuario_nombre}" if m.usuario_nombre else ""),
+                    "enlace": None} for m in sosp[:60]],
+            acciones=[_accion(f"Convertir #{m.id} ({_l(m.monto)})", f"/revision/deposito/{m.id}/convertir",
+                              f"¿Convertir la entrada #{m.id} de {_l(m.monto)} en Depósito bancario? Se resta de Caja Chica y deja de contar como venta.",
+                              estilo="btn-primary") for m in sosp[:60]]
+                     + ([_accion("Convertir todos", "/revision/depositos/convertir-todos",
+                                 f"¿Convertir los {len(sosp)} en Depósito bancario? Se restan {_l(total_s)} de Caja Chica.",
+                                 estilo="btn-primary")] if len(sosp) > 1 else []),
+            enlace=("Ver Estado de cuenta bancario", "/banco/estado-cuenta?tipo=entradas"), ancla="depositos-sin-caja"))
+
     sin_forma = db.query(MovimientoFinanciero).filter(
         MovimientoFinanciero.tipo == "gasto", MovimientoFinanciero.referencia == "Manual",
         MovimientoFinanciero.metodo_pago.is_(None), MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712

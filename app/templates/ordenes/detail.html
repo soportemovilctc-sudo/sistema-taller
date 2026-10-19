@@ -185,7 +185,7 @@
     <section aria-label="Abonos y facturas">
       <div class="m-sec-t">Abonos</div>
       {% for p in orden.pagos %}
-      <div class="m-row"><span>{{ p.forma_pago }} <span class="m-muted">· {{ p.fecha|fecha('%d/%m/%Y %I:%M %p') }} · {{ p.usuario_nombre }}</span></span><span class="r m-ok">{{ p.monto|moneda(moneda) }}</span></div>
+      <div class="m-row"><span>{{ p.forma_pago }} <span class="m-muted">· {{ p.fecha|fecha('%d/%m/%Y %I:%M %p') }} · {{ p.usuario_nombre }}{% if p.observacion and p.observacion.startswith('Ref.') %} · {{ p.observacion }}{% endif %}</span></span><span class="r m-ok">{{ p.monto|moneda(moneda) }}</span></div>
       {% else %}
       <div class="m-row"><span class="m-muted">Sin abonos todavía.</span><span></span></div>
       {% endfor %}
@@ -194,14 +194,32 @@
       <form method="post" action="/ordenes/{{ orden.id }}/abono" id="abonar" class="m-box" style="margin-top:14px;">
         <div class="form-row">
           <div class="field"><label for="montoAbono">Monto del abono</label><input id="montoAbono" type="number" step="0.01" min="0.01" max="{{ orden.saldo }}" name="monto" required></div>
-          <div class="field">
-            <label for="formaAbono">Forma de pago</label>
-            <select id="formaAbono" name="forma_pago">{% for fp in formas_pago %}<option value="{{ fp }}">{{ fp }}</option>{% endfor %}</select>
+        </div>
+        <div class="field">
+          <label>Forma de pago</label>
+          <div class="pago-opciones" role="radiogroup" aria-label="Forma de pago">
+            {% for fp in formas_pago %}
+            <label class="pago-op"><input type="radio" name="forma_pago" value="{{ fp }}" {{ 'checked' if loop.first else '' }}><span>{{ fp }}</span></label>
+            {% endfor %}
           </div>
         </div>
+        <div class="field" id="campoRefAbono" style="display:none;"><label for="refAbono">N.º de referencia de la transferencia *</label><input id="refAbono" type="text" name="referencia" placeholder="Número del comprobante"></div>
         <div class="field"><label for="obsAbono">Observación</label><input id="obsAbono" type="text" name="observacion"></div>
         <button type="submit" class="btn btn-success btn-sm">Registrar abono</button>
       </form>
+      <script>
+      (function () {
+        var form = document.getElementById("abonar"), campo = document.getElementById("campoRefAbono"), ref = document.getElementById("refAbono");
+        if (!form || !campo) return;
+        function ver() {
+          var sel = form.querySelector('input[name="forma_pago"]:checked');
+          var esTr = sel && sel.value === "Transferencia";
+          campo.style.display = esTr ? "" : "none"; ref.required = !!esTr;
+        }
+        form.querySelectorAll('input[name="forma_pago"]').forEach(function (r) { r.addEventListener("change", ver); });
+        ver();
+      })();
+      </script>
       {% else %}
       <p class="m-ok" style="font-size:14px; margin-top:10px;">✓ Totalmente pagada.</p>
       {% endif %}

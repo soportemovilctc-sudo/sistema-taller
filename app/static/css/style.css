@@ -1442,3 +1442,20 @@ table td { font-variant-numeric: tabular-nums; }
   .m-strip > * { padding: 12px 0 12px 12px; border-left: 1px solid var(--border); }
   .m-strip > *:nth-child(3n+1) { border-left: 0; padding-left: 0; }
 }
+
+/* REFINAMIENTO VISUAL v3 — forma de pago con botones */
+:root[data-tema="vidrio"] .topbar { background: rgba(7, 13, 21, .94); }
+.pago-opciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.pago-op { position: relative; margin: 0 !important; cursor: pointer; }
+.pago-op input { position: absolute; opacity: 0; pointer-events: none; }
+.pago-op span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--border);
+  font-size: 14px; font-weight: 600; color: var(--text); background: transparent; transition: border-color .15s, background .15s; }
+.pago-op:hover span { border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); }
+.pago-op input:checked + span { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary-light, var(--text)); }
+.pago-op input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 700px) { .pago-op { flex: 1 1 calc(50% - 8px); } .pago-op span { width: 100%; justify-content: center; } }
+@media (max-width: 700px) {
+  table.responsive-table td .btn, table.responsive-table td form { margin-left: auto; }
+  table.responsive-table td.empty-state { display: block; text-align: center; }
+  table.responsive-table tr:has(td.empty-state) { background: transparent; border: 0; }
+}

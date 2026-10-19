@@ -815,12 +815,14 @@ def ordenes_cambiar_estado(
 @router.post("/ordenes/{orden_id}/abono")
 def ordenes_registrar_abono(
     orden_id: int, request: Request,
-    monto: str = Form(...), forma_pago: str = Form("Efectivo"), observacion: str = Form(""),
+    monto: str = Form(...), forma_pago: str = Form("Efectivo"), observacion: str = Form(""), referencia: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
     if not orden:
         return RedirectResponse("/ordenes", status_code=303)
+    if referencia.strip():
+        observacion = f"Ref. {referencia.strip()}" + (f" · {observacion.strip()}" if observacion.strip() else "")
     mensaje_caja = verificar_caja(db)
     if mensaje_caja:
         flash(request, mensaje_caja, "error")

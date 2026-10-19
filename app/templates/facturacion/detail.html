@@ -1,61 +1,61 @@
 {% extends "base.html" %}
 {% block title %}Factura {{ factura.numero_documento }}{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="card-title">
-    Factura {{ factura.numero_documento }} {% if factura.anulada %}<span class="badge badge-cancelado">ANULADA</span>{% endif %}
-    <span class="actions">
-      <a href="/facturas/{{ factura.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF (carta)</a>
-      <a href="/facturas/{{ factura.id }}/pdf/descargar" class="btn btn-outline btn-sm">Descargar (carta)</a>
-      <a href="/facturas/{{ factura.id }}/pdf/tirilla" target="_blank" class="btn btn-outline btn-sm">Ver tirilla 80mm</a>
-      <a href="/facturas/{{ factura.id }}/pdf/tirilla/descargar" class="btn btn-outline btn-sm">Descargar tirilla 80mm</a>
-    </span>
+{% set moneda = config_taller().moneda %}
+{% set rtn = factura.cliente_rtn if factura.cliente_rtn and factura.cliente_rtn|lower != 'none' else '' %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <a href="{{ '/ordenes/' ~ factura.orden.id if factura.orden else '/facturas' }}" class="m-muted" style="font-size:13px;">← {{ factura.orden.numero_orden if factura.orden else 'Facturas' }}</a>
+      <h1 class="m-title" style="margin-top:6px;">{{ factura.numero_documento }} {% if factura.anulada %}<span class="m-bad" style="font-size:15px; font-weight:800; vertical-align:middle;">· ANULADA</span>{% endif %}</h1>
+      <div style="font-size:15px; margin-top:4px;"><b>{{ factura.cliente_nombre }}</b> <span class="m-muted">· {{ 'Factura fiscal' if factura.tipo == 'fiscal' else 'Comprobante interno' }} · {{ factura.fecha_emision|fecha('%d/%m/%Y %I:%M %p') }}</span></div>
+    </div>
+    <div class="m-acciones">
+      <a href="/facturas/{{ factura.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF</a>
+      <a href="/facturas/{{ factura.id }}/pdf/descargar" class="btn btn-outline btn-sm">Descargar PDF</a>
+      <a href="/facturas/{{ factura.id }}/pdf/tirilla" target="_blank" class="btn btn-primary btn-sm">Tirilla 80mm</a>
+      <a href="/facturas/{{ factura.id }}/pdf/tirilla/descargar" class="btn btn-outline btn-sm">Descargar tirilla</a>
+    </div>
   </div>
-  <div class="grid cols-4">
-    <div><label>Tipo</label><p>{{ 'Factura fiscal' if factura.tipo == 'fiscal' else 'Comprobante interno' }}</p></div>
-    <div><label>Cliente</label><p>{{ factura.cliente_nombre }}</p></div>
-    <div><label>RTN cliente</label><p>{{ factura.cliente_rtn if factura.cliente_rtn and factura.cliente_rtn|lower != 'none' else '-' }}</p></div>
-    <div><label>Fecha de emisión</label><p>{{ factura.fecha_emision|fecha('%d/%m/%Y %H:%M') }}</p></div>
-    {% if factura.orden %}
-    <div><label>Orden relacionada</label><p><a href="/ordenes/{{ factura.orden.id }}">{{ factura.orden.numero_orden }}</a></p></div>
-    {% endif %}
-    {% if factura.venta %}
-    <div><label>Origen</label><p>Venta de mostrador (POS) {{ factura.venta.numero_venta }}</p></div>
-    {% endif %}
-    {% if factura.tipo == 'fiscal' %}
-    <div><label>CAI</label><p>{{ factura.cai_usado }}</p></div>
-    <div><label>Rango autorizado</label><p>{{ factura.rango_autorizado_inicio }} al {{ factura.rango_autorizado_fin }}</p></div>
-    <div><label>Fecha límite de emisión</label><p>{{ factura.fecha_limite_emision|fecha('%d/%m/%Y') if factura.fecha_limite_emision else '-' }}</p></div>
-    {% endif %}
-  </div>
-</div>
 
-<div class="grid cols-2">
-  <div class="card">
-    <div class="card-title">Resumen</div>
-    <table>
-      <tr><td>Subtotal</td><td style="text-align:right;">{{ factura.subtotal|moneda(config_taller().moneda) }}</td></tr>
-      {% if factura.importe_exento > 0 %}<tr><td>Importe exento</td><td style="text-align:right;">{{ factura.importe_exento|moneda(config_taller().moneda) }}</td></tr>{% endif %}
-      {% if factura.importe_gravado > 0 %}
-      <tr><td>Importe gravado</td><td style="text-align:right;">{{ factura.importe_gravado|moneda(config_taller().moneda) }}</td></tr>
-      <tr><td>ISV ({{ factura.isv_tasa }}%)</td><td style="text-align:right;">{{ factura.isv_monto|moneda(config_taller().moneda) }}</td></tr>
+  <section class="m-stats" style="padding-bottom:22px; border-bottom:1px solid var(--border);">
+    {% set tot = factura.total|moneda(moneda) %}
+    <div><div class="m-label">Total</div><div class="m-hero" style="{{ 'text-decoration:line-through; color:var(--text-muted);' if factura.anulada else '' }}">{{ tot[:-3] }}<small>{{ tot[-3:] }}</small></div></div>
+    <div><div class="m-label">Subtotal</div><div class="m-val">{{ factura.subtotal|moneda(moneda) }}</div></div>
+    {% if factura.importe_exento > 0 %}<div><div class="m-label">Exento</div><div class="m-val">{{ factura.importe_exento|moneda(moneda) }}</div></div>{% endif %}
+    {% if factura.importe_gravado > 0 %}
+    <div><div class="m-label">Gravado</div><div class="m-val">{{ factura.importe_gravado|moneda(moneda) }}</div></div>
+    <div><div class="m-label">ISV ({{ factura.isv_tasa }}%)</div><div class="m-val">{{ factura.isv_monto|moneda(moneda) }}</div></div>
+    {% endif %}
+  </section>
+
+  <div class="m-grid2" style="margin-top:22px; gap:32px;">
+    <section>
+      <div class="m-sec-t">Datos de la factura</div>
+      <div class="m-row"><span class="m-muted">Cliente</span><span>{{ factura.cliente_nombre }}</span></div>
+      <div class="m-row"><span class="m-muted">RTN del cliente</span><span>{{ rtn or '—' }}</span></div>
+      {% if factura.orden %}<div class="m-row"><span class="m-muted">Orden</span><span><a href="/ordenes/{{ factura.orden.id }}">{{ factura.orden.numero_orden }}</a></span></div>{% endif %}
+      {% if factura.venta %}<div class="m-row"><span class="m-muted">Origen</span><span>Venta de mostrador {{ factura.venta.numero_venta }}</span></div>{% endif %}
+      {% if factura.tipo == 'fiscal' %}
+      <div class="m-row"><span class="m-muted">CAI</span><span style="font-size:13px;">{{ factura.cai_usado }}</span></div>
+      <div class="m-row"><span class="m-muted">Rango autorizado</span><span style="font-size:13px;">{{ factura.rango_autorizado_inicio }} al {{ factura.rango_autorizado_fin }}</span></div>
+      <div class="m-row"><span class="m-muted">Fecha límite de emisión</span><span>{{ factura.fecha_limite_emision|fecha('%d/%m/%Y') if factura.fecha_limite_emision else '—' }}</span></div>
       {% endif %}
-      <tr><td><b>TOTAL</b></td><td style="text-align:right;"><b>{{ factura.total|moneda(config_taller().moneda) }}</b></td></tr>
-    </table>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Anular factura</div>
-    {% if factura.anulada %}
-    <p class="help">Esta factura fue anulada.<br><b>Motivo:</b> {{ factura.motivo_anulacion }}</p>
-    {% elif usuario.rol == 'admin' %}
-    <form method="post" action="/facturas/{{ factura.id }}/anular">
-      <div class="field"><label>Motivo de anulación</label><input type="text" name="motivo" required></div>
-      <button type="submit" class="btn btn-danger" onclick="return confirm('¿Anular esta factura? El número de documento no se podrá reutilizar.');">Anular factura</button>
-    </form>
-    {% else %}
-    <p class="help">Solo un administrador puede anular una factura.</p>
-    {% endif %}
+    </section>
+    <section>
+      <div class="m-sec-t">Anular factura</div>
+      {% if factura.anulada %}
+      <p class="m-bad" style="margin:6px 0;">Esta factura fue anulada.</p>
+      <p class="help"><b>Motivo:</b> {{ factura.motivo_anulacion }}</p>
+      {% elif usuario.rol == 'admin' %}
+      <form method="post" action="/facturas/{{ factura.id }}/anular" class="m-box">
+        <div class="field"><label for="motivoAnular">Motivo de anulación</label><input id="motivoAnular" type="text" name="motivo" required></div>
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Anular esta factura? El número de documento no se podrá reutilizar.');">Anular factura</button>
+      </form>
+      {% else %}
+      <p class="help">Solo un administrador puede anular una factura.</p>
+      {% endif %}
+    </section>
   </div>
 </div>
 {% endblock %}

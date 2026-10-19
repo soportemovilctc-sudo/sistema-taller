@@ -1026,7 +1026,7 @@ function inicializarPandaMascota() {
     var form = e.target;
     if (!form || form.getAttribute("action") === null) return;
     if (!/\/ordenes\/\d+\/abono$/.test(form.getAttribute("action") || "")) return;
-    var selectFp = form.querySelector('select[name="forma_pago"]');
+    var selectFp = form.querySelector('input[name="forma_pago"]:checked') || form.querySelector('select[name="forma_pago"]');
     var inputMonto = form.querySelector('input[name="monto"]');
     if (selectFp && selectFp.value !== "Efectivo") {
       var ok = confirm("Vas a registrar un abono de L " + (inputMonto ? inputMonto.value : "") + " vía " + selectFp.value + ". ¿Confirmas que es correcto?");
@@ -1154,3 +1154,24 @@ function inicializarPandaMascota() {
 document.addEventListener("DOMContentLoaded", function () {
   inicializarPandaMascota();
 });
+
+
+// ---------- Tablas como tarjetas en celular: cada celda lleva el nombre de su columna ----------
+(function llenarEtiquetasTablas() {
+  function llenar() {
+    document.querySelectorAll("table.responsive-table").forEach(function (t) {
+      var titulos = [];
+      t.querySelectorAll("thead th").forEach(function (th) {
+        for (var k = 0; k < (th.colSpan || 1); k++) titulos.push(k === 0 ? th.textContent.trim() : "");
+      });
+      t.querySelectorAll("tbody tr").forEach(function (tr) {
+        var i = 0;
+        tr.querySelectorAll("td").forEach(function (td) {
+          if (!td.hasAttribute("data-label")) td.setAttribute("data-label", (td.colSpan || 1) > 1 ? "" : (titulos[i] || ""));
+          i += td.colSpan || 1;
+        });
+      });
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", llenar); else llenar();
+})();

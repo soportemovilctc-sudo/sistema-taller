@@ -1,13 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Generar factura - Orden {{ orden.numero_orden }}{% endblock %}
 {% block content %}
-<div class="card" style="max-width:640px;">
-  <div class="card-title">Generar factura para la orden {{ orden.numero_orden }}</div>
-  <p><b>Cliente:</b> {{ orden.cliente.nombre if orden.cliente else '-' }}<br>
-     <b>Técnico que recibió el equipo:</b> {{ orden.tecnico.nombre if orden.tecnico else 'Sin asignar' }}<br>
-     <b>Total del servicio:</b> {{ orden.total|moneda(config_taller().moneda) }}</p>
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap" style="max-width:860px;">
+  <div class="m-head">
+    <div>
+      <a href="/ordenes/{{ orden.id }}" class="m-muted" style="font-size:13px;">← {{ orden.numero_orden }}</a>
+      <h1 class="m-title" style="margin-top:6px;">Generar factura</h1>
+      <div style="font-size:15px; margin-top:4px;"><b>{{ orden.cliente.nombre if orden.cliente else '—' }}</b> <span class="m-muted">· orden {{ orden.numero_orden }} · recibió {{ orden.tecnico.nombre if orden.tecnico else 'sin asignar' }}</span></div>
+    </div>
+  </div>
+  <section class="m-stats" style="padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:20px;">
+    {% set tot = orden.total|moneda(moneda) %}
+    <div><div class="m-label">Total del servicio</div><div class="m-hero">{{ tot[:-3] }}<small>{{ tot[-3:] }}</small></div></div>
+    <div><div class="m-label">Abonado</div><div class="m-val m-ok">{{ (orden.abonado or 0)|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Saldo</div><div class="m-val {{ 'm-bad' if orden.saldo and orden.saldo > 0 else '' }}">{{ orden.saldo|moneda(moneda) }}</div></div>
+  </section>
 
   <form method="post" action="/ordenes/{{ orden.id }}/factura/nueva" id="formFacturaNueva">
+    <div class="m-sec-t">Documento</div>
     <div class="field">
       <label>Tipo de documento</label>
       <select name="tipo">
@@ -40,6 +51,9 @@
       <label class="checkbox-chip"><input type="checkbox" name="exento" {{ 'checked' if cfg.servicios_exentos_default else '' }}> Este servicio está exento de ISV</label>
     </div>
 
+    <details class="m-more" style="margin:14px 0;">
+    <summary>Agregar a la factura un repuesto o servicio que falte en la orden (opcional)</summary>
+    <div style="margin-top:12px;">
     <div class="field">
       <label>Repuesto usado (opcional)</label>
       <div class="form-row">
@@ -85,6 +99,8 @@
       <div class="help">Si el trabajo llevó un servicio que todavía no has registrado en la orden (ej. formateo, diagnóstico), escribe su nombre: si ya existe en el <a href="/servicios">catálogo</a> elígelo de la lista para autocompletar el precio; si es nuevo, escribe su precio (y costo, si tiene) y se crea solo. Se suma al total antes de generar la factura.</div>
     </div>
 
+    </div>
+    </details>
     <p class="help">El monto total que paga el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda (más el repuesto y/o el servicio de arriba, si agregas alguno).</p>
     <button type="submit" class="btn btn-primary" id="btnGenerarFactura">Generar factura</button>
     <a href="/ordenes/{{ orden.id }}" class="btn btn-outline">Cancelar</a>

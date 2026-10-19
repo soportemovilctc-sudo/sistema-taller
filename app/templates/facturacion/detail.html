@@ -14,7 +14,7 @@
   <div class="grid cols-4">
     <div><label>Tipo</label><p>{{ 'Factura fiscal' if factura.tipo == 'fiscal' else 'Comprobante interno' }}</p></div>
     <div><label>Cliente</label><p>{{ factura.cliente_nombre }}</p></div>
-    <div><label>RTN cliente</label><p>{{ factura.cliente_rtn or '-' }}</p></div>
+    <div><label>RTN cliente</label><p>{{ factura.cliente_rtn if factura.cliente_rtn and factura.cliente_rtn|lower != 'none' else '-' }}</p></div>
     <div><label>Fecha de emisión</label><p>{{ factura.fecha_emision|fecha('%d/%m/%Y %H:%M') }}</p></div>
     {% if factura.orden %}
     <div><label>Orden relacionada</label><p><a href="/ordenes/{{ factura.orden.id }}">{{ factura.orden.numero_orden }}</a></p></div>

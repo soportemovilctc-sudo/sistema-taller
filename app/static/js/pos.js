@@ -45,6 +45,8 @@ document.addEventListener("DOMContentLoaded", function () {
   if (descuentoInput) descuentoInput.addEventListener("input", actualizarTotales);
   var recibidoInput = document.getElementById("posMontoRecibido");
   if (recibidoInput) recibidoInput.addEventListener("input", actualizarTotales);
+  var formaPagoSel = document.getElementById("posFormaPago");
+  if (formaPagoSel) formaPagoSel.addEventListener("change", actualizarTotales);
 
   var finalizarBtn = document.getElementById("posFinalizar");
   if (finalizarBtn) finalizarBtn.addEventListener("click", finalizarVenta);
@@ -142,7 +144,8 @@ function actualizarTotales() {
   var totalNeto = subtotal - descuento;
   var isv = totalNeto * TASA_ISV / 100;
   var total = totalNeto + isv;
-  var recibido = parseFloat((document.getElementById("posMontoRecibido") || {}).value) || 0;
+  var esEfectivoPos = ((document.getElementById("posFormaPago") || {}).value || "Efectivo") === "Efectivo";
+  var recibido = esEfectivoPos ? (parseFloat((document.getElementById("posMontoRecibido") || {}).value) || 0) : total;
   var cambio = recibido - total;
 
   setTexto("posSubtotal", subtotal.toFixed(2));

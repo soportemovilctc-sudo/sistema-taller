@@ -20,7 +20,7 @@
     {% endif %}
     <div class="field">
       <label>RTN del cliente (para factura fiscal)</label>
-      <input type="text" name="cliente_rtn" value="{{ orden.cliente.rtn if orden.cliente else '' }}" placeholder="Déjalo en blanco si no aplica">
+      <input type="text" name="cliente_rtn" value="{{ (orden.cliente.rtn or '') if orden.cliente and (orden.cliente.rtn or '')|lower != 'none' else '' }}" placeholder="Déjalo en blanco si no aplica">
       <div class="help">Se guarda también en la ficha del cliente para la próxima vez.</div>
     </div>
     <div class="field">

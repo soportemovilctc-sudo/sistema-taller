@@ -1366,3 +1366,79 @@ details.m-more > summary { cursor: pointer; color: var(--text-muted); font-size:
 .product-card .pcat { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--primary-light); margin-bottom: 3px; }
 .cart-item .cart-cat { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--primary-light); }
 .cat-tag { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--primary-light); background: color-mix(in srgb, var(--primary) 14%, transparent); padding: 2px 7px; border-radius: 6px; margin-left: 6px; vertical-align: 1px; }
+
+
+/* ============================================================
+   REFINAMIENTO VISUAL v2 — las pantallas con "tarjetas" (.kpi,
+   .card) con el mismo estilo limpio de las pantallas nuevas (.m-*)
+   ============================================================ */
+/* que nada se salga de la pantalla en celular */
+.grid > *, .form-row > *, .m-grid2 > * { min-width: 0; }
+.card { overflow-wrap: anywhere; }
+.table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* KPI: sin la barra de color gruesa ni la letra de máquina de escribir */
+.kpi { border-left-width: 1px !important; padding: 14px 16px; box-shadow: none; }
+.kpi:hover { transform: none; box-shadow: none; border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+.kpi .kpi-label { text-transform: none; letter-spacing: 0; font-size: 12.5px; display: flex; align-items: center; gap: 7px; }
+.kpi .kpi-label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex: 0 0 auto; }
+.kpi.accent-blue .kpi-label::before { background: var(--primary); }
+.kpi.accent-green .kpi-label::before { background: var(--success); }
+.kpi.accent-orange .kpi-label::before { background: var(--warning); }
+.kpi.accent-red .kpi-label::before { background: var(--danger); }
+.kpi .kpi-value { font-family: inherit !important; font-size: 24px; font-weight: 800; letter-spacing: -.01em; margin-top: 6px; }
+.kpi .help { margin-top: 2px; }
+@media (max-width: 700px) { .kpi .kpi-value { font-size: 21px; } .kpi { padding: 12px 14px; } }
+
+/* tarjetas y títulos más limpios */
+.card { box-shadow: none; }
+.card-title { font-size: 15px; font-weight: 700; letter-spacing: -.005em; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.card-title .actions { margin-left: auto; display: inline-flex; flex-wrap: wrap; gap: 6px; }
+
+/* tablas viejas: encabezado discreto y números alineados */
+table th { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+table td { font-variant-numeric: tabular-nums; }
+.empty-state { color: var(--text-muted); font-size: 13.5px; padding: 18px 8px !important; text-align: center; }
+
+/* formularios: misma altura y separación en todas partes */
+.field label { font-size: 12.5px; font-weight: 600; }
+.form-row { gap: 12px; }
+@media (max-width: 700px) {
+  .form-row { flex-wrap: wrap; }
+  .form-row > .field { flex: 1 1 100% !important; }
+  .pill-tabs { flex-wrap: wrap; }
+  .card-title .actions { margin-left: 0; width: 100%; }
+}
+
+/* REFINAMIENTO VISUAL v2b — celular */
+@media (max-width: 700px) {
+  .topbar { gap: 10px; padding: 0 12px; }
+  .topbar .user-chip span { display: none; }
+  .grid:has(> .kpi) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px; }
+  .grid:has(> .kpi) > .kpi:only-child, .grid:has(> .kpi) > .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .kpi .kpi-value { font-size: 18px; }
+  .kpi .kpi-label { font-size: 11.5px; }
+}
+
+/* REFINAMIENTO VISUAL v2c — la barra superior del tema Vidrio ya no deja ver
+   el contenido que pasa por detrás (se veía todo encimado al bajar) */
+:root[data-tema="vidrio"] .topbar { background: rgba(7, 13, 21, .86); }
+:root[data-tema="claro"] .topbar { background: var(--panel); }
+
+/* REFINAMIENTO VISUAL v2d — una línea divide cada cifra para que no se
+   confundan (Inicio, cajas, compras, banco...) */
+.m-stats { column-gap: 0 !important; row-gap: 16px !important; }
+.m-stats > * { padding: 2px 26px; border-left: 1px solid var(--border); }
+.m-stats > *:first-child { padding-left: 0; border-left: 0; }
+.m-stats > .m-stats { padding-right: 0; }
+.m-strip > * + * { border-left: 1px solid var(--border); padding-left: 22px; }
+@media (max-width: 700px) {
+  .m-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .m-stats > * { padding: 10px 12px 10px 0; border-left: 0; border-top: 1px solid var(--border); }
+  .m-stats > *:nth-child(even) { padding-left: 12px; border-left: 1px solid var(--border); }
+  .m-stats > *:first-child:has(.m-hero), .m-stats > .m-stats { grid-column: 1 / -1; border-left: 0; padding-left: 0; }
+  .m-stats > *:first-child { border-top: 0; }
+  .m-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .m-strip > * { padding: 12px 0 12px 12px; border-left: 1px solid var(--border); }
+  .m-strip > *:nth-child(3n+1) { border-left: 0; padding-left: 0; }
+}

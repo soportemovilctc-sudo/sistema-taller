@@ -417,6 +417,8 @@ def factura_crear(
     # la orden tiene cliente, se guarda también en su ficha para que quede
     # disponible la próxima vez que se le facture.
     cliente_rtn_final = (cliente_rtn or "").strip()
+    if cliente_rtn_final.lower() == "none":  # el formulario viejo mandaba el texto "None"
+        cliente_rtn_final = ""
     if orden.cliente and cliente_rtn_final != (orden.cliente.rtn or ""):
         orden.cliente.rtn = cliente_rtn_final
 

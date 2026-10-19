@@ -93,6 +93,8 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
     total = aplicar_impuesto(total_neto, tasa)
     isv_monto = (total - total_neto).quantize(Decimal("0.01"))
     monto_recibido = to_decimal(venta_in.monto_recibido)
+    if (venta_in.forma_pago or "Efectivo") != "Efectivo":  # no_efectivo_recibe_total: transferencia/tarjeta = el total exacto
+        monto_recibido = total
     if monto_recibido < total:
         return JSONResponse({"ok": False, "mensaje": "El monto recibido es menor al total a pagar."}, status_code=400)
     cambio = (monto_recibido - total).quantize(Decimal("0.01"))

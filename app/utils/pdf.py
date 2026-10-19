@@ -524,7 +524,7 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
         "rango_autorizado_fin": factura.rango_autorizado_fin or "",
         "fecha_limite_emision": factura.fecha_limite_emision.strftime("%d/%m/%Y") if factura.fecha_limite_emision else "",
         "cliente_nombre": factura.cliente_nombre or "",
-        "cliente_rtn": factura.cliente_rtn or "",
+        "cliente_rtn": "" if (factura.cliente_rtn or "").strip().lower() in ("", "none") else factura.cliente_rtn,
         "cliente_direccion": factura.cliente_direccion or "",
         "descripcion": descripcion,
         "subtotal": factura.subtotal,

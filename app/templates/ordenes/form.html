@@ -166,7 +166,7 @@
     </div>
   </div>
 
-  <div class="grid cols-2">
+  <div class="grid cols-2" style="align-items:start;">
     <details class="card" {{ 'open' if orden and (orden.pin or orden.patron) else '' }}>
       <summary class="card-title" style="cursor:pointer;">Seguridad del equipo (dato sensible) <span class="help" style="font-weight:400;">— toca para {{ 'ocultar' if orden and (orden.pin or orden.patron) else 'mostrar' }}</span></summary>
       <div class="grid cols-2" style="margin-top:12px;">

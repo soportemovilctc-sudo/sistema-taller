@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Cuadre de banco{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+{% macro tabla(filas) %}
+<div class="table-wrap">
+  <table class="m-table">
+    <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Detalle</th><th>Referencia</th><th class="num">Monto</th></tr></thead>
+    <tbody>
+      {% for f in filas %}
+      <tr>
+        <td class="m-muted" style="white-space:nowrap;">{{ f.fecha.strftime('%d/%m/%Y %I:%M %p') }}</td>
+        <td class="{{ 'm-bad' if f.tipo == 'Salida' else '' }}">{{ f.tipo }}</td>
+        <td>{{ f.categoria }}{% if f.metodo %} <span class="m-muted">· {{ f.metodo }}</span>{% endif %}</td>
+        <td>{{ f.detalle }}{% if f.usuario %}<div class="m-muted" style="font-size:11.5px;">{{ f.usuario }}</div>{% endif %}</td>
+        <td class="m-muted" style="font-size:12.5px;">{{ f.referencia }}</td>
+        <td class="num" style="font-weight:700;">{{ f.monto|moneda(moneda) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+<div class="pill-tabs">
+  <a href="/caja/panel">Panel gerencial</a>
+  <a href="/caja/conciliacion">Conciliación y egresos</a>
+  <a href="/banco/estado-cuenta">Estado de cuenta bancario</a>
+  <a href="/banco/cuadre" class="active">Cuadre de banco</a>
+  <a href="/caja/informe">Informe mensual</a>
+  <a href="/caja/libro-diario">Libro Diario</a>
+</div>
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Cuadre de banco</h1>
+      <div class="m-sub">Escribe lo que dice el banco real y el sistema te muestra la diferencia, dónde buscarla y, si quieres, la cuadra con un ajuste.</div>
+    </div>
+  </div>
+
+  <form method="get" action="/banco/cuadre" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:22px;">
+    <div class="field" style="margin:0;"><label for="cbFecha">Saldo al día</label><input id="cbFecha" type="date" name="fecha" value="{{ dia.isoformat() }}" max="{{ hoy_iso }}"></div>
+    <div class="field" style="margin:0;"><label for="cbReal">Saldo real del banco</label><input id="cbReal" type="text" inputmode="decimal" name="real" value="{{ real_txt }}" placeholder="Ej: 416812.53" style="font-size:18px; font-weight:700;"></div>
+    <button type="submit" class="btn btn-primary">Comparar</button>
+  </form>
+
+  <section class="m-stats" style="padding-bottom:22px; border-bottom:1px solid var(--border);">
+    <div><div class="m-label">Banco en el sistema · {{ dia.strftime('%d/%m/%Y') }}</div><div class="m-val">{{ sistema|moneda(moneda) }}</div>
+      {% if panel is not none and panel != sistema %}<div class="m-muted" style="font-size:12px;">Panel gerencial muestra {{ panel|moneda(moneda) }}</div>{% endif %}</div>
+    {% if real is not none %}
+    <div><div class="m-label">Banco real</div><div class="m-val">{{ real|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Diferencia</div>
+      <div class="m-hero {{ 'm-ok' if diferencia == 0 else 'm-bad' }}">{% if diferencia == 0 %}Cuadra{% else %}{{ diferencia|abs|moneda(moneda) }}{% endif %}</div>
+      {% if diferencia %}<div class="m-muted" style="font-size:13px;">El sistema tiene {{ 'DE MÁS' if diferencia > 0 else 'DE MENOS' }}</div>{% endif %}</div>
+    {% endif %}
+  </section>
+
+  {% if p %}
+  <div class="m-sec">
+    <div class="m-sec-t"><span>Dónde puede estar la diferencia · del {{ p.desde.strftime('%d/%m/%Y') }} al {{ p.hasta.strftime('%d/%m/%Y') }}</span></div>
+
+    {% if p.exactos %}
+    <p style="margin:8px 0;"><b class="m-bad">Movimiento(s) por el mismo monto de la diferencia</b> — revisa si alguno no llegó al banco o está repetido:</p>
+    {{ tabla(p.exactos) }}
+    {% endif %}
+
+    {% if p.duplicados %}
+    <p style="margin:14px 0 8px;"><b class="m-bad">Posibles cobros repetidos ({{ p.duplicados|length }})</b> — mismo monto el mismo día o misma referencia de transferencia:</p>
+    {% for g in p.duplicados %}
+    <div class="m-muted" style="font-size:13px; margin-top:8px;">{{ g.motivo }} · si sobra uno: {{ g.de_mas|moneda(moneda) }}</div>
+    {{ tabla(g.filas) }}
+    {% endfor %}
+    {% endif %}
+
+    {% if diferencia > 0 and p.total_tarjeta %}
+    <p style="margin:14px 0 8px;"><b>Comisiones del POS:</b> este mes se cobraron {{ p.total_tarjeta|moneda(moneda) }} con tarjeta ({{ p.n_tarjeta }} cobros). El sistema los suma completos, pero el banco deposita menos (comisión, ISV de la comisión y retención).
+      La diferencia es el <b>{{ p.pct_tarjeta }}%</b> de lo cobrado con tarjeta{% if p.pct_tarjeta and p.pct_tarjeta <= 7 %}: <b>es muy probable que sean las comisiones</b>{% endif %}.</p>
+    {% endif %}
+
+    {% if p.n_pendientes %}
+    <p style="margin:14px 0 8px;"><b>Transferencias sin confirmar con el banco ({{ p.n_pendientes }} · {{ p.total_pendientes|moneda(moneda) }})</b> — si alguna no llegó, el sistema tiene de más. <a href="/caja/conciliacion">Confirmarlas en Conciliación</a>.</p>
+    {{ tabla(p.pendientes[:15]) }}
+    {% endif %}
+
+    {% if p.pares %}
+    <details class="m-more"><summary>Dos entradas que juntas suman la diferencia ({{ p.pares|length }})</summary>
+      {% for par in p.pares %}{{ tabla(par) }}{% endfor %}
+    </details>
+    {% endif %}
+
+    <p class="help" style="margin-top:14px;">
+      {% if p.saldo_inicial_mes is not none %}Saldo inicial de Banco configurado para este mes: <b>{{ p.saldo_inicial_mes|moneda(moneda) }}</b>. Si el banco real no tenía eso el día 1, la diferencia viene de ahí (se corrige en el <a href="/caja/panel">Panel gerencial</a>).
+      {% else %}Este mes no tiene saldo inicial de Banco configurado: arrancó con {{ p.saldo_inicio_calculado|moneda(moneda) }} que vienen del mes anterior.{% endif %}
+      También revisa en el banco real cargos que el sistema no tiene (manejo de cuenta, comisiones por transferencia, chequera…). <a href="/banco/estado-cuenta?desde={{ p.desde.isoformat() }}&hasta={{ p.hasta.isoformat() }}">Ver estado de cuenta del sistema</a>.
+    </p>
+  </div>
+
+  <div class="m-sec">
+    <div class="m-sec-t"><span>Cuadrar ahora</span></div>
+    <form method="post" action="/banco/cuadre" class="m-box" onsubmit="return confirm('¿Registrar el ajuste de {{ diferencia|abs|moneda(moneda) }} para que el banco del sistema quede igual al real? Se puede anular después.');">
+      <input type="hidden" name="fecha" value="{{ dia.isoformat() }}">
+      <input type="hidden" name="real" value="{{ real_txt }}">
+      <p style="margin:0 0 10px;">Se registra {{ 'una <b>salida</b>'|safe if diferencia > 0 else 'una <b>entrada</b>'|safe }} en Banco de <b>{{ diferencia|abs|moneda(moneda) }}</b> el {{ dia.strftime('%d/%m/%Y') }}, con su asiento contable. Así el banco del sistema queda en <b>{{ real|moneda(moneda) }}</b>.</p>
+      <div class="form-row">
+        <div class="field">
+          <label for="cbMotivo">Motivo</label>
+          <select id="cbMotivo" name="motivo">
+            {% for m in (motivos_salida if diferencia > 0 else motivos_entrada) %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label for="cbNota">Nota</label><input id="cbNota" type="text" name="nota" placeholder="Opcional: qué se encontró"></div>
+      </div>
+      <p class="help">{% if diferencia > 0 %}Cuenta como gasto en los Estados Financieros (las comisiones y cargos del banco lo son).{% else %}Cuenta como otro ingreso.{% endif %} Si después encuentras el error exacto, anula este cuadre y corrige el movimiento.</p>
+      <button type="submit" class="btn btn-primary">Cuadrar el banco</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if cuadres %}
+  <div class="m-sec">
+    <div class="m-sec-t"><span>Cuadres registrados</span></div>
+    <div class="table-wrap">
+      <table class="m-table">
+        <thead><tr><th>Fecha</th><th>Motivo</th><th>Detalle</th><th class="num">Monto</th><th></th></tr></thead>
+        <tbody>
+          {% for c in cuadres %}
+          <tr class="{{ 'm-muted' if c.excluir_de_contabilidad else '' }}">
+            <td style="white-space:nowrap;">{{ c.fecha|hn('%d/%m/%Y') }}</td>
+            <td>{{ c.categoria }}</td>
+            <td style="font-size:12.5px;">{{ c.descripcion }}<div class="m-muted" style="font-size:11.5px;">{{ c.usuario_nombre }}</div></td>
+            <td class="num {{ 'm-bad' if c.tipo == 'gasto' else 'm-ok' }}" style="font-weight:700;">{{ '−' if c.tipo == 'gasto' else '+' }}{{ c.monto|moneda(moneda) }}</td>
+            <td>{% if not c.excluir_de_contabilidad %}
+              <form method="post" action="/banco/cuadre/{{ c.id }}/deshacer" onsubmit="return confirm('¿Anular este cuadre? Deja de contar en el banco y en la contabilidad.');"><button class="btn btn-outline btn-sm" type="submit">Anular</button></form>
+              {% else %}<span class="m-muted">Anulado</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

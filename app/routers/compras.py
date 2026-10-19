@@ -86,7 +86,7 @@ def compras_crear(
         flash(request, "No se creó la solicitud: " + " ".join(errores), "error")
         return RedirectResponse(BASE + "/nueva", status_code=303)
     db.commit()
-    flash(request, f"Solicitud {sol.numero} creada. Cuando llegue la mercadería, confirma la recepción.", "success")
+    flash(request, f"Solicitud {sol.numero} guardada. Puedes descargarla en PDF para el proveedor; cuando llegue la mercadería, confirma la recepción.", "success")
     return RedirectResponse(f"{BASE}/{sol.id}", status_code=303)
 
 
@@ -218,6 +218,19 @@ def compras_detalle(solicitud_id: int, request: Request, db: Session = Depends(g
         "request": request, "usuario": usuario, "sol": sol, "pagos": pagos, "estados": ESTADOS_COMPRA,
         "puede_recibir": sol.estado in (COMPRA_PENDIENTE, COMPRA_PARCIAL),
     })
+
+
+@router.get(BASE + "/{solicitud_id}/pdf")
+def compras_solicitud_pdf(solicitud_id: int, descargar: int = 0, isv: int = 1, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from app.models import Configuracion, ConfiguracionFacturacion
+    from app.utils.pdf_solicitud_compra import pdf_solicitud
+    sol = db.get(SolicitudCompra, solicitud_id)
+    if not sol:
+        return RedirectResponse(BASE, status_code=303)
+    contenido = pdf_solicitud(sol, db.get(Configuracion, 1), db.query(ConfiguracionFacturacion).first(), con_isv=bool(isv))
+    modo = "attachment" if descargar else "inline"
+    return Response(contenido, media_type="application/pdf",
+                    headers={"Content-Disposition": f'{modo}; filename="solicitud_compra_{sol.numero}.pdf"'})
 
 
 @router.get(BASE + "/{solicitud_id}/recibir")

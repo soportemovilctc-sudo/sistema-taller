@@ -13,6 +13,9 @@
       {% if sol.notas %}<div class="m-sub">{{ sol.notas }}</div>{% endif %}
     </div>
     <div class="m-acciones">
+      <a href="/compras/{{ sol.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF</a>
+      <a href="/compras/{{ sol.id }}/pdf?descargar=1" class="btn btn-outline btn-sm">Descargar PDF</a>
+      <a href="/compras/{{ sol.id }}/pdf?isv=0" target="_blank" class="btn btn-outline btn-sm" title="Sin ISV: compra exenta">PDF sin ISV</a>
       {% if puede_recibir %}<a href="/compras/{{ sol.id }}/recibir" class="btn btn-primary">Confirmar recepción</a>{% endif %}
     </div>
   </div>

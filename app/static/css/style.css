@@ -1817,3 +1817,23 @@ table .btn-sm.btn-primary:hover, table .btn-sm.btn-info:hover { background: colo
 :root[data-tema="vidrio"] .btn-primary, :root[data-tema="vidrio"] .btn-info { color: #04121a; }
 @media (max-width: 900px) { .grid[style*="2.6fr"] { grid-template-columns: 1fr !important; } }
 .grid + .grid, .grid + .card, .card + .grid { margin-top: 16px; }
+
+/* Casillas y círculos nunca se estiran al ancho del campo */
+input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0 0 auto; padding: 0; box-shadow: none; }
+/* Opciones de pago con tarjetas (Compras → confirmar recepción) */
+.opciones-pago { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; min-width: 0; }
+.opciones-pago legend { font-size: 15px; font-weight: 650; letter-spacing: -.01em; padding: 0; margin-bottom: 10px; }
+.opcion { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid var(--border);
+  border-radius: 12px; background: var(--panel); cursor: pointer; transition: border-color .15s, background .15s; }
+.opcion:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
+.opcion input { position: absolute; opacity: 0; pointer-events: none; }
+.opcion-ic { flex: 0 0 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--panel-2); color: var(--text-muted); }
+.opcion-ic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.opcion-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.opcion-tx b { font-size: 14px; font-weight: 600; }
+.opcion-tx small { font-size: 12.5px; color: var(--text-muted); line-height: 1.4; }
+.opcion::after { content: ""; margin-left: auto; flex: 0 0 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); }
+.opcion:has(input:checked) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, var(--panel)); }
+.opcion:has(input:checked) .opcion-ic { background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary); }
+.opcion:has(input:checked)::after { border-color: var(--primary); background: radial-gradient(circle, var(--primary) 0 45%, transparent 50%); }
+.opcion:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }

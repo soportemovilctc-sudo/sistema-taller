@@ -43,13 +43,14 @@
     </div>
 
     <div class="m-grid2" style="margin-top:24px; gap:24px;">
-      <fieldset class="m-box" style="margin:0;">
-        <legend class="m-sec-t" style="padding:0 6px;">¿Cómo se pagó?</legend>
+      <fieldset class="opciones-pago">
+        <legend>¿Cómo se pagó?</legend>
         {% for f in formas %}
-        <label style="display:flex; gap:10px; align-items:flex-start; padding:8px 0; cursor:pointer;">
+        <label class="opcion">
           <input type="radio" name="forma_pago" value="{{ f }}" {{ 'checked' if loop.first else '' }} required>
-          <span><b>{{ {'Efectivo': 'Efectivo de la caja', 'Banco': 'Banco (transferencia)', 'Crédito': 'Al crédito'}.get(f, f) }}</b>
-            <span class="help" style="display:block;">{{ {'Efectivo': 'Sale de la caja abierta; cuenta en su cierre.', 'Banco': 'Sale de la cuenta del banco.', 'Crédito': 'Queda por pagar al proveedor; lo pagas después desde esta compra.'}.get(f, '') }}</span></span>
+          <span class="opcion-ic" aria-hidden="true"><svg viewBox="0 0 24 24">{% if f == 'Efectivo' %}<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 11h18M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"/>{% elif f == 'Banco' %}<path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>{% else %}<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>{% endif %}</svg></span>
+          <span class="opcion-tx"><b>{{ {'Efectivo': 'Efectivo de la caja', 'Banco': 'Banco (transferencia)', 'Crédito': 'Al crédito'}.get(f, f) }}</b>
+            <small>{{ {'Efectivo': 'Sale de la caja abierta y cuenta en su cierre.', 'Banco': 'Sale de la cuenta del banco.', 'Crédito': 'Queda por pagar al proveedor; lo pagas después desde esta compra.'}.get(f, '') }}</small></span>
         </label>
         {% endfor %}
       </fieldset>

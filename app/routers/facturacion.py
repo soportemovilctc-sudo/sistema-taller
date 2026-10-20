@@ -241,6 +241,37 @@ def _crear_ingresos_factura(
         registrar_asiento_para_movimiento(db, mov, monto_neto=neto_fila, isv_monto=isv_fila)
 
 
+def _corregir_formas_abonos(db: Session, orden: OrdenServicio, form, usuario_nombre: str) -> list:
+    """Al generar la factura se puede corregir con qué se pagó cada abono
+    (por ejemplo se anotó Efectivo pero fue Transferencia). Cambia
+    Pago.forma_pago; si el abono es de una caja ya cerrada, se recalcula su
+    arqueo y queda anotado. Devuelve la lista de cambios hechos."""
+    from app.models import TurnoCaja, TurnoCajaEvento, TURNO_ABIERTO
+    cambios, turnos = [], {}
+    for p in orden.pagos:
+        nueva = (form.get(f"pago_forma_{p.id}") or "").strip()
+        actual = p.forma_pago if p.forma_pago in FORMAS_PAGO else "Efectivo"
+        if not nueva or nueva not in FORMAS_PAGO or nueva == actual:
+            continue
+        p.forma_pago = nueva
+        nota = f"Forma de pago corregida al facturar: {actual} → {nueva} ({usuario_nombre})"
+        p.observacion = f"{p.observacion or ''} · {nota}".strip(" ·")
+        cambios.append(f"abono de L {to_decimal(p.monto):,.2f}: {actual} → {nueva}")
+        if p.turno_caja_id:
+            turnos.setdefault(p.turno_caja_id, []).append(f"L {to_decimal(p.monto):,.2f} {actual} → {nueva}")
+    db.flush()
+    for turno_id, detalles in turnos.items():
+        t = db.get(TurnoCaja, turno_id)
+        if t and t.estado != TURNO_ABIERTO:
+            from app.routers.turnos_caja import _recalcular_arqueo
+            antes_e = to_decimal(t.efectivo_esperado or 0)
+            _recalcular_arqueo(db, t)
+            db.add(TurnoCajaEvento(turno_id=t.id, accion="edicion", usuario_nombre=usuario_nombre, fecha=datetime.utcnow(),
+                                   detalle=(f"Orden {orden.numero_orden}: se corrigió la forma de pago de abonos al facturar ("
+                                            + "; ".join(detalles) + f"). Esperado: L {antes_e:,.2f} → L {to_decimal(t.efectivo_esperado):,.2f}")))
+    return cambios
+
+
 def _pagos_por_forma(orden: OrdenServicio) -> list:
     """Lo ya abonado a la orden, agrupado por forma de pago (para mostrarlo al facturar)."""
     tot = {}
@@ -286,11 +317,12 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
         "servicios_disponibles": _servicios_disponibles(db),
         "formas_pago": FORMAS_PAGO,
         "pagos_por_forma": _pagos_por_forma(orden),
+        "abonos": sorted(orden.pagos, key=lambda p: (p.fecha or datetime.min, p.id)),
     })
 
 
 @router.post("/ordenes/{orden_id}/factura/nueva")
-def factura_crear(
+async def factura_crear(
     orden_id: int, request: Request,
     tipo: str = Form("interno"), exento: bool = Form(False), tecnico_reparacion_id: str = Form(""),
     repuesto_producto_id: str = Form(""), repuesto_cantidad: str = Form("1"), repuesto_precio: str = Form(""),
@@ -328,6 +360,8 @@ def factura_crear(
         return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
     if tipo not in ("interno", "fiscal"):
         tipo = "interno"
+
+    cambios_abonos = _corregir_formas_abonos(db, orden, await request.form(), usuario["nombre_completo"])
 
     # El técnico que RECIBIÓ el equipo (orden.tecnico_id) no siempre es
     # quien hizo la reparación, así que se guarda aparte y se puede
@@ -479,7 +513,8 @@ def factura_crear(
 
     db.commit()
     db.refresh(factura)
-    flash(request, f"Factura {factura.numero_documento} generada correctamente.", "success")
+    flash(request, f"Factura {factura.numero_documento} generada correctamente."
+          + (" Forma de pago corregida: " + "; ".join(cambios_abonos) + "." if cambios_abonos else ""), "success")
     return RedirectResponse(f"/facturas/{factura.id}", status_code=303)
 
 

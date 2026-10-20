@@ -47,16 +47,29 @@
       </select>
       <div class="help">No siempre es el mismo que recibió el equipo — elige aquí quién realizó el trabajo.</div>
     </div>
+    <div class="m-sec-t" style="margin-top:18px;">Cómo pagó el cliente</div>
+    {% if abonos %}
+    <div class="fp-abonos">
+      {% for p in abonos %}
+      {% set actual = p.forma_pago if p.forma_pago in formas_pago else 'Efectivo' %}
+      <div class="fp-abono">
+        <div class="fp-abono-t"><b>{{ p.monto|moneda(moneda) }}</b><span class="m-muted"> · abono del {{ p.fecha|hn('%d/%m/%Y %I:%M %p') }}</span></div>
+        <div class="pago-opciones" role="radiogroup" aria-label="Forma de pago del abono de {{ p.monto|moneda(moneda) }}">
+          {% for fp in formas_pago %}
+          <label class="pago-op"><input type="radio" name="pago_forma_{{ p.id }}" value="{{ fp }}" {{ 'checked' if fp == actual else '' }}><span>{{ fp }}</span></label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="help" style="margin:-4px 0 12px;">Si un abono se anotó con la forma de pago equivocada, cámbiala aquí: se corrige en la orden y en la caja donde se cobró.</div>
+    {% endif %}
     <div class="field">
-      <label>Forma de pago {% if orden.saldo and orden.saldo > 0 %}del saldo ({{ orden.saldo|moneda(moneda) }}){% endif %} *</label>
-      <div class="pago-opciones" role="radiogroup" aria-label="Forma de pago" aria-required="true">
+      <label>{% if orden.saldo and orden.saldo > 0 %}Saldo por cobrar ({{ orden.saldo|moneda(moneda) }}){% elif abonos %}Si agregas algo abajo, se cobra con{% else %}Forma de pago{% endif %} *</label>
+      <div class="pago-opciones" role="radiogroup" aria-label="Forma de pago del saldo" aria-required="true">
         {% for fp in formas_pago %}
         <label class="pago-op"><input type="radio" name="forma_pago" value="{{ fp }}" required {{ 'checked' if fp == 'Efectivo' else '' }}><span>{{ fp }}</span></label>
         {% endfor %}
-      </div>
-      <div class="help">
-        {% if pagos_por_forma %}Ya abonado: {% for f, m in pagos_por_forma %}{{ f }} {{ m|moneda(moneda) }}{{ ' · ' if not loop.last }}{% endfor %} (eso se queda como se pagó). {% endif %}
-        Lo que falta por pagar se registra con la forma que elijas aquí{% if not (orden.saldo and orden.saldo > 0) %}, por si agregas algo abajo{% endif %}.
       </div>
     </div>
     <div class="field">

@@ -178,7 +178,7 @@ def _validar_fiscal_disponible(cfg: ConfiguracionFacturacion) -> str | None:
     return None
 
 
-def _desglose_pagos_orden(orden: OrdenServicio, total_factura) -> list[tuple[str, Decimal]]:
+def _desglose_pagos_orden(orden: OrdenServicio, total_factura, forma_saldo: str = "Efectivo") -> list[tuple[str, Decimal]]:
     """Reparte el total de una factura de orden entre Efectivo/Transferencia/
     Tarjeta/Otro según los abonos (Pago.forma_pago) que ya tiene registrados
     esa orden -- para que el ingreso contable se clasifique en la cuenta
@@ -195,7 +195,10 @@ def _desglose_pagos_orden(orden: OrdenServicio, total_factura) -> list[tuple[str
     suma_pagos = sum(acumulado.values(), Decimal("0.00"))
     faltante = (to_decimal(total_factura) - suma_pagos).quantize(Decimal("0.01"))
     if faltante > 0:
-        acumulado["Efectivo"] = acumulado.get("Efectivo", Decimal("0.00")) + faltante
+        # Lo que falta por abonar se cobra con la forma de pago elegida al
+        # generar la factura (Efectivo si no se eligió otra).
+        forma_saldo = forma_saldo if forma_saldo in FORMAS_PAGO else "Efectivo"
+        acumulado[forma_saldo] = acumulado.get(forma_saldo, Decimal("0.00")) + faltante
     elif faltante < 0:
         # Se abonó de más que el total facturado (caso raro, por ejemplo un
         # redondeo): se recorta el excedente del método con mayor monto, para
@@ -208,7 +211,7 @@ def _desglose_pagos_orden(orden: OrdenServicio, total_factura) -> list[tuple[str
 
 def _crear_ingresos_factura(
     db: Session, factura: Factura, orden: OrdenServicio, usuario_nombre: str,
-    monto_neto_total: Decimal, isv_monto_total: Decimal,
+    monto_neto_total: Decimal, isv_monto_total: Decimal, forma_saldo: str = "Efectivo",
 ) -> None:
     """Crea el o los MovimientoFinanciero de ingreso de una factura de orden
     (ver CATEGORIA_VENTA_FACTURADA): uno por cada forma de pago distinta con
@@ -217,7 +220,7 @@ def _crear_ingresos_factura(
     a Banco, porque ese dinero nunca pasó físicamente por la caja. El neto y
     el ISV de cada fila se reparten en la misma proporción que su monto,
     para que el asiento del Libro Diario quede balanceado fila por fila."""
-    desglose = _desglose_pagos_orden(orden, factura.total)
+    desglose = _desglose_pagos_orden(orden, factura.total, forma_saldo)
     total_factura = to_decimal(factura.total)
     for forma_pago, monto in desglose:
         if total_factura > 0:
@@ -236,6 +239,15 @@ def _crear_ingresos_factura(
         db.add(mov)
         db.flush()
         registrar_asiento_para_movimiento(db, mov, monto_neto=neto_fila, isv_monto=isv_fila)
+
+
+def _pagos_por_forma(orden: OrdenServicio) -> list:
+    """Lo ya abonado a la orden, agrupado por forma de pago (para mostrarlo al facturar)."""
+    tot = {}
+    for p in orden.pagos:
+        forma = p.forma_pago if p.forma_pago in FORMAS_PAGO else "Efectivo"
+        tot[forma] = tot.get(forma, Decimal("0.00")) + to_decimal(p.monto)
+    return [(f, m.quantize(Decimal("0.01"))) for f, m in tot.items() if m > 0]
 
 
 @router.get("/ordenes/{orden_id}/factura/nueva")
@@ -272,6 +284,8 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
         "tecnicos": tecnicos,
         "productos_disponibles": productos_disponibles, "tasa_isv": tasa_isv,
         "servicios_disponibles": _servicios_disponibles(db),
+        "formas_pago": FORMAS_PAGO,
+        "pagos_por_forma": _pagos_por_forma(orden),
     })
 
 
@@ -282,9 +296,11 @@ def factura_crear(
     repuesto_producto_id: str = Form(""), repuesto_cantidad: str = Form("1"), repuesto_precio: str = Form(""),
     servicio_nombre: str = Form(""), servicio_categoria: str = Form(""),
     servicio_cantidad: str = Form("1"), servicio_precio: str = Form(""), servicio_costo: str = Form(""),
-    cliente_rtn: str = Form(""),
+    cliente_rtn: str = Form(""), forma_pago: str = Form("Efectivo"),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
+    if forma_pago not in FORMAS_PAGO:
+        forma_pago = "Efectivo"
     # La orden se bloquea (SELECT ... FOR UPDATE en Postgres) hasta terminar:
     # si el botón "Generar factura" se presiona dos veces, la segunda
     # petición espera a que termine la primera en vez de chocar con ella
@@ -458,7 +474,7 @@ def factura_crear(
     # cuenta real (Caja Chica o Banco) -- ver _crear_ingresos_factura.
     _crear_ingresos_factura(
         db, factura, orden, usuario["nombre_completo"],
-        monto_neto_total=(total - isv_monto), isv_monto_total=isv_monto,
+        monto_neto_total=(total - isv_monto), isv_monto_total=isv_monto, forma_saldo=forma_pago,
     )
 
     db.commit()
@@ -482,7 +498,7 @@ def _parse_fecha(valor, default=None):
 # Orden fijo en que se muestran los totales por forma de pago en el
 # resumen de Facturas (las formas "reales" primero, en el mismo orden que
 # en Órdenes/Ventas, y al final los dos casos especiales derivados).
-ORDEN_RESUMEN_FORMAS_PAGO = FORMAS_PAGO + ["Mixto", "Sin especificar"]
+ORDEN_RESUMEN_FORMAS_PAGO = FORMAS_PAGO + ["Mixto"]
 
 
 def _forma_pago_factura(factura: Factura) -> str:
@@ -493,14 +509,19 @@ def _forma_pago_factura(factura: Factura) -> str:
         ya registrados en esa orden -- puede no haber ninguno todavía, uno
         solo, o varios con métodos distintos (pago mixto)."""
     if factura.venta_id and factura.venta:
-        return factura.venta.forma_pago or "Sin especificar"
-    if factura.orden_id and factura.orden:
+        return factura.venta.forma_pago or "Efectivo"
+    # Lo más fiel: cómo quedaron registrados los ingresos de esta factura
+    # (una fila por forma de pago, ver _crear_ingresos_factura). Así una
+    # factura emitida sin abonos previos muestra Efectivo, que es como se
+    # contó, en vez de «Sin especificar».
+    formas = {m.metodo_pago for m in getattr(factura, "_movs_cache", []) if m.metodo_pago}
+    if not formas and factura.orden_id and factura.orden:
         formas = {p.forma_pago for p in factura.orden.pagos if p.forma_pago}
-        if len(formas) == 1:
-            return next(iter(formas))
-        if len(formas) > 1:
-            return "Mixto"
-    return "Sin especificar"
+    if len(formas) == 1:
+        return next(iter(formas))
+    if len(formas) > 1:
+        return "Mixto"
+    return "Efectivo"
 
 
 @router.get("/facturas")
@@ -529,10 +550,15 @@ def facturas_list(
     # una factura anulada no infle el total cobrado) + total general.
     resumen = {clave: Decimal("0.00") for clave in ORDEN_RESUMEN_FORMAS_PAGO}
     total_general = Decimal("0.00")
+    movs_por_factura = {}
+    if facturas:
+        for m in db.query(MovimientoFinanciero).filter(MovimientoFinanciero.factura_id.in_([f.id for f in facturas])).all():
+            movs_por_factura.setdefault(m.factura_id, []).append(m)
     for f in facturas:
+        f._movs_cache = movs_por_factura.get(f.id, [])
         f.forma_pago_mostrar = _forma_pago_factura(f)
         if not f.anulada:
-            resumen[f.forma_pago_mostrar] += to_decimal(f.total)
+            resumen[f.forma_pago_mostrar] = resumen.get(f.forma_pago_mostrar, Decimal("0.00")) + to_decimal(f.total)
             total_general += to_decimal(f.total)
 
     return templates.TemplateResponse("facturacion/list.html", {

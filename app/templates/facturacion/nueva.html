@@ -48,6 +48,18 @@
       <div class="help">No siempre es el mismo que recibió el equipo — elige aquí quién realizó el trabajo.</div>
     </div>
     <div class="field">
+      <label>Forma de pago {% if orden.saldo and orden.saldo > 0 %}del saldo ({{ orden.saldo|moneda(moneda) }}){% endif %} *</label>
+      <div class="pago-opciones" role="radiogroup" aria-label="Forma de pago" aria-required="true">
+        {% for fp in formas_pago %}
+        <label class="pago-op"><input type="radio" name="forma_pago" value="{{ fp }}" required {{ 'checked' if fp == 'Efectivo' else '' }}><span>{{ fp }}</span></label>
+        {% endfor %}
+      </div>
+      <div class="help">
+        {% if pagos_por_forma %}Ya abonado: {% for f, m in pagos_por_forma %}{{ f }} {{ m|moneda(moneda) }}{{ ' · ' if not loop.last }}{% endfor %} (eso se queda como se pagó). {% endif %}
+        Lo que falta por pagar se registra con la forma que elijas aquí{% if not (orden.saldo and orden.saldo > 0) %}, por si agregas algo abajo{% endif %}.
+      </div>
+    </div>
+    <div class="field">
       <label class="checkbox-chip"><input type="checkbox" name="exento" {{ 'checked' if cfg.servicios_exentos_default else '' }}> Este servicio está exento de ISV</label>
     </div>
 

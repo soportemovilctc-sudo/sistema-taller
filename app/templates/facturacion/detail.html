@@ -43,10 +43,18 @@
       {% endif %}
     </section>
     <section>
-      <div class="m-sec-t">Anular factura</div>
+      <div class="m-sec-t">{{ 'Factura anulada' if factura.anulada else 'Anular factura' }}</div>
       {% if factura.anulada %}
       <p class="m-bad" style="margin:6px 0;">Esta factura fue anulada.</p>
       <p class="help"><b>Motivo:</b> {{ factura.motivo_anulacion }}</p>
+      {% if usuario.rol == 'admin' %}
+      <form method="post" action="/facturas/{{ factura.id }}/desanular" class="m-box" style="margin-top:12px;">
+        <div class="m-sec-t" style="font-size:14px; margin-bottom:4px;">¿Se anuló por error?</div>
+        <p class="help" style="margin-top:0;">Al desanularla vuelve a contar en Caja, Banco, Libro Diario, ISV y reportes, igual que antes de anularla. Queda en la Bitácora.</p>
+        <div class="field"><label for="motivoDesanular">Motivo</label><input id="motivoDesanular" type="text" name="motivo" required placeholder="Ej: se anuló por error"></div>
+        <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('¿Volver a activar la factura {{ factura.numero_documento }}?');">Desanular factura</button>
+      </form>
+      {% endif %}
       {% elif usuario.rol == 'admin' %}
       <form method="post" action="/facturas/{{ factura.id }}/anular" class="m-box">
         <div class="field"><label for="motivoAnular">Motivo de anulación</label><input id="motivoAnular" type="text" name="motivo" required></div>
@@ -55,6 +63,7 @@
       {% else %}
       <p class="help">Solo un administrador puede anular una factura.</p>
       {% endif %}
+      {% if not factura.anulada and factura.motivo_anulacion %}<p class="help" style="margin-top:10px;"><b>Historial:</b> anulada antes ({{ factura.motivo_anulacion }}).</p>{% endif %}
     </section>
   </div>
 </div>

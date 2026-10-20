@@ -584,6 +584,70 @@ def facturas_anular(
     return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
 
 
+@router.post("/facturas/{factura_id}/desanular")
+def facturas_desanular(
+    factura_id: int, request: Request, motivo: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    """Vuelve a activar una factura anulada por error: sus ingresos vuelven a
+    contar en Caja/Banco y se rehacen sus asientos. No se permite si la
+    orden o la venta ya tiene otra factura vigente (se cobraría doble)."""
+    from app.models import TurnoCaja, TurnoCajaEvento, TURNO_ABIERTO
+    factura = db.get(Factura, factura_id)
+    if not factura:
+        flash(request, "Factura no encontrada.", "error")
+        return RedirectResponse("/facturas", status_code=303)
+    if not factura.anulada:
+        flash(request, "Esta factura no está anulada.", "error")
+        return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
+    if not motivo.strip():
+        flash(request, "Escribe por qué se desanula (por ejemplo: se anuló por error).", "error")
+        return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
+    otra = None
+    if factura.orden_id:
+        otra = db.query(Factura).filter(Factura.orden_id == factura.orden_id, Factura.id != factura.id,
+                                        Factura.anulada == False).first()  # noqa: E712
+    elif factura.venta_id:
+        otra = db.query(Factura).filter(Factura.venta_id == factura.venta_id, Factura.id != factura.id,
+                                        Factura.anulada == False).first()  # noqa: E712
+    if otra:
+        flash(request, f"No se puede desanular: ya existe otra factura vigente ({otra.numero_documento}) para lo mismo. "
+                       "Anula esa primero si es la que está de más.", "error")
+        return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
+
+    ahora = datetime.utcnow()
+    factura.anulada = False
+    historial = (factura.motivo_anulacion or "").strip()
+    factura.motivo_anulacion = (f"{historial} · " if historial else "") + \
+        f"Desanulada el {(ahora - timedelta(hours=6)).strftime('%d/%m/%Y %I:%M %p')} por {usuario['nombre_completo']}: {motivo.strip()}"
+
+    movs = db.query(MovimientoFinanciero).filter(MovimientoFinanciero.factura_id == factura.id).all()
+    total = to_decimal(factura.total or 0)
+    isv_total = to_decimal(factura.isv_monto or 0)
+    turnos = {}
+    for mov in movs:
+        mov.excluir_de_contabilidad = False
+        monto = to_decimal(mov.monto or 0)
+        isv_fila = (monto * isv_total / total).quantize(Decimal("0.01")) if total > 0 else Decimal("0.00")
+        eliminar_asiento_de_movimiento(db, mov.id)
+        registrar_asiento_para_movimiento(db, mov, monto_neto=(monto - isv_fila).quantize(Decimal("0.01")), isv_monto=isv_fila)
+        if mov.turno_caja_id:
+            turnos[mov.turno_caja_id] = turnos.get(mov.turno_caja_id, Decimal("0")) + monto
+    db.flush()
+    for turno_id, monto in turnos.items():
+        t = db.get(TurnoCaja, turno_id)
+        if t and t.estado != TURNO_ABIERTO:
+            from app.routers.turnos_caja import _recalcular_arqueo
+            antes_e = to_decimal(t.efectivo_esperado or 0)
+            _recalcular_arqueo(db, t)
+            db.add(TurnoCajaEvento(turno_id=t.id, accion="edicion", usuario_nombre=usuario["nombre_completo"], fecha=ahora,
+                                   detalle=(f"Se desanuló la factura {factura.numero_documento}: su cobro de L {monto:,.2f} vuelve a contar. "
+                                            f"Esperado: L {antes_e:,.2f} → L {to_decimal(t.efectivo_esperado):,.2f}")))
+    db.commit()
+    flash(request, f"Factura {factura.numero_documento} activada de nuevo: vuelve a contar en Caja, Banco, Libro Diario y reportes.", "success")
+    return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
+
+
 # NOTA: facturas_eliminar() se removió a propósito. Eliminar definitivamente
 # una factura dejaba huérfanos los movimientos de Caja/Inventario que la orden
 # o venta asociada ya había generado (sin relación/FK para poder limpiarlos

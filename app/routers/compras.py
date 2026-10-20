@@ -223,6 +223,7 @@ def compras_recepcion_excel(recepcion_id: int, db: Session = Depends(get_db), us
 
 @router.get(BASE + "/{solicitud_id}")
 def compras_detalle(solicitud_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from app.routers.inventario import _isv_tasa
     sol = db.get(SolicitudCompra, solicitud_id)
     if not sol:
         flash(request, "Solicitud no encontrada.", "error")
@@ -236,6 +237,7 @@ def compras_detalle(solicitud_id: int, request: Request, db: Session = Depends(g
         "request": request, "usuario": usuario, "sol": sol, "pagos": pagos, "estados": ESTADOS_COMPRA,
         "puede_recibir": sol.estado in (COMPRA_PENDIENTE, COMPRA_PARCIAL),
         "total_con_isv": _totales_con_isv(db, [sol])[sol.id],
+        "tasa_isv": _isv_tasa(db),
     })
 
 
@@ -320,6 +322,23 @@ def compras_cerrar(solicitud_id: int, request: Request, motivo: str = Form(""), 
         db.commit()
         flash(request, f"Solicitud {sol.numero} cerrada: lo que faltaba ya no se espera.", "success")
     return RedirectResponse(f"{BASE}/{solicitud_id}", status_code=303)
+
+
+@router.post(BASE + "/recepcion/{recepcion_id}/agregar-isv")
+def compras_agregar_isv(recepcion_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(solo_admin)):
+    from app.utils.compras import agregar_isv_recepcion
+    rec = db.get(RecepcionCompra, recepcion_id)
+    if not rec:
+        return RedirectResponse(BASE, status_code=303)
+    from app.routers.inventario import _isv_tasa
+    error, mensaje = agregar_isv_recepcion(db, rec, _isv_tasa(db), usuario["nombre_completo"])
+    if error:
+        db.rollback()
+        flash(request, error, "error")
+    else:
+        db.commit()
+        flash(request, f"{rec.numero}: {mensaje}", "success")
+    return RedirectResponse(f"{BASE}/{rec.solicitud_id}#rec-{rec.id}", status_code=303)
 
 
 @router.post(BASE + "/recepcion/{recepcion_id}/pagar")

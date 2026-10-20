@@ -162,6 +162,55 @@ def _registrar_pago(db: Session, rec: RecepcionCompra, monto: Decimal, forma: st
     return mov
 
 
+def agregar_isv_recepcion(db: Session, rec: RecepcionCompra, tasa, usuario_nombre: str) -> tuple:
+    """Corrige una recepción que se guardó sin ISV cuando la factura del
+    proveedor sí lo traía: le suma el ISV (tasa % de la mercadería) al total.
+      * Si se pagó completa al recibirla (efectivo o banco), ese pago sube
+        al total con ISV y se rehace su asiento; si salió de una caja ya
+        cerrada, se recalcula su arqueo y queda en su bitácora.
+      * Si fue al crédito o se pagó en partes, el ISV queda por pagar.
+    Devuelve (error | None, mensaje). No hace commit."""
+    from app.models import TurnoCaja, TurnoCajaEvento, TURNO_ABIERTO
+    from app.utils.libro_diario import eliminar_asiento_de_movimiento
+    if rec.anulada:
+        return "Esta compra está anulada.", ""
+    if to_decimal(rec.isv or 0) > 0:
+        return "Esta recepción ya tiene ISV registrado.", ""
+    subtotal = to_decimal(rec.subtotal or 0)
+    isv = (subtotal * to_decimal(tasa) / 100).quantize(CENT)
+    if isv <= 0:
+        return "La recepción no tiene mercadería con costo para calcular el ISV.", ""
+    total_antes = to_decimal(rec.total or 0).quantize(CENT)
+    rec.isv = isv
+    rec.total = (subtotal + isv).quantize(CENT)
+    pagos = (db.query(MovimientoFinanciero)
+             .filter(MovimientoFinanciero.recepcion_compra_id == rec.id,
+                     MovimientoFinanciero.excluir_de_contabilidad == False)  # noqa: E712
+             .order_by(MovimientoFinanciero.id).all())
+    pagado = sum((to_decimal(m.monto) for m in pagos), CERO).quantize(CENT)
+    if rec.forma_pago != PAGO_COMPRA_CREDITO and len(pagos) == 1 and pagado == total_antes:
+        m = pagos[0]
+        m.monto = (to_decimal(m.monto) + isv).quantize(CENT)
+        if "con ISV" not in (m.descripcion or ""):
+            m.descripcion = f"{m.descripcion or ''} (con ISV {isv:,.2f})".strip()
+        rec.pagado = (to_decimal(rec.pagado or 0) + isv).quantize(CENT)
+        db.flush()
+        eliminar_asiento_de_movimiento(db, m.id)
+        registrar_asiento_para_movimiento(db, m)
+        t = db.get(TurnoCaja, m.turno_caja_id) if m.turno_caja_id else None
+        if t and t.estado != TURNO_ABIERTO:
+            from app.routers.turnos_caja import _recalcular_arqueo
+            antes_e = to_decimal(t.efectivo_esperado or 0)
+            _recalcular_arqueo(db, t)
+            db.add(TurnoCajaEvento(turno_id=t.id, accion="edicion", usuario_nombre=usuario_nombre, fecha=datetime.utcnow(),
+                                   detalle=(f"Se agregó el ISV (L {isv:,.2f}) a la compra {rec.numero}: su pago pasó de L {total_antes:,.2f} "
+                                            f"a L {m.monto:,.2f}. Esperado: L {antes_e:,.2f} → L {to_decimal(t.efectivo_esperado):,.2f}")))
+        donde = "de la caja" if m.cuenta == CUENTA_CAJA_CHICA else "del banco"
+        return None, f"Se agregó el ISV de L {isv:,.2f}. El pago {donde} ahora es L {m.monto:,.2f} (total de la factura)."
+    db.flush()
+    return None, f"Se agregó el ISV de L {isv:,.2f}. Total de la factura: L {rec.total:,.2f}; quedan L {rec.total - to_decimal(rec.pagado or 0):,.2f} por pagar al proveedor."
+
+
 def pagar_recepcion(db: Session, rec: RecepcionCompra, monto_texto: str, forma: str, nota: str, usuario_nombre: str) -> str | None:
     if rec.anulada:
         return "Esta compra fue anulada: ya no se le puede pagar."

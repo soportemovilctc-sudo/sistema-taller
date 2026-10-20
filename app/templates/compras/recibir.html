@@ -34,7 +34,9 @@
         <tfoot>
           <tr><td colspan="5" class="num m-muted" style="font-weight:500;">Mercadería (sin ISV)</td><td class="num" id="recSubtotal"></td></tr>
           <tr>
-            <td colspan="5" class="num m-muted" style="font-weight:500;">ISV de la factura del proveedor <button type="button" class="btn btn-outline btn-sm" id="calcIsv" style="margin-left:6px;">Calcular {{ tasa_isv|int }}%</button></td>
+            <td colspan="5" class="num m-muted" style="font-weight:500;">ISV de la factura del proveedor ({{ tasa_isv|int }}%)
+              <label class="isv-exenta"><input type="checkbox" id="recExenta"> Factura sin ISV (exenta)</label>
+              <button type="button" class="btn btn-outline btn-sm" id="calcIsv" style="margin-left:6px;" title="Volver a calcular el {{ tasa_isv|int }}% si lo cambiaste a mano">Recalcular {{ tasa_isv|int }}%</button></td>
             <td class="num"><input type="number" name="isv" id="recIsv" min="0" step="0.01" value="0.00" style="width:130px; text-align:right;" aria-label="ISV de la factura"></td>
           </tr>
           <tr><td colspan="5" class="num">Total a pagar</td><td class="num" id="recTotal" style="font-size:20px;"></td></tr>
@@ -103,13 +105,21 @@
   }
   chkCosto.addEventListener("change", function () { convertir("costo", chkCosto.checked); });
   chkPrecio.addEventListener("change", function () { convertir("precio", chkPrecio.checked); });
+  // El ISV se calcula solo (el 15% de la mercadería) para que el egreso sea
+  // el total de la factura. Si lo cambias a mano se respeta lo que escribiste;
+  // si la factura no trae ISV, marca «Factura sin ISV».
+  var exenta = document.getElementById("recExenta"), isvManual = false;
+  isv.addEventListener("input", function () { isvManual = true; });
   function recalcular() {
     var s = subtotal();
+    if (exenta.checked) { isv.value = "0.00"; isv.readOnly = true; }
+    else { isv.readOnly = false; if (!isvManual) isv.value = (Math.round(s * tasa) / 100).toFixed(2); }
     document.getElementById("recSubtotal").textContent = fmt(s);
     document.getElementById("recTotal").textContent = fmt(s + (parseFloat(isv.value) || 0));
   }
-  document.getElementById("calcIsv").addEventListener("click", function () { isv.value = (Math.round(subtotal() * tasa) / 100).toFixed(2); recalcular(); });
-  form.addEventListener("input", recalcular);
+  document.getElementById("calcIsv").addEventListener("click", function () { isvManual = false; exenta.checked = false; recalcular(); });
+  exenta.addEventListener("change", function () { isvManual = false; recalcular(); });
+  form.addEventListener("input", function (e) { if (e.target !== isv) recalcular(); else document.getElementById("recTotal").textContent = fmt(subtotal() + (parseFloat(isv.value) || 0)); });
   form.addEventListener("submit", function (e) {
     var forma = form.querySelector('input[name="forma_pago"]:checked');
     var txt = document.getElementById("recTotal").textContent;

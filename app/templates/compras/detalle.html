@@ -78,7 +78,10 @@
         </tbody>
         <tfoot>
           <tr><td colspan="3" class="num m-muted" style="font-weight:500;">Mercadería</td><td class="num">{{ r.subtotal|moneda(moneda) }}</td><td colspan="3"></td></tr>
-          {% if r.isv %}<tr><td colspan="3" class="num m-muted" style="font-weight:500;">ISV de la factura</td><td class="num">{{ r.isv|moneda(moneda) }}</td><td colspan="3"></td></tr>{% endif %}
+          {% if r.isv %}<tr><td colspan="3" class="num m-muted" style="font-weight:500;">ISV de la factura</td><td class="num">{{ r.isv|moneda(moneda) }}</td><td colspan="3"></td></tr>
+          {% elif not r.anulada and usuario.rol == 'admin' %}<tr><td colspan="3" class="num m-muted" style="font-weight:500;">ISV de la factura <span class="pill pill-warn" style="margin-left:6px;">sin ISV</span></td><td class="num m-muted">{{ 0|moneda(moneda) }}</td>
+            <td colspan="3"><form method="post" action="/compras/recepcion/{{ r.id }}/agregar-isv" style="margin:0;" onsubmit="return confirm('¿La factura del proveedor sí traía ISV? Se suma el {{ tasa_isv|int }}% ({{ (r.subtotal * tasa_isv / 100)|round(2)|moneda(moneda) }}) al total{{ ' y al pago ya registrado' if r.forma_pago != 'Crédito' else '' }}.');">
+              <button type="submit" class="btn btn-outline btn-sm">La factura sí traía ISV: agregar {{ tasa_isv|int }}%</button></form></td></tr>{% endif %}
           <tr><td colspan="3" class="num">Total</td><td class="num" style="font-size:18px;">{{ r.total|moneda(moneda) }}</td><td colspan="3"></td></tr>
         </tfoot>
       </table>

@@ -46,6 +46,7 @@ RUTAS = [
     (r"^/compras/(\d+)/anular$", "Compras", "ANULÓ la solicitud de compra #{1}", "/compras/{1}"),
     (r"^/compras/(\d+)/cerrar$", "Compras", "Cerró la solicitud de compra #{1}", "/compras/{1}"),
     (r"^/compras/recepcion/(\d+)/pagar$", "Compras", "Pagó al proveedor la recepción #{1}", ""),
+    (r"^/compras/recepcion/(\d+)/agregar-isv$", "Compras", "Agregó el ISV a la recepción #{1} (corrección)", ""),
     (r"^/proveedores/nuevo$", "Compras", "Creó un proveedor", "/proveedores"),
     (r"^/proveedores/(\d+)/editar$", "Compras", "Editó el proveedor #{1}", "/proveedores/{1}"),
     (r"^/cotizaciones/nueva$", "Cotizaciones", "Creó una cotización", ""),

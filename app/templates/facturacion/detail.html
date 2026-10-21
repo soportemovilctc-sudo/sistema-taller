@@ -53,6 +53,8 @@
         <p class="help" style="margin-top:0;">{{ cobro.detalle|join(' · ') }}. Si ese dinero nunca se cobró o se devolvió, anúlalo para que deje de sumar en Caja, Inicio y reportes{% if cobro.tipo == 'venta' %} (los productos regresan al inventario){% endif %}.</p>
         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Anular el cobro de {{ cobro.total|moneda(moneda) }}? Deja de contar en Caja y reportes.');">Anular también el cobro</button>
       </form>
+      {% elif cobro.activo and not otra_vigente %}
+      <div class="flash flash-warning" style="margin-top:12px;"><b>Su cobro sigue contando: {{ cobro.total|moneda(moneda) }}</b> ({{ cobro.detalle|join(' · ') }}). Si ese dinero nunca se cobró, pídele a un <b>administrador</b> que entre a esta factura y toque «Anular también el cobro».</div>
       {% elif not cobro.activo and cobro.tipo %}
       <p class="help" style="margin-top:8px;">Su cobro también está anulado: no cuenta en Caja ni reportes.</p>
       {% endif %}

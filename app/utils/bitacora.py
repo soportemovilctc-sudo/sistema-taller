@@ -24,6 +24,7 @@ RUTAS = [
     (r"^/ordenes/(\d+)/revertir-cancelacion$", "Órdenes", "Revirtió la cancelación de la orden #{1}", "/ordenes/{1}"),
     (r"^/ordenes/(\d+)/marcar-avisado$", "Órdenes", "Marcó como avisado al cliente de la orden #{1}", "/ordenes/{1}"),
     (r"^/facturas/(\d+)/anular$", "Facturas", "ANULÓ la factura #{1}", "/facturas/{1}"),
+    (r"^/ordenes/(\d+)/abonos/(\d+)/anular$", "Órdenes", "ANULÓ un abono de la orden #{1}", "/ordenes/{1}"),
     (r"^/facturas/(\d+)/anular-cobro$", "Facturas", "ANULÓ el cobro de la factura #{1}", "/facturas/{1}"),
     (r"^/facturas/(\d+)/desanular$", "Facturas", "DESANULÓ (volvió a activar) la factura #{1}", "/facturas/{1}"),
     (r"^/pos/vender$", "Punto de venta", "Hizo una venta en el Punto de Venta", ""),

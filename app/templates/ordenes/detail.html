@@ -184,8 +184,17 @@
 
     <section aria-label="Abonos y facturas">
       <div class="m-sec-t">Abonos</div>
+      {% set factura_vigente = orden.facturas|rejectattr('anulada')|list %}
       {% for p in orden.pagos %}
-      <div class="m-row"><span>{{ p.forma_pago }} <span class="m-muted">· {{ p.fecha|fecha('%d/%m/%Y %I:%M %p') }} · {{ p.usuario_nombre }}{% if p.observacion and p.observacion.startswith('Ref.') %} · {{ p.observacion }}{% endif %}</span></span><span class="r m-ok">{{ p.monto|moneda(moneda) }}</span></div>
+      <div class="m-row"><span>{{ p.forma_pago }} <span class="m-muted">· {{ p.fecha|fecha('%d/%m/%Y %I:%M %p') }} · {{ p.usuario_nombre }}{% if p.observacion and p.observacion.startswith('Ref.') %} · {{ p.observacion }}{% endif %}</span></span>
+        <span style="display:flex; align-items:center; gap:8px;"><span class="r m-ok">{{ p.monto|moneda(moneda) }}</span>
+        {% if usuario.rol == 'admin' and not factura_vigente %}
+        <details class="abono-anular"><summary title="Anular este abono (registrado por error)">Anular</summary>
+          <form method="post" action="/ordenes/{{ orden.id }}/abonos/{{ p.id }}/anular" class="m-box" onsubmit="return confirm('¿Anular el abono de {{ p.monto|moneda(moneda) }}? Deja de contar en Caja y reportes.');">
+            <input type="text" name="motivo" required placeholder="Motivo: abono duplicado, monto equivocado...">
+            <button type="submit" class="btn btn-danger btn-sm">Anular abono</button>
+          </form></details>
+        {% endif %}</span></div>
       {% else %}
       <div class="m-row"><span class="m-muted">Sin abonos todavía.</span><span></span></div>
       {% endfor %}

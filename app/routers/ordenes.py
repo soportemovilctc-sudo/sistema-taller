@@ -905,6 +905,52 @@ def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, ob
     return monto_validado
 
 
+@router.post("/ordenes/{orden_id}/abonos/{pago_id}/anular")
+def ordenes_anular_abono(
+    orden_id: int, pago_id: int, request: Request, motivo: str = Form(""),
+    db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
+):
+    """Anula un abono registrado por error (duplicado, monto equivocado...):
+    deja de contar en la orden, la Caja, Inicio y reportes. No se borra.
+    Si la orden tiene factura vigente, primero hay que anularla."""
+    from app.models import Factura, TurnoCaja, TurnoCajaEvento, TURNO_ABIERTO
+    orden = db.get(OrdenServicio, orden_id)
+    pago = db.get(Pago, pago_id)
+    if not orden or not pago or pago.orden_id != orden.id:
+        flash(request, "Abono no encontrado.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+    if pago.anulado:
+        flash(request, "Ese abono ya estaba anulado.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+    if not motivo.strip():
+        flash(request, "Escribe el motivo (por ejemplo: abono duplicado).", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+    vigente = db.query(Factura).filter(Factura.orden_id == orden.id, Factura.anulada == False).first()  # noqa: E712
+    if vigente:
+        flash(request, f"La orden tiene la factura vigente {vigente.numero_documento}: anúlala primero (con su cobro) para no descuadrar.", "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+    monto = to_decimal(pago.monto)
+    pago.anulado = True
+    pago.observacion = f"{pago.observacion or ''} · ANULADO por {usuario['nombre_completo']}: {motivo.strip()}".strip(" ·")
+    db.flush()
+    db.expire(orden, ["pagos"])
+    recalcular_orden(orden)
+    t = db.get(TurnoCaja, pago.turno_caja_id) if pago.turno_caja_id else None
+    if t and t.estado != TURNO_ABIERTO:
+        from app.routers.turnos_caja import _recalcular_arqueo
+        antes_e = to_decimal(t.efectivo_esperado or 0)
+        _recalcular_arqueo(db, t)
+        db.add(TurnoCajaEvento(turno_id=t.id, accion="edicion", usuario_nombre=usuario["nombre_completo"], fecha=datetime.utcnow(),
+                               detalle=(f"Se anuló un abono de L {monto:,.2f} de la orden {orden.numero_orden} ({motivo.strip()}). "
+                                        f"Esperado: L {antes_e:,.2f} → L {to_decimal(t.efectivo_esperado):,.2f}")))
+    db.add(HistorialEstado(orden_id=orden.id, estado_anterior=orden.estado, estado_nuevo=orden.estado,
+                           usuario_nombre=usuario["nombre_completo"],
+                           observacion=f"Abono de L {monto:,.2f} ({pago.forma_pago}) anulado: {motivo.strip()}"))
+    db.commit()
+    flash(request, f"Abono de L {monto:,.2f} anulado: ya no cuenta en Caja ni reportes. Saldo de la orden: L {to_decimal(orden.saldo):,.2f}.", "success")
+    return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+
+
 @router.post("/ordenes/{orden_id}/estado")
 def ordenes_cambiar_estado(
     orden_id: int, request: Request,

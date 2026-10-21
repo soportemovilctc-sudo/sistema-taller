@@ -1844,3 +1844,8 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
   border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
 .fp-abono-t { font-size: 14px; }
 .fp-abono .pago-op span { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.abono-anular { position: relative; }
+.abono-anular > summary { list-style: none; cursor: pointer; font-size: 12.5px; color: var(--text-muted); padding: 2px 8px; border-radius: 8px; border: 1px solid var(--hair); }
+.abono-anular > summary::-webkit-details-marker { display: none; }
+.abono-anular > summary:hover { color: var(--danger-text); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.abono-anular[open] > form { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 280px; display: grid; gap: 8px; background: var(--panel); box-shadow: var(--shadow); }

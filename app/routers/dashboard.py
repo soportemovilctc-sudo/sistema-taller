@@ -58,7 +58,8 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
         órdenes + cobros y ventas registrados en Caja/POS. Las facturas no
         suman aquí porque su dinero ya entró con los abonos (misma regla que
         el cierre de caja)."""
-        pagos = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(Pago.fecha >= desde, Pago.fecha < hasta).scalar() or 0
+        pagos = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(Pago.fecha >= desde, Pago.fecha < hasta,
+                                                                        Pago.anulado == False).scalar() or 0  # noqa: E712
         otros = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
             MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.fecha >= desde, MovimientoFinanciero.fecha < hasta,
             MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
@@ -77,7 +78,8 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
     ingresos_mes = suma_movimientos("ingreso", inicio_mes_dt)
     gastos_mes = suma_movimientos("gasto", inicio_mes_dt)
 
-    ventas_hoy = db.query(func.coalesce(func.sum(Venta.total), 0)).filter(Venta.fecha >= inicio_hoy, Venta.fecha < fin_hoy).scalar() or 0
+    ventas_hoy = db.query(func.coalesce(func.sum(Venta.total), 0)).filter(Venta.fecha >= inicio_hoy, Venta.fecha < fin_hoy,
+                                                                          Venta.anulada == False).scalar() or 0  # noqa: E712
 
     stock_bajo = db.query(Producto).filter(
         Producto.estado == "activo", Producto.existencia <= Producto.stock_minimo

@@ -160,11 +160,11 @@ def calcular_resumen_turno(db: Session, turno: TurnoCaja) -> dict:
         .all()
     )
     pagos = (
-        db.query(Pago).filter(Pago.turno_caja_id == turno.id).order_by(Pago.fecha.asc()).all()
+        db.query(Pago).filter(Pago.turno_caja_id == turno.id, Pago.anulado == False).order_by(Pago.fecha.asc()).all()  # noqa: E712
     )
     ventas_pos = (
         db.query(Venta)
-        .filter(Venta.turno_caja_id == turno.id, Venta.orden_id.is_(None))
+        .filter(Venta.turno_caja_id == turno.id, Venta.orden_id.is_(None), Venta.anulada == False)  # noqa: E712
         .order_by(Venta.fecha.asc())
         .all()
     )

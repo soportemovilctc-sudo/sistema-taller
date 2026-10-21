@@ -47,6 +47,15 @@
       {% if factura.anulada %}
       <p class="m-bad" style="margin:6px 0;">Esta factura fue anulada.</p>
       <p class="help"><b>Motivo:</b> {{ factura.motivo_anulacion }}</p>
+      {% if cobro.activo and usuario.rol == 'admin' and not otra_vigente %}
+      <form method="post" action="/facturas/{{ factura.id }}/anular-cobro" class="m-box" style="margin-top:12px; border-color: color-mix(in srgb, var(--warning) 40%, var(--border));">
+        <div class="m-sec-t" style="font-size:14px; margin-bottom:4px;">Su cobro sigue contando: {{ cobro.total|moneda(moneda) }}</div>
+        <p class="help" style="margin-top:0;">{{ cobro.detalle|join(' · ') }}. Si ese dinero nunca se cobró o se devolvió, anúlalo para que deje de sumar en Caja, Inicio y reportes{% if cobro.tipo == 'venta' %} (los productos regresan al inventario){% endif %}.</p>
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Anular el cobro de {{ cobro.total|moneda(moneda) }}? Deja de contar en Caja y reportes.');">Anular también el cobro</button>
+      </form>
+      {% elif not cobro.activo and cobro.tipo %}
+      <p class="help" style="margin-top:8px;">Su cobro también está anulado: no cuenta en Caja ni reportes.</p>
+      {% endif %}
       {% if usuario.rol == 'admin' %}
       <form method="post" action="/facturas/{{ factura.id }}/desanular" class="m-box" style="margin-top:12px;">
         <div class="m-sec-t" style="font-size:14px; margin-bottom:4px;">¿Se anuló por error?</div>
@@ -58,6 +67,15 @@
       {% elif usuario.rol == 'admin' %}
       <form method="post" action="/facturas/{{ factura.id }}/anular" class="m-box">
         <div class="field"><label for="motivoAnular">Motivo de anulación</label><input id="motivoAnular" type="text" name="motivo" required></div>
+        {% if cobro.activo %}
+        <fieldset class="opciones-pago" style="margin-bottom:12px;">
+          <legend style="font-size:14px;">¿Qué pasa con el cobro de {{ cobro.total|moneda(moneda) }}?</legend>
+          <label class="opcion"><input type="radio" name="anular_cobro" value="" checked>
+            <span class="opcion-tx"><b>El dinero sí se cobró</b><small>Solo se anula el documento (por ejemplo para hacer otra factura bien). El cobro sigue contando en Caja.</small></span></label>
+          <label class="opcion"><input type="radio" name="anular_cobro" value="1">
+            <span class="opcion-tx"><b>Anular también el cobro</b><small>Nunca se cobró, fue un error o se devolvió el dinero: {{ cobro.detalle|join(' · ') }} deja de contar en Caja, Inicio y reportes{% if cobro.tipo == 'venta' %}, y los productos regresan al inventario{% endif %}.</small></span></label>
+        </fieldset>
+        {% endif %}
         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Anular esta factura? El número de documento no se podrá reutilizar.');">Anular factura</button>
       </form>
       {% else %}

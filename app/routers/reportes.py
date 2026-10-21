@@ -267,7 +267,7 @@ def reportes_index(
             q = q.filter(MovimientoFinanciero.fecha <= fecha_hasta)
         contexto["movimientos"] = q.order_by(MovimientoFinanciero.fecha.desc()).all()
     elif tipo == "ventas":
-        q = db.query(Venta)
+        q = db.query(Venta).filter(Venta.anulada == False)  # noqa: E712
         if fecha_desde:
             q = q.filter(Venta.fecha >= fecha_desde)
         if fecha_hasta:
@@ -438,7 +438,7 @@ def _datos_reporte(tipo, fecha_desde, fecha_hasta, tecnico_id, estado, db):
                 "Ingresos", [2])
 
     if tipo == "ventas":
-        ventas = db.query(Venta).order_by(Venta.fecha.desc()).all()
+        ventas = db.query(Venta).filter(Venta.anulada == False).order_by(Venta.fecha.desc()).all()  # noqa: E712
         filas = [[v.numero_venta, v.fecha.strftime("%d/%m/%Y %H:%M"), float(v.subtotal), float(v.descuento),
                   float(v.total), v.forma_pago] for v in ventas]
         return (filas, ["N. Venta", "Fecha", "Subtotal", "Descuento", "Total", "Forma de pago"],

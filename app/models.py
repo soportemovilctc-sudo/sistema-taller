@@ -323,7 +323,9 @@ class OrdenServicio(Base):
     tecnico = relationship("Tecnico", back_populates="ordenes", foreign_keys=[tecnico_id])
     tecnico_reparacion = relationship("Tecnico", foreign_keys=[tecnico_reparacion_id])
     historial = relationship("HistorialEstado", back_populates="orden", cascade="all,delete-orphan", order_by="HistorialEstado.fecha")
-    pagos = relationship("Pago", back_populates="orden", cascade="all,delete-orphan", order_by="Pago.fecha")
+    # Solo los abonos vigentes (los anulados con su factura no cuentan).
+    pagos = relationship("Pago", back_populates="orden", cascade="all,delete-orphan", order_by="Pago.fecha",
+                         primaryjoin="and_(OrdenServicio.id == Pago.orden_id, Pago.anulado == False)")
     repuestos = relationship("OrdenRepuesto", back_populates="orden", cascade="all,delete-orphan", order_by="OrdenRepuesto.fecha")
     servicios_extra = relationship("OrdenServicioExtra", back_populates="orden", cascade="all,delete-orphan", order_by="OrdenServicioExtra.fecha")
     facturas = relationship("Factura", back_populates="orden", order_by="Factura.id")
@@ -486,6 +488,10 @@ class Pago(Base):
     # Turno de caja (apertura) en el que se recibió este abono; se llena solo
     # (ver app/utils/turnos_caja.py). Vacío en los abonos de antes del módulo.
     turno_caja_id = Column(Integer, nullable=True, index=True)
+    # Anulado junto con la factura de la orden ("también anular el cobro"):
+    # ya no cuenta en el abonado de la orden, la Caja, Inicio ni reportes.
+    anulado = Column(Boolean, nullable=False, default=False)
+    anulado_factura_id = Column(Integer, nullable=True)
 
     orden = relationship("OrdenServicio", back_populates="pagos")
 
@@ -559,6 +565,7 @@ class Venta(Base):
     cambio = Column(Numeric(10, 2), default=0)
     usuario_nombre = Column(String(150))
     turno_caja_id = Column(Integer, nullable=True, index=True)  # ver TurnoCaja
+    anulada = Column(Boolean, nullable=False, default=False)  # se anuló con su recibo: no cuenta
 
     cliente = relationship("Cliente", back_populates="ventas")
     orden = relationship("OrdenServicio")

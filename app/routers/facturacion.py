@@ -13,7 +13,7 @@ from app.templates_env import templates
 from app.database import get_db
 from app.models import (
     Factura, ConfiguracionFacturacion, Configuracion, OrdenServicio, Tecnico, Producto, Servicio,
-    MovimientoFinanciero, CATEGORIA_VENTA_FACTURADA, FORMAS_PAGO,
+    MovimientoFinanciero, CATEGORIA_VENTA_FACTURADA, FORMAS_PAGO, Pago, Venta, MovimientoInventario,
 )
 from app.deps import login_required, roles_required
 from app.utils.flash import flash
@@ -604,6 +604,153 @@ def facturas_list(
     })
 
 
+
+# ---------------------------------------------------------------------------
+# Anular / restaurar el cobro de una factura (además del documento)
+# ---------------------------------------------------------------------------
+def _otra_factura_vigente(db: Session, factura: Factura):
+    if factura.orden_id:
+        return db.query(Factura).filter(Factura.orden_id == factura.orden_id, Factura.id != factura.id,
+                                        Factura.anulada == False).first()  # noqa: E712
+    if factura.venta_id:
+        return db.query(Factura).filter(Factura.venta_id == factura.venta_id, Factura.id != factura.id,
+                                        Factura.anulada == False).first()  # noqa: E712
+    return None
+
+
+def _movs_venta_pos(db: Session, venta: Venta, excluidos: bool):
+    return db.query(MovimientoFinanciero).filter(
+        MovimientoFinanciero.categoria == "Venta POS", MovimientoFinanciero.referencia == venta.numero_venta,
+        MovimientoFinanciero.excluir_de_contabilidad == excluidos).all()
+
+
+def cobro_de_factura(db: Session, factura: Factura) -> dict:
+    """Qué cobro (dinero) está detrás de la factura: los abonos vigentes de
+    su orden, o la venta del Punto de Venta. activo=False si ya se anuló."""
+    if factura.orden_id and factura.orden:
+        pagos = list(factura.orden.pagos)
+        return {"tipo": "orden", "activo": bool(pagos), "total": sum((to_decimal(p.monto) for p in pagos), Decimal("0.00")),
+                "detalle": [f"{p.forma_pago or 'Efectivo'} {to_decimal(p.monto):,.2f}" for p in pagos]}
+    if factura.venta_id and factura.venta:
+        v = factura.venta
+        return {"tipo": "venta", "activo": not v.anulada, "total": to_decimal(v.total or 0),
+                "detalle": [f"Venta {v.numero_venta} · {v.forma_pago or 'Efectivo'}"]}
+    return {"tipo": "", "activo": False, "total": Decimal("0.00"), "detalle": []}
+
+
+def _recalcular_turnos(db: Session, turnos: dict, usuario_nombre: str, texto: str):
+    from app.models import TurnoCaja, TurnoCajaEvento, TURNO_ABIERTO
+    db.flush()
+    for turno_id, monto in turnos.items():
+        t = db.get(TurnoCaja, turno_id)
+        if t and t.estado != TURNO_ABIERTO:
+            from app.routers.turnos_caja import _recalcular_arqueo
+            antes_e = to_decimal(t.efectivo_esperado or 0)
+            _recalcular_arqueo(db, t)
+            db.add(TurnoCajaEvento(turno_id=t.id, accion="edicion", usuario_nombre=usuario_nombre, fecha=datetime.utcnow(),
+                                   detalle=(f"{texto} (L {monto:,.2f}). Esperado: L {antes_e:,.2f} → L {to_decimal(t.efectivo_esperado):,.2f}")))
+
+
+def anular_cobro_factura(db: Session, factura: Factura, usuario_nombre: str) -> tuple:
+    """El cobro de la factura deja de contar en Caja, Inicio, reportes y
+    contabilidad (se anula, nunca se borra). Orden: sus abonos vigentes.
+    Venta del POS: la venta y su ingreso, y los productos regresan al
+    inventario. Devuelve (error | None, mensaje). No hace commit."""
+    otra = _otra_factura_vigente(db, factura)
+    if otra:
+        return (f"No se puede: el cobro también es de la factura vigente {otra.numero_documento}. "
+                "Anula esa primero si es la que está de más."), ""
+    turnos, ahora = {}, datetime.utcnow()
+    nota = f"ANULADO con la factura {factura.numero_documento} por {usuario_nombre}"
+    if factura.orden_id and factura.orden:
+        orden = factura.orden
+        pagos = list(orden.pagos)
+        if not pagos:
+            return "Esta factura ya no tiene cobros que anular.", ""
+        total = Decimal("0.00")
+        for p in pagos:
+            p.anulado, p.anulado_factura_id = True, factura.id
+            p.observacion = f"{p.observacion or ''} · {nota}".strip(" ·")
+            total += to_decimal(p.monto)
+            if p.turno_caja_id:
+                turnos[p.turno_caja_id] = turnos.get(p.turno_caja_id, Decimal("0")) + to_decimal(p.monto)
+        db.flush()
+        db.expire(orden, ["pagos"])
+        recalcular_orden(orden)
+        _recalcular_turnos(db, turnos, usuario_nombre, f"Se anuló el cobro de la factura {factura.numero_documento} (orden {orden.numero_orden})")
+        return None, f"También se anuló su cobro: {len(pagos)} abono(s) por L {total:,.2f} ya no cuentan. La orden {orden.numero_orden} quedó con saldo L {to_decimal(orden.saldo):,.2f}."
+    if factura.venta_id and factura.venta:
+        v = factura.venta
+        if v.anulada:
+            return "La venta de este recibo ya estaba anulada.", ""
+        v.anulada = True
+        for m in _movs_venta_pos(db, v, False):
+            m.excluir_de_contabilidad = True
+            m.descripcion = f"{m.descripcion or ''} ({nota})".strip()
+            eliminar_asiento_de_movimiento(db, m.id)
+            if m.turno_caja_id:
+                turnos[m.turno_caja_id] = turnos.get(m.turno_caja_id, Decimal("0")) + to_decimal(m.monto)
+        for d in v.detalles:
+            prod = db.get(Producto, d.producto_id)
+            if not prod:
+                continue
+            antes = prod.existencia or 0
+            prod.existencia = antes + d.cantidad
+            db.add(MovimientoInventario(producto_id=prod.id, tipo="entrada", cantidad=d.cantidad, existencia_anterior=antes,
+                                        existencia_resultante=prod.existencia, costo_unitario=prod.costo, usuario_nombre=usuario_nombre,
+                                        motivo=f"Anulación de la venta {v.numero_venta} (recibo {factura.numero_documento})", fecha=ahora))
+        _recalcular_turnos(db, turnos, usuario_nombre, f"Se anuló la venta {v.numero_venta} (recibo {factura.numero_documento})")
+        return None, f"También se anuló la venta {v.numero_venta} por L {to_decimal(v.total):,.2f}: ya no cuenta y los productos regresaron al inventario."
+    return "Esta factura no tiene un cobro asociado.", ""
+
+
+def restaurar_cobro_factura(db: Session, factura: Factura, usuario_nombre: str) -> tuple:
+    """Al desanular: si su cobro se había anulado con ella, vuelve a contar."""
+    turnos = {}
+    if factura.orden_id and factura.orden:
+        pagos = db.query(Pago).filter(Pago.anulado_factura_id == factura.id, Pago.anulado == True).all()  # noqa: E712
+        if not pagos:
+            return None, ""
+        for p in pagos:
+            p.anulado, p.anulado_factura_id = False, None
+            p.observacion = f"{p.observacion or ''} · RESTAURADO al desanular la factura ({usuario_nombre})".strip(" ·")
+            if p.turno_caja_id:
+                turnos[p.turno_caja_id] = turnos.get(p.turno_caja_id, Decimal("0")) + to_decimal(p.monto)
+        db.flush()
+        db.expire(factura.orden, ["pagos"])
+        recalcular_orden(factura.orden)
+        _recalcular_turnos(db, turnos, usuario_nombre, f"Se restauró el cobro de la factura {factura.numero_documento}")
+        return None, " Sus abonos volvieron a contar."
+    if factura.venta_id and factura.venta and factura.venta.anulada:
+        v = factura.venta
+        faltan = [f"{db.get(Producto, d.producto_id).nombre}" for d in v.detalles
+                  if db.get(Producto, d.producto_id) and (db.get(Producto, d.producto_id).existencia or 0) < d.cantidad]
+        if faltan:
+            return "No se puede desanular: ya no hay existencia de " + ", ".join(faltan) + " para volver a sacarla.", ""
+        v.anulada = False
+        total, isv_total = to_decimal(factura.total or 0), to_decimal(factura.isv_monto or 0)
+        for m in _movs_venta_pos(db, v, True):
+            m.excluir_de_contabilidad = False
+            monto = to_decimal(m.monto)
+            isv_fila = (monto * isv_total / total).quantize(Decimal("0.01")) if total > 0 else Decimal("0.00")
+            eliminar_asiento_de_movimiento(db, m.id)
+            registrar_asiento_para_movimiento(db, m, monto_neto=(monto - isv_fila).quantize(Decimal("0.01")), isv_monto=isv_fila)
+            if m.turno_caja_id:
+                turnos[m.turno_caja_id] = turnos.get(m.turno_caja_id, Decimal("0")) + monto
+        for d in v.detalles:
+            prod = db.get(Producto, d.producto_id)
+            if not prod:
+                continue
+            antes = prod.existencia or 0
+            prod.existencia = antes - d.cantidad
+            db.add(MovimientoInventario(producto_id=prod.id, tipo="salida", cantidad=d.cantidad, existencia_anterior=antes,
+                                        existencia_resultante=prod.existencia, costo_unitario=prod.costo, usuario_nombre=usuario_nombre,
+                                        motivo=f"Venta {v.numero_venta} restaurada al desanular {factura.numero_documento}", fecha=datetime.utcnow()))
+        _recalcular_turnos(db, turnos, usuario_nombre, f"Se restauró la venta {v.numero_venta}")
+        return None, f" La venta {v.numero_venta} volvió a contar y sus productos salieron otra vez del inventario."
+    return None, ""
+
+
 @router.get("/facturas/{factura_id}")
 def facturas_detalle(factura_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     factura = db.get(Factura, factura_id)
@@ -611,13 +758,14 @@ def facturas_detalle(factura_id: int, request: Request, db: Session = Depends(ge
         flash(request, "Factura no encontrada.", "error")
         return RedirectResponse("/facturas", status_code=303)
     return templates.TemplateResponse("facturacion/detail.html", {
-        "request": request, "factura": factura, "usuario": usuario,
+        "request": request, "factura": factura, "usuario": usuario, "cobro": cobro_de_factura(db, factura),
+        "otra_vigente": _otra_factura_vigente(db, factura),
     })
 
 
 @router.post("/facturas/{factura_id}/anular")
 def facturas_anular(
-    factura_id: int, request: Request, motivo: str = Form(...),
+    factura_id: int, request: Request, motivo: str = Form(...), anular_cobro: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
 ):
     factura = db.get(Factura, factura_id)
@@ -640,8 +788,35 @@ def facturas_anular(
         mov.excluir_de_contabilidad = True
         eliminar_asiento_de_movimiento(db, mov.id)
 
+    extra = ""
+    if anular_cobro == "1":
+        db.flush()
+        error, extra = anular_cobro_factura(db, factura, usuario["nombre_completo"])
+        if error:
+            db.rollback()
+            flash(request, "No se anuló nada: " + error, "error")
+            return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
     db.commit()
-    flash(request, f"Factura {factura.numero_documento} anulada. El número de documento no se reutilizará.", "success")
+    flash(request, f"Factura {factura.numero_documento} anulada. El número de documento no se reutilizará. {extra}".strip(), "success")
+    return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
+
+
+@router.post("/facturas/{factura_id}/anular-cobro")
+def facturas_anular_cobro(factura_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    factura = db.get(Factura, factura_id)
+    if not factura:
+        flash(request, "Factura no encontrada.", "error")
+        return RedirectResponse("/facturas", status_code=303)
+    if not factura.anulada:
+        flash(request, "Primero anula la factura.", "error")
+        return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
+    error, mensaje = anular_cobro_factura(db, factura, usuario["nombre_completo"])
+    if error:
+        db.rollback()
+        flash(request, error, "error")
+    else:
+        db.commit()
+        flash(request, mensaje, "success")
     return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
 
 
@@ -676,6 +851,11 @@ def facturas_desanular(
                        "Anula esa primero si es la que está de más.", "error")
         return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
 
+    error_cobro, extra_cobro = restaurar_cobro_factura(db, factura, usuario["nombre_completo"])
+    if error_cobro:
+        db.rollback()
+        flash(request, error_cobro, "error")
+        return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
     ahora = datetime.utcnow()
     factura.anulada = False
     historial = (factura.motivo_anulacion or "").strip()
@@ -705,7 +885,7 @@ def facturas_desanular(
                                    detalle=(f"Se desanuló la factura {factura.numero_documento}: su cobro de L {monto:,.2f} vuelve a contar. "
                                             f"Esperado: L {antes_e:,.2f} → L {to_decimal(t.efectivo_esperado):,.2f}")))
     db.commit()
-    flash(request, f"Factura {factura.numero_documento} activada de nuevo: vuelve a contar en Caja, Banco, Libro Diario y reportes.", "success")
+    flash(request, f"Factura {factura.numero_documento} activada de nuevo: vuelve a contar en Caja, Banco, Libro Diario y reportes.{extra_cobro}", "success")
     return RedirectResponse(f"/facturas/{factura_id}", status_code=303)
 
 

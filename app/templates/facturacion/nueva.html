@@ -17,6 +17,16 @@
     <div><div class="m-label">Saldo</div><div class="m-val {{ 'm-bad' if orden.saldo and orden.saldo > 0 else '' }}">{{ orden.saldo|moneda(moneda) }}</div></div>
   </section>
 
+  {% if bloqueo %}
+  <div class="fac-bloqueo" role="alert">
+    <div class="fac-bloqueo-t">Todavía no se puede facturar</div>
+    <p>{{ bloqueo }}</p>
+    <div class="fac-bloqueo-a">
+      <a href="/ordenes/{{ orden.id }}#abonar" class="btn btn-primary">Ir a la orden a registrar el pago</a>
+      <a href="/ordenes/{{ orden.id }}" class="btn btn-outline">Volver</a>
+    </div>
+  </div>
+  {% else %}
   <form method="post" action="/ordenes/{{ orden.id }}/factura/nueva" id="formFacturaNueva">
     <div class="m-sec-t">Documento</div>
     <div class="field">
@@ -64,72 +74,17 @@
     </div>
     <div class="help" style="margin:-4px 0 12px;">Si un abono se anotó con la forma de pago equivocada, cámbiala aquí: se corrige en la orden y en la caja donde se cobró.</div>
     {% endif %}
-    <div class="field">
-      <label>{% if orden.saldo and orden.saldo > 0 %}Saldo por cobrar ({{ orden.saldo|moneda(moneda) }}){% elif abonos %}Si agregas algo abajo, se cobra con{% else %}Forma de pago{% endif %} *</label>
-      <div class="pago-opciones" role="radiogroup" aria-label="Forma de pago del saldo" aria-required="true">
-        {% for fp in formas_pago %}
-        <label class="pago-op"><input type="radio" name="forma_pago" value="{{ fp }}" required {{ 'checked' if fp == 'Efectivo' else '' }}><span>{{ fp }}</span></label>
-        {% endfor %}
-      </div>
-    </div>
+    <input type="hidden" name="forma_pago" value="Efectivo">
     <div class="field">
       <label class="checkbox-chip"><input type="checkbox" name="exento" {{ 'checked' if cfg.servicios_exentos_default else '' }}> Este servicio está exento de ISV</label>
     </div>
 
-    <details class="m-more" style="margin:14px 0;">
-    <summary>Agregar a la factura un repuesto o servicio que falte en la orden (opcional)</summary>
-    <div style="margin-top:12px;">
-    <div class="field">
-      <label>Repuesto usado (opcional)</label>
-      <div class="form-row">
-        <div class="field" style="flex:3; margin-bottom:0;">
-          <select name="repuesto_producto_id" id="facturaRepuestoProducto" class="js-buscar-select" data-placeholder="Escribe el nombre o código del repuesto...">
-            <option value="">Ninguno</option>
-            {% for p in productos_disponibles %}
-            <option value="{{ p.id }}" data-precio="{{ p.precio_con_impuesto }}" data-costo="{{ p.costo }}">{% if p.categoria %}[{{ p.categoria }}] {% endif %}{{ p.nombre }} (disp: {{ p.existencia }}) - {{ p.precio_con_impuesto|moneda(config_taller().moneda) }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field" style="flex:1; margin-bottom:0;">
-          <input type="number" step="1" min="1" name="repuesto_cantidad" value="1" placeholder="Cantidad">
-        </div>
-        <div class="field" style="flex:1; margin-bottom:0;">
-          <input type="number" step="0.01" min="0" name="repuesto_precio" id="facturaRepuestoPrecio" placeholder="Precio unitario">
-        </div>
-      </div>
-      <div class="help">Si el equipo llevó un repuesto y todavía no lo has registrado en la orden, selecciónalo aquí: se descuenta del inventario y se suma al total antes de generar la factura. Si el equipo solo se dejó para diagnóstico (sin repuesto), deja esto en blanco.</div>
-    </div>
-
-    <div class="field">
-      <label>Servicio adicional (opcional)</label>
-      <div class="form-row">
-        <div class="field" style="flex:2; margin-bottom:0;">
-          <input type="text" name="servicio_nombre" id="facturaServicioNombre" list="facturaListaServicios" placeholder="Nombre del servicio (déjalo en blanco si no aplica)">
-          <datalist id="facturaListaServicios">
-            {% for s in servicios_disponibles %}
-            <option value="{{ s.nombre }}" data-precio="{{ s.precio_venta }}" data-costo="{{ s.costo if s.costo is not none else '' }}">
-            {% endfor %}
-          </datalist>
-        </div>
-        <div class="field" style="flex:1; margin-bottom:0;">
-          <input type="number" step="1" min="1" name="servicio_cantidad" value="1" placeholder="Cantidad">
-        </div>
-        <div class="field" style="flex:1; margin-bottom:0;">
-          <input type="number" step="0.01" min="0" name="servicio_precio" id="facturaServicioPrecio" placeholder="Precio de venta">
-        </div>
-        <div class="field" style="flex:1; margin-bottom:0;">
-          <input type="number" step="0.01" min="0" name="servicio_costo" id="facturaServicioCosto" placeholder="Costo (opcional)">
-        </div>
-      </div>
-      <div class="help">Si el trabajo llevó un servicio que todavía no has registrado en la orden (ej. formateo, diagnóstico), escribe su nombre: si ya existe en el <a href="/servicios">catálogo</a> elígelo de la lista para autocompletar el precio; si es nuevo, escribe su precio (y costo, si tiene) y se crea solo. Se suma al total antes de generar la factura.</div>
-    </div>
-
-    </div>
-    </details>
-    <p class="help">El monto total que paga el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda (más el repuesto y/o el servicio de arriba, si agregas alguno).</p>
+    <p class="help">¿Falta un repuesto o servicio? Agrégalo en la orden y registra su pago antes de facturar: la factura solo se genera cuando la orden está pagada completa.</p>
+    <p class="help">El monto total que pagó el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda.</p>
     <button type="submit" class="btn btn-primary" id="btnGenerarFactura">Generar factura</button>
     <a href="/ordenes/{{ orden.id }}" class="btn btn-outline">Cancelar</a>
   </form>
+  {% endif %}
 </div>
 {% endblock %}
 {% block scripts %}

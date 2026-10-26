@@ -1849,3 +1849,23 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
 .abono-anular > summary::-webkit-details-marker { display: none; }
 .abono-anular > summary:hover { color: var(--danger-text); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 .abono-anular[open] > form { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 280px; display: grid; gap: 8px; background: var(--panel); box-shadow: var(--shadow); }
+
+/* ---------- Factura bloqueada por pago pendiente ---------- */
+.fac-bloqueo { border: 1px solid var(--hair); border-left: 3px solid var(--warning); border-radius: var(--radius); padding: 18px 20px; background: var(--warning-bg); }
+.fac-bloqueo-t { font-weight: 600; font-size: 16px; color: var(--warning-text); margin-bottom: 6px; }
+.fac-bloqueo p { margin: 0 0 14px; line-height: 1.5; }
+.fac-bloqueo-a { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ---------- Confirmar entrega (¿ya pagó en caja?) ---------- */
+.ent-modal .modal-box { max-width: 440px; padding: 22px 22px 18px; }
+.ent-orden { font-size: 12.5px; color: var(--text-muted); letter-spacing: .02em; }
+.ent-titulo { margin: 4px 0 14px; font-size: 19px; font-weight: 600; }
+.ent-cifras { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.ent-cifras > div { border: 1px solid var(--hair); border-radius: 10px; padding: 8px 10px; }
+.ent-cifras span { display: block; font-size: 11.5px; color: var(--text-muted); }
+.ent-cifras b { font-size: 14.5px; font-variant-numeric: tabular-nums; }
+.ent-aviso { font-size: 13.5px; line-height: 1.5; margin: 0 0 16px; padding: 10px 12px; border-radius: 10px; background: var(--warning-bg); color: var(--warning-text); }
+.ent-aviso-bad { background: var(--danger-bg); color: var(--danger-text); }
+.ent-aviso-ok { background: transparent; color: var(--text-muted); padding: 0; }
+.ent-acciones { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 480px) { .ent-acciones .btn { flex: 1 1 100%; } .ent-cifras { grid-template-columns: 1fr 1fr 1fr; } }

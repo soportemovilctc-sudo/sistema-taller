@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Entregar {{ orden.numero_orden }}{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+{% set total = orden.total or 0 %}{% set saldo = orden.saldo or 0 %}
+<div class="m-wrap" style="max-width:520px;">
+  <div class="card ent-pagina" style="padding:22px;">
+    <div class="ent-orden">{{ orden.numero_orden }} · {{ orden.cliente.nombre if orden.cliente else '—' }}</div>
+    <h1 class="ent-titulo">¿El cliente ya pagó en caja?</h1>
+    <div class="ent-cifras">
+      <div><span>Total</span><b>{{ total|moneda(moneda) }}</b></div>
+      <div><span>Pagado</span><b>{{ (orden.abonado or 0)|moneda(moneda) }}</b></div>
+      <div><span>Saldo</span><b class="{{ 'm-bad' if saldo > 0 else '' }}">{{ saldo|moneda(moneda) }}</b></div>
+    </div>
+    {% if total <= 0 %}
+    <p class="ent-aviso ent-aviso-bad">Esta orden está en <b>L 0.00</b>. Si se cobró un servicio o repuesto, agrégalo a la orden y registra el pago <b>antes</b> de entregar; si no, la caja no lo va a contar.</p>
+    {% elif saldo > 0 %}
+    <p class="ent-aviso">Tiene un saldo de <b>{{ saldo|moneda(moneda) }}</b>. Si confirmas, se registra en caja el cobro de ese saldo en <b>{{ orden.forma_pago or 'Efectivo' }}</b>.</p>
+    {% else %}
+    <p class="ent-aviso ent-aviso-ok">La orden ya está pagada completa.</p>
+    {% endif %}
+    <form method="post" action="/ordenes/{{ orden.id }}/estado" class="ent-acciones">
+      <input type="hidden" name="nuevo_estado" value="ENTREGADO">
+      <input type="hidden" name="observacion" value="{{ observacion }}">
+      <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
+      <input type="hidden" name="confirma_pago" value="1">
+      <a href="{{ redirect_to }}" class="btn btn-outline">Todavía no</a>
+      <button type="submit" class="btn btn-primary">Sí, ya pagó · Marcar entregado</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -281,6 +281,24 @@ def _pagos_por_forma(orden: OrdenServicio) -> list:
     return [(f, m.quantize(Decimal("0.01"))) for f, m in tot.items() if m > 0]
 
 
+def bloqueo_factura_por_pago(orden: OrdenServicio) -> str | None:
+    """La factura de una orden solo se genera cuando el cliente ya pagó
+    completo (sus abonos cubren el total). Así la caja siempre cuadra con
+    las facturas: el dinero entra a la caja con el abono, nunca con la
+    factura. Devuelve el motivo del bloqueo, o None si se puede facturar."""
+    total = to_decimal(orden.total or 0)
+    saldo = to_decimal(orden.saldo or 0)
+    if total <= 0:
+        return ("La orden está en L 0.00. Agrega en la orden el servicio o repuesto que se cobró "
+                "y registra el pago del cliente; después genera la factura.")
+    if saldo > 0:
+        return (f"La orden tiene un saldo pendiente de L {saldo:,.2f}. Registra primero el pago del cliente "
+                "(abono) en la orden; la factura se genera cuando la orden está pagada completa.")
+    if not list(orden.pagos):
+        return "La orden no tiene ningún pago registrado. Registra el pago del cliente antes de facturar."
+    return None
+
+
 @router.get("/ordenes/{orden_id}/factura/nueva")
 def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
     orden = db.get(OrdenServicio, orden_id)
@@ -318,6 +336,7 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
         "formas_pago": FORMAS_PAGO,
         "pagos_por_forma": _pagos_por_forma(orden),
         "abonos": sorted(orden.pagos, key=lambda p: (p.fecha or datetime.min, p.id)),
+        "bloqueo": bloqueo_factura_por_pago(orden),
     })
 
 
@@ -441,6 +460,16 @@ async def factura_crear(
         db.refresh(orden)
         recalcular_orden(orden)
         db.flush()
+
+    db.flush()
+    db.expire(orden, ["pagos"])
+    recalcular_orden(orden)
+    bloqueo = bloqueo_factura_por_pago(orden)
+    if bloqueo:
+        # Nada de lo que se mandó en este formulario se guarda.
+        db.rollback()
+        flash(request, "No se generó la factura. " + bloqueo, "error")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
 
     cfg = get_or_create_cfg_facturacion(db)
     cfg_general = _config_general(db)

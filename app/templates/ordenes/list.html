@@ -67,9 +67,9 @@
             <div class="m-muted" style="font-size:12.5px;">{{ o.tipo_equipo }} {{ o.marca }} {{ o.modelo }}{% if o.tecnico %} · {{ o.tecnico.nombre }}{% endif %}</div>
           </td>
           <td data-label="Estado">
-            <form method="post" action="/ordenes/{{ o.id }}/estado" class="quick-estado">
+            <form method="post" action="/ordenes/{{ o.id }}/estado" class="quick-estado" data-num="{{ o.numero_orden }}" data-total="{{ '%.2f'|format(o.total or 0) }}" data-saldo="{{ '%.2f'|format(o.saldo or 0) }}" data-forma="{{ o.forma_pago or 'Efectivo' }}" data-estado="{{ o.estado }}">
               <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
-              <select name="nuevo_estado" class="badge badge-select {{ 'badge-' + o.estado.lower().replace(' ', '-') }}" onchange="this.form.submit()" title="Cambiar estado" aria-label="Estado de {{ o.numero_orden }}">
+              <select name="nuevo_estado" class="badge badge-select {{ 'badge-' + o.estado.lower().replace(' ', '-') }}" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()" title="Cambiar estado" aria-label="Estado de {{ o.numero_orden }}">
                 {% for e in estados %}<option value="{{ e }}" {{ 'selected' if e == o.estado else '' }}>{{ e|estado_txt }}</option>{% endfor %}
               </select>
             </form>

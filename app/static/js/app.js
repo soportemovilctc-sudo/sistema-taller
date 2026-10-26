@@ -1175,3 +1175,77 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", llenar); else llenar();
 })();
+
+// ---------------------------------------------------------------------------
+// Antes de marcar una orden como ENTREGADO se pregunta si el cliente ya
+// pagó en caja (aplica a todos los formularios que cambian el estado:
+// detalle de la orden, lista de órdenes e Inicio). Si se confirma, el
+// formulario se envía con confirma_pago=1; el servidor exige ese campo.
+// ---------------------------------------------------------------------------
+(function () {
+  var RE = /\/ordenes\/\d+\/estado$/;
+  function lempiras(n) {
+    var v = Number(n || 0);
+    return "L " + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function esc(t) { var d = document.createElement("div"); d.textContent = t == null ? "" : String(t); return d.innerHTML; }
+
+  function abrirModal(form, select, valorAnterior) {
+    var total = Number(form.dataset.total || 0), saldo = Number(form.dataset.saldo || 0);
+    var pagado = Math.max(total - saldo, 0);
+    var aviso = "";
+    if (total <= 0) {
+      aviso = '<p class="ent-aviso ent-aviso-bad">Esta orden está en <b>L 0.00</b>. Si se cobró un servicio o repuesto, agrégalo a la orden y registra el pago <b>antes</b> de entregar; si no, la caja no lo va a contar.</p>';
+    } else if (saldo > 0) {
+      aviso = '<p class="ent-aviso">Tiene un saldo de <b>' + lempiras(saldo) + '</b>. Si confirmas, se registra en caja el cobro de ese saldo en <b>' + esc(form.dataset.forma || "Efectivo") + '</b>.</p>';
+    } else {
+      aviso = '<p class="ent-aviso ent-aviso-ok">La orden ya está pagada completa.</p>';
+    }
+    var ov = document.createElement("div");
+    ov.className = "modal-overlay ent-modal";
+    ov.innerHTML =
+      '<div class="modal-box card" role="dialog" aria-modal="true" aria-labelledby="entTitulo">' +
+      '<div class="ent-orden">' + esc(form.dataset.num || "") + '</div>' +
+      '<h3 id="entTitulo" class="ent-titulo">¿El cliente ya pagó en caja?</h3>' +
+      '<div class="ent-cifras"><div><span>Total</span><b>' + lempiras(total) + '</b></div>' +
+      '<div><span>Pagado</span><b>' + lempiras(pagado) + '</b></div>' +
+      '<div><span>Saldo</span><b class="' + (saldo > 0 ? "m-bad" : "") + '">' + lempiras(saldo) + '</b></div></div>' +
+      aviso +
+      '<div class="ent-acciones"><button type="button" class="btn btn-outline" data-ent="no">Todavía no</button>' +
+      '<button type="button" class="btn btn-primary" data-ent="si">Sí, ya pagó · Marcar entregado</button></div></div>';
+    document.body.appendChild(ov);
+    var cerrar = function (enviar) {
+      document.removeEventListener("keydown", tecla);
+      ov.remove();
+      if (enviar) {
+        var h = form.querySelector('input[name="confirma_pago"]');
+        if (!h) { h = document.createElement("input"); h.type = "hidden"; h.name = "confirma_pago"; form.appendChild(h); }
+        h.value = "1";
+        HTMLFormElement.prototype.submit.call(form);
+      } else if (select && valorAnterior != null) {
+        select.value = valorAnterior;
+      }
+    };
+    var tecla = function (e) { if (e.key === "Escape") cerrar(false); };
+    document.addEventListener("keydown", tecla);
+    ov.addEventListener("click", function (e) {
+      if (e.target === ov) return cerrar(false);
+      var b = e.target.closest("[data-ent]");
+      if (b) cerrar(b.getAttribute("data-ent") === "si");
+    });
+    var btn = ov.querySelector('[data-ent="si"]');
+    if (btn) btn.focus();
+  }
+
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (!(form instanceof HTMLFormElement) || !RE.test(form.getAttribute("action") || "")) return;
+    var campo = form.elements["nuevo_estado"];
+    if (!campo || campo.value !== "ENTREGADO" || form.dataset.estado === "ENTREGADO") return;
+    var conf = form.elements["confirma_pago"];
+    if (conf && conf.value === "1") return;
+    e.preventDefault();
+    var select = campo.tagName === "SELECT" ? campo : null;
+    abrirModal(form, select, select ? form.dataset.estado : null);
+  }, true);
+})();

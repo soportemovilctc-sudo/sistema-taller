@@ -85,7 +85,7 @@
         {% if e == 'ENTREGADO' and orden.saldo and orden.saldo > 0 %}
           {% set _msj_confirmar = _msj_confirmar ~ ' Se registrará un pago automático de ' ~ (orden.saldo|moneda(moneda)) ~ ' para saldar la orden (se asume que el cliente ya pagó al recoger el equipo).' %}
         {% endif %}
-        <form method="post" action="/ordenes/{{ orden.id }}/estado" onsubmit="return confirm('{{ _msj_confirmar }}');">
+        <form method="post" action="/ordenes/{{ orden.id }}/estado" data-num="{{ orden.numero_orden }}" data-total="{{ '%.2f'|format(orden.total or 0) }}" data-saldo="{{ '%.2f'|format(orden.saldo or 0) }}" data-forma="{{ orden.forma_pago or 'Efectivo' }}" data-estado="{{ orden.estado }}" {% if e != 'ENTREGADO' %}onsubmit="return confirm('{{ _msj_confirmar }}');"{% endif %}>
           <input type="hidden" name="nuevo_estado" value="{{ e }}">
           <input type="hidden" name="redirect_to" value="/ordenes/{{ orden.id }}">
           <button type="submit" class="step-dot" title="Cambiar a {{ e|estado_txt }}">
@@ -293,7 +293,7 @@
   <details class="m-more" style="margin-top:12px;">
     <summary>Cambiar a otro estado (o cancelar) e historial de estados</summary>
     <div class="m-grid2" style="margin-top:14px; gap:28px;">
-      <form method="post" action="/ordenes/{{ orden.id }}/estado">
+      <form method="post" action="/ordenes/{{ orden.id }}/estado" data-num="{{ orden.numero_orden }}" data-total="{{ '%.2f'|format(orden.total or 0) }}" data-saldo="{{ '%.2f'|format(orden.saldo or 0) }}" data-forma="{{ orden.forma_pago or 'Efectivo' }}" data-estado="{{ orden.estado }}">
         <div class="field">
           <label for="selectNuevoEstado">Nuevo estado</label>
           <select name="nuevo_estado" id="selectNuevoEstado">

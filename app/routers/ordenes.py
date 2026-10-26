@@ -955,10 +955,19 @@ def ordenes_anular_abono(
 def ordenes_cambiar_estado(
     orden_id: int, request: Request,
     nuevo_estado: str = Form(...), observacion: str = Form(""), redirect_to: str = Form(""),
+    confirma_pago: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
     destino = redirect_to if redirect_to.startswith("/") else f"/ordenes/{orden_id}"
+    # Antes de entregar se pregunta si el cliente ya pagó en caja. La
+    # pantalla normalmente lo pregunta en una ventana (app.js); si llega sin
+    # la confirmación, se muestra la misma pregunta en una página.
+    if orden and nuevo_estado == "ENTREGADO" and orden.estado != "ENTREGADO" and confirma_pago != "1":
+        return templates.TemplateResponse("ordenes/confirmar_entrega.html", {
+            "request": request, "usuario": usuario, "orden": orden,
+            "observacion": observacion, "redirect_to": destino,
+        })
     # Marcar ENTREGADO con saldo pendiente registra un pago automático (un
     # cobro), así que requiere la caja abierta igual que un abono.
     if (

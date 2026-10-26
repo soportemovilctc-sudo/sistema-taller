@@ -63,13 +63,13 @@
           <span class="saldo">{{ o.saldo|moneda(moneda) }}</span>
         </div>
         <div class="acc">
-          <form method="post" action="/ordenes/{{ o.id }}/estado">
+          <form method="post" action="/ordenes/{{ o.id }}/estado" data-num="{{ o.numero_orden }}" data-total="{{ '%.2f'|format(o.total or 0) }}" data-saldo="{{ '%.2f'|format(o.saldo or 0) }}" data-forma="{{ o.forma_pago or 'Efectivo' }}" data-estado="{{ o.estado }}">
             <input type="hidden" name="nuevo_estado" value="ENTREGADO">
             <input type="hidden" name="observacion" value="Marcado como entregado desde el aviso de atención urgente.">
             <input type="hidden" name="redirect_to" value="/">
             <button type="submit" class="btn btn-outline btn-sm" title="El cliente ya se llevó el equipo">Ya se entregó</button>
           </form>
-          <form method="post" action="/ordenes/{{ o.id }}/estado">
+          <form method="post" action="/ordenes/{{ o.id }}/estado" data-num="{{ o.numero_orden }}" data-total="{{ '%.2f'|format(o.total or 0) }}" data-saldo="{{ '%.2f'|format(o.saldo or 0) }}" data-forma="{{ o.forma_pago or 'Efectivo' }}" data-estado="{{ o.estado }}">
             <input type="hidden" name="nuevo_estado" value="{{ o.estado }}">
             <input type="hidden" name="observacion" value="Confirmado: el equipo sigue en el taller (revisión de atención urgente).">
             <input type="hidden" name="redirect_to" value="/">
@@ -179,7 +179,7 @@
         </div>
         <div class="modal-list-actions">
           <span class="dias-chip dias-chip-alerta">+{{ o.dias_en_taller() - umbral_vencido }}d</span>
-          <form method="post" action="/ordenes/{{ o.id }}/estado">
+          <form method="post" action="/ordenes/{{ o.id }}/estado" data-num="{{ o.numero_orden }}" data-total="{{ '%.2f'|format(o.total or 0) }}" data-saldo="{{ '%.2f'|format(o.saldo or 0) }}" data-forma="{{ o.forma_pago or 'Efectivo' }}" data-estado="{{ o.estado }}">
             <input type="hidden" name="nuevo_estado" value="ENTREGADO">
             <input type="hidden" name="observacion" value="Marcado como entregado desde el recordatorio de inicio de sesión.">
             <input type="hidden" name="redirect_to" value="/">

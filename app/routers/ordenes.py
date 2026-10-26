@@ -270,6 +270,34 @@ def ordenes_crear(
         fecha_orden_date = date.today()
     fecha_dt = datetime.combine(fecha_orden_date, datetime.now().time())
 
+    # Si el botón «Crear orden» se presiona dos veces (o dos personas crean
+    # una orden al mismo tiempo), las dos peticiones calculaban el mismo
+    # número de orden: la segunda chocaba y mostraba un error aunque la
+    # orden ya se había creado. Ahora se crean de una en una (se bloquea la
+    # fila de Configuración en Postgres) y, si es la misma orden repetida
+    # en los últimos 2 minutos, se abre la que ya existe en vez de fallar.
+    db.query(Configuracion).filter(Configuracion.id == 1).with_for_update().first()
+    ultima = db.query(OrdenServicio).order_by(OrdenServicio.id.desc()).first()
+
+    def _monto(v):
+        try:
+            return to_decimal(v or 0)
+        except (ValueError, InvalidOperation):
+            return Decimal("0")
+    abono_pedido = sum((_monto(v) for v in (abono_efectivo, abono_transferencia, abono_tarjeta, abono_otro)), Decimal("0"))
+    if (
+        ultima and ultima.cliente_id == cliente_id and (ultima.tipo_equipo or "") == tipo_equipo
+        and (ultima.marca or "") == marca and (ultima.modelo or "") == modelo
+        and (ultima.imei or "") == imei and (ultima.numero_serie or "") == numero_serie
+        and (ultima.falla_reportada or "") == falla_reportada and (ultima.observaciones or "") == observaciones
+        and to_decimal(ultima.cotizacion or 0) == cot
+        and to_decimal(ultima.abonado or 0) == abono_pedido
+        and ultima.fecha and abs((ultima.fecha - fecha_dt).total_seconds()) < 120
+    ):
+        db.rollback()
+        flash(request, f"La orden {ultima.numero_orden} ya se había creado hace un momento (el botón se presionó dos veces). No se creó otra.", "success")
+        return RedirectResponse(f"/ordenes/{ultima.id}", status_code=303)
+
     orden = OrdenServicio(
         numero_orden=generar_numero_orden(db),
         cliente_id=cliente_id,

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ 'Editar orden ' + orden.numero_orden if orden else 'Nueva orden de servicio' }}{% endblock %}
 {% block content %}
-<form method="post" action="{{ '/ordenes/' + orden.id|string + '/editar' if orden else '/ordenes/nueva' }}">
+<form method="post" action="{{ '/ordenes/' + orden.id|string + '/editar' if orden else '/ordenes/nueva' }}" id="formOrden">
   <div id="ordenFormError" class="flash flash-error" style="display:none;"></div>
 
   <div class="card">
@@ -384,7 +384,7 @@
   {% endif %}
 
   <div class="card">
-    <button type="submit" class="btn btn-primary">{{ 'Guardar cambios' if orden else 'Crear orden' }}</button>
+    <button type="submit" class="btn btn-primary" id="btnGuardarOrden">{{ 'Guardar cambios' if orden else 'Crear orden' }}</button>
     <a href="{{ '/ordenes/' + orden.id|string if orden else '/ordenes' }}" class="btn btn-outline">Cancelar</a>
   </div>
 </form>
@@ -429,6 +429,23 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script>
+  // Evita el doble clic en «Crear orden» / «Guardar cambios»: el botón se
+  // desactiva mientras el sistema guarda (ver ordenes_crear en ordenes.py).
+  (function () {
+    var form = document.getElementById("formOrden");
+    var boton = document.getElementById("btnGuardarOrden");
+    if (!form || !boton) return;
+    var texto = boton.textContent;
+    form.addEventListener("submit", function (e) {
+      if (e.defaultPrevented) return;
+      if (form.dataset.enviando) { e.preventDefault(); return; }
+      form.dataset.enviando = "1";
+      setTimeout(function () { boton.disabled = true; boton.textContent = "Guardando..."; }, 0);
+    });
+    window.addEventListener("pageshow", function () { delete form.dataset.enviando; boton.disabled = false; boton.textContent = texto; });
+  })();
+</script>
 <script>
   window.MARCA_MODELOS = {{ marca_modelos_map|tojson }};
   window.ORDEN_MARCA_ACTUAL = {{ (orden.marca if orden else '')|tojson }};

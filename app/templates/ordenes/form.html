@@ -453,7 +453,7 @@
   window.SERVICIOS_RAPIDOS = {{ servicios_rapidos|tojson }};
   window.ORDEN_FECHA_ENTRADA = {{ (orden.fecha_entrada.isoformat() if orden and orden.fecha_entrada else '')|tojson }};
 </script>
-<script src="/static/js/orden.js"></script>
+<script src="/static/js/orden.js?v={{ version_estatico('js/orden.js') }}"></script>
 <script>
   (function () {
     var cont = document.getElementById('repuestosFilas');

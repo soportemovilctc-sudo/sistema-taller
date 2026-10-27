@@ -66,6 +66,29 @@ document.addEventListener("DOMContentLoaded", function () {
   var finalizarBtn = document.getElementById("posFinalizar");
   if (finalizarBtn) finalizarBtn.addEventListener("click", finalizarVenta);
 
+  var exacto = document.getElementById("posExacto");
+  if (exacto) exacto.addEventListener("click", function () {
+    var m = document.getElementById("posMontoRecibido");
+    if (m) { m.value = totalesVenta().total.toFixed(2); actualizarTotales(); }
+  });
+
+  // Documento: comprobante interno o factura fiscal (con RTN opcional).
+  var rtnPorCliente = {};
+  try { rtnPorCliente = JSON.parse((document.getElementById("posClientesRtn") || {}).textContent || "{}"); } catch (e) {}
+  function mostrarRtn() {
+    var campo = document.getElementById("posCampoRtn");
+    if (campo) campo.style.display = tipoDocumento() === "fiscal" ? "" : "none";
+  }
+  document.querySelectorAll('input[name="posTipoDoc"]').forEach(function (r) { r.addEventListener("change", mostrarRtn); });
+  var cliSel = document.getElementById("posCliente");
+  function rtnDelCliente() {
+    var rtn = document.getElementById("posRtn");
+    if (rtn && cliSel) rtn.value = rtnPorCliente[cliSel.value] || "";
+  }
+  if (cliSel) { cliSel.addEventListener("change", rtnDelCliente); if (window.jQuery) window.jQuery(cliSel).on("change", rtnDelCliente); }
+  rtnDelCliente();
+  mostrarRtn();
+
   renderCarrito();
 });
 
@@ -149,19 +172,29 @@ function renderCarrito() {
   actualizarTotales();
 }
 
-function actualizarTotales() {
-  var subtotal = 0;
-  carrito.forEach(function (item) { subtotal += item.precio * item.cantidad; });
+// Redondeo a centavos igual que el servidor (ROUND_HALF_UP). Sin esto el
+// total quedaba en 600.001 aunque en pantalla dijera 600.00, y al escribir
+// 600 en «Monto recibido» el botón de Efectivo no se activaba.
+function r2(n) { return Math.round((Number(n) + (n >= 0 ? 1e-9 : -1e-9)) * 100) / 100; }
 
-  var descuento = parseFloat((document.getElementById("posDescuento") || {}).value) || 0;
+function totalesVenta() {
+  var subtotal = 0;
+  carrito.forEach(function (item) { subtotal += r2(r2(item.precio) * item.cantidad); });
+  subtotal = r2(subtotal);
+  var descuento = r2(parseFloat((document.getElementById("posDescuento") || {}).value) || 0);
   if (descuento < 0) descuento = 0;
   if (descuento > subtotal) descuento = subtotal;
-  var totalNeto = subtotal - descuento;
-  var isv = totalNeto * TASA_ISV / 100;
-  var total = totalNeto + isv;
+  var totalNeto = r2(subtotal - descuento);
+  var total = r2(totalNeto * (1 + TASA_ISV / 100));
+  return { subtotal: subtotal, totalNeto: totalNeto, total: total, isv: r2(total - totalNeto) };
+}
+
+function actualizarTotales() {
+  var t = totalesVenta();
+  var subtotal = t.subtotal, isv = t.isv, total = t.total;
   var esEfectivoPos = ((document.getElementById("posFormaPago") || {}).value || "Efectivo") === "Efectivo";
-  var recibido = esEfectivoPos ? (parseFloat((document.getElementById("posMontoRecibido") || {}).value) || 0) : total;
-  var cambio = recibido - total;
+  var recibido = esEfectivoPos ? r2(parseFloat((document.getElementById("posMontoRecibido") || {}).value) || 0) : total;
+  var cambio = r2(recibido - total);
 
   setTexto("posSubtotal", subtotal.toFixed(2));
   setTexto("posIsv", isv.toFixed(2));
@@ -170,6 +203,13 @@ function actualizarTotales() {
 
   var finalizarBtn = document.getElementById("posFinalizar");
   if (finalizarBtn) finalizarBtn.disabled = carrito.length === 0 || recibido < total;
+  var falta = document.getElementById("posFalta");
+  if (falta) falta.textContent = (esEfectivoPos && carrito.length && recibido < total) ? "Escribe cuánto entregó el cliente (o toca «Exacto»)." : "";
+}
+
+function tipoDocumento() {
+  var r = document.querySelector('input[name="posTipoDoc"]:checked');
+  return r ? r.value : "interno";
 }
 
 function setTexto(id, texto) {
@@ -185,7 +225,11 @@ function finalizarVenta() {
     monto_recibido: parseFloat((document.getElementById("posMontoRecibido") || {}).value) || 0,
     cliente_id: (document.getElementById("posCliente") || {}).value || null,
     cotizacion_id: COTIZACION_ID,
+    tipo_documento: tipoDocumento(),
+    cliente_rtn: tipoDocumento() === "fiscal" ? ((document.getElementById("posRtn") || {}).value || "") : "",
   };
+  var btnFin = document.getElementById("posFinalizar");
+  if (btnFin) { if (btnFin.dataset.enviando) return; btnFin.dataset.enviando = "1"; btnFin.disabled = true; }
   var mensajeEl = document.getElementById("posMensaje");
 
   fetch("/pos/vender", {
@@ -195,12 +239,15 @@ function finalizarVenta() {
   })
     .then(function (r) { return r.json().then(function (data) { return { status: r.status, data: data }; }); })
     .then(function (res) {
+      if (btnFin) delete btnFin.dataset.enviando;
       if (res.data.ok) {
         if (mensajeEl) {
           mensajeEl.className = "";
           var resumen = document.createElement("div");
           resumen.className = "flash flash-success";
-          resumen.textContent = "Venta " + res.data.numero_venta + " registrada. Cambio: L " + res.data.cambio.toFixed(2);
+          var esFiscal = res.data.tipo_documento === "fiscal";
+          resumen.textContent = "Venta " + res.data.numero_venta + " registrada · " + (esFiscal ? "Factura fiscal " : "Comprobante ") +
+            (res.data.numero_documento || "") + ". Cambio: L " + res.data.cambio.toFixed(2);
           mensajeEl.innerHTML = "";
           mensajeEl.appendChild(resumen);
           if (window.pandaReaccionEvento) window.pandaReaccionEvento("venta", res.data.numero_venta);
@@ -209,8 +256,8 @@ function finalizarVenta() {
             var acciones = document.createElement("div");
             acciones.style.cssText = "display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;";
             acciones.innerHTML =
-              '<a href="/facturas/' + res.data.factura_id + '/pdf/tirilla" target="_blank" class="btn btn-success btn-sm">Imprimir recibo (tirilla)</a>' +
-              '<a href="/facturas/' + res.data.factura_id + '/pdf" target="_blank" class="btn btn-outline btn-sm">Ver recibo (PDF carta)</a>' +
+              '<a href="/facturas/' + res.data.factura_id + '/pdf/tirilla" target="_blank" class="btn btn-success btn-sm">Imprimir ' + (esFiscal ? "factura" : "comprobante") + ' (tirilla)</a>' +
+              '<a href="/facturas/' + res.data.factura_id + '/pdf" target="_blank" class="btn btn-outline btn-sm">Ver ' + (esFiscal ? "factura" : "comprobante") + ' (PDF carta)</a>' +
               '<button type="button" class="btn btn-primary btn-sm" id="posNuevaVenta">Nueva venta</button>';
             mensajeEl.appendChild(acciones);
             var btnNueva = document.getElementById("posNuevaVenta");
@@ -227,6 +274,7 @@ function finalizarVenta() {
         var recibidoInput = document.getElementById("posMontoRecibido");
         if (recibidoInput) recibidoInput.value = "";
       } else {
+        actualizarTotales();
         if (mensajeEl) {
           mensajeEl.className = "flash flash-error";
           mensajeEl.textContent = res.data.mensaje || "No se pudo completar la venta.";
@@ -234,6 +282,7 @@ function finalizarVenta() {
       }
     })
     .catch(function () {
+      if (btnFin) { delete btnFin.dataset.enviando; actualizarTotales(); }
       if (mensajeEl) {
         mensajeEl.className = "flash flash-error";
         mensajeEl.textContent = "Error de conexión al procesar la venta.";

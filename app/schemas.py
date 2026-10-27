@@ -21,6 +21,8 @@ class VentaIn(BaseModel):
     monto_recibido: Decimal = Decimal("0")
     cliente_id: Optional[int] = None
     cotizacion_id: Optional[int] = None
+    tipo_documento: str = "interno"  # "interno" (comprobante) o "fiscal" (factura con CAI)
+    cliente_rtn: str = ""
 
 
 class VentaOut(BaseModel):

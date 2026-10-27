@@ -39,6 +39,11 @@ def _isv_tasa(db: Session) -> Decimal:
     return to_decimal(15)
 
 
+def _error_fiscal(db: Session) -> str | None:
+    from app.routers.facturacion import _validar_fiscal_disponible
+    return _validar_fiscal_disponible(_cfg_facturacion(db))
+
+
 @router.get("/pos")
 def pos_index(request: Request, cotizacion: int = 0, db: Session = Depends(get_db), usuario=Depends(login_required)):
     productos = db.query(Producto).filter(Producto.estado == "activo", Producto.existencia > 0).order_by(Producto.nombre).all()
@@ -61,6 +66,8 @@ def pos_index(request: Request, cotizacion: int = 0, db: Session = Depends(get_d
     return templates.TemplateResponse("pos/index.html", {
         "request": request, "productos": productos, "clientes": clientes, "usuario": usuario,
         "tasa_isv": _isv_tasa(db), "cotizacion": cot_datos,
+        "error_fiscal": _error_fiscal(db),
+        "clientes_rtn": {c.id: (c.rtn or "") for c in clientes if c.rtn and (c.rtn or "").lower() != "none"},
     })
 
 
@@ -71,6 +78,11 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
         return JSONResponse({"ok": False, "mensaje": mensaje_caja}, status_code=400)
     if not venta_in.items:
         return JSONResponse({"ok": False, "mensaje": "El carrito está vacío."}, status_code=400)
+    tipo_doc = "fiscal" if venta_in.tipo_documento == "fiscal" else "interno"
+    if tipo_doc == "fiscal":
+        error_fiscal = _error_fiscal(db)
+        if error_fiscal:
+            return JSONResponse({"ok": False, "mensaje": error_fiscal}, status_code=400)
 
     subtotal = Decimal("0")
     detalles = []
@@ -146,21 +158,33 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
     db.flush()
     registrar_asiento_para_movimiento(db, mov_venta, monto_neto=total_neto, isv_monto=isv_monto)
 
-    # Recibo automático: cada venta del Punto de Venta genera de una vez un
-    # comprobante interno (no fiscal) para que el cliente se lleve constancia
-    # de su compra, sin necesidad de un paso aparte. Si más adelante el
-    # cliente necesita una factura fiscal, se puede emitir esa por separado
-    # desde Facturas (igual que con las órdenes de servicio).
+    # Documento de la venta: se elige en el Punto de Venta entre comprobante
+    # interno (no fiscal, el de siempre) o factura fiscal con CAI. Se emite de
+    # una vez para que el cliente se lleve su constancia.
     cfg_fact = _cfg_facturacion(db)
-    numero_documento, correlativo = generar_numero_factura(cfg_fact, "interno")
+    numero_documento, correlativo = generar_numero_factura(cfg_fact, tipo_doc)
     cliente_venta = db.get(Cliente, venta.cliente_id) if venta.cliente_id else None
+    rtn = (venta_in.cliente_rtn or "").strip()
+    if rtn.lower() == "none":
+        rtn = ""
+    if not rtn and cliente_venta and (cliente_venta.rtn or "").lower() != "none":
+        rtn = cliente_venta.rtn or ""
+    if cliente_venta and rtn and rtn != (cliente_venta.rtn or ""):
+        cliente_venta.rtn = rtn  # queda en la ficha del cliente para la próxima vez
+    fiscal = tipo_doc == "fiscal"
     recibo = Factura(
         venta_id=venta.id,
-        tipo="interno",
+        tipo=tipo_doc,
         numero_documento=numero_documento,
         correlativo=correlativo,
+        cai_usado=cfg_fact.cai if fiscal else None,
+        rango_autorizado_inicio=cfg_fact.rango_autorizado_inicio if fiscal else None,
+        rango_autorizado_fin=cfg_fact.rango_autorizado_fin if fiscal else None,
+        fecha_limite_emision=cfg_fact.fecha_limite_emision if fiscal else None,
+        rtn_emisor=cfg_fact.rtn_taller if fiscal else None,
+        razon_social_emisor=(cfg_fact.razon_social or cfg_fact.nombre_comercial) if fiscal else None,
         cliente_nombre=cliente_venta.nombre if cliente_venta else "Consumidor final",
-        cliente_rtn=(cliente_venta.rtn or "") if cliente_venta else "",
+        cliente_rtn=rtn,
         cliente_direccion=(cliente_venta.direccion or "") if cliente_venta else "",
         fecha_emision=datetime.utcnow(),
         subtotal=subtotal,
@@ -185,5 +209,5 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
     return JSONResponse({
         "ok": True, "numero_venta": venta.numero_venta,
         "total": float(total), "isv": float(isv_monto), "cambio": float(cambio),
-        "factura_id": recibo.id, "numero_documento": recibo.numero_documento,
+        "factura_id": recibo.id, "numero_documento": recibo.numero_documento, "tipo_documento": tipo_doc,
     })

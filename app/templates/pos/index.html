@@ -44,6 +44,19 @@
         </select>
       </div>
       <div class="field">
+        <label>Documento</label>
+        <div class="pago-opciones" role="radiogroup" aria-label="Tipo de documento">
+          <label class="pago-op"><input type="radio" name="posTipoDoc" value="interno" checked><span>Comprobante interno</span></label>
+          <label class="pago-op{{ ' is-off' if error_fiscal else '' }}" {% if error_fiscal %}title="{{ error_fiscal }}"{% endif %}><input type="radio" name="posTipoDoc" value="fiscal" {{ 'disabled' if error_fiscal else '' }}><span>Factura fiscal</span></label>
+        </div>
+        {% if error_fiscal %}<div class="help">Factura fiscal no disponible: {{ error_fiscal }}</div>{% endif %}
+      </div>
+      <div class="field" id="posCampoRtn" style="display:none;">
+        <label for="posRtn">RTN del cliente (opcional)</label>
+        <input type="text" id="posRtn" inputmode="numeric" maxlength="20" placeholder="Déjalo en blanco para Consumidor final">
+      </div>
+      <script id="posClientesRtn" type="application/json">{{ clientes_rtn|tojson }}</script>
+      <div class="field">
         <label>Forma de pago</label>
         <select id="posFormaPago">
           <option value="Efectivo">Efectivo</option>
@@ -52,7 +65,9 @@
           <option value="Otro">Otro</option>
         </select>
       </div>
-      <div class="field" id="posCampoRecibido"><label>Monto recibido</label><input type="number" min="0" step="0.01" id="posMontoRecibido"></div>
+      <div class="field" id="posCampoRecibido"><label for="posMontoRecibido">Monto recibido</label>
+        <div style="display:flex; gap:8px;"><input type="number" min="0" step="0.01" id="posMontoRecibido" inputmode="decimal" style="flex:1;"><button type="button" class="btn btn-outline btn-sm" id="posExacto" title="El cliente paga exacto">Exacto</button></div>
+      </div>
       <div class="line"><span>ISV ({{ tasa_isv|int }}%)</span><span id="posIsv">0.00</span></div>
       <div class="line total"><span>TOTAL</span><span id="posTotal">0.00</span></div>
       <div class="line" id="posLineaCambio"><span>Cambio</span><span id="posCambio">0.00</span></div>
@@ -67,6 +82,7 @@
         if (fp) { fp.addEventListener("change", soloEfectivo); soloEfectivo(); }
       })();
       </script>
+      <div class="help" id="posFalta" style="margin-top:6px;"></div>
       <div id="posMensaje"></div>
       <button type="button" id="posFinalizar" class="btn btn-success" style="width:100%; margin-top:10px;" disabled>Finalizar venta</button>
     </div>

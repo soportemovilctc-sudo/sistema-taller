@@ -1869,3 +1869,4 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
 .ent-aviso-ok { background: transparent; color: var(--text-muted); padding: 0; }
 .ent-acciones { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 @media (max-width: 480px) { .ent-acciones .btn { flex: 1 1 100%; } .ent-cifras { grid-template-columns: 1fr 1fr 1fr; } }
+.pago-op.is-off { opacity: .45; cursor: not-allowed; }

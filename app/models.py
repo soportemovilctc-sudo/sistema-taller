@@ -54,6 +54,7 @@ CATEGORIA_OTRO_INGRESO_CAJA = "Otros ingresos"
 # Administrador (que siempre son contra la cuenta bancaria).
 CATEGORIA_DEPOSITO_BANCO = "Depósito bancario"
 CATEGORIA_NOMINA_EFECTIVO = "Nómina en efectivo"
+CATEGORIA_NOMINA_TRANSFERENCIA = "Nómina por transferencia"
 # Los ingresos y egresos varios se registran SOLO desde Caja (ya no desde
 # Reportes ni Contabilidad), para que siempre queden en la caja abierta.
 # "Compras" y "Proveedores" son compras de mercadería: los Estados
@@ -61,7 +62,7 @@ CATEGORIA_NOMINA_EFECTIVO = "Nómina en efectivo"
 CATEGORIAS_SALIDA_CAJA = [
     "Salida de caja", "Compra menor", "Compras", "Proveedores", "Servicios básicos",
     "Transporte", "Crédito por garantía", "Otro gasto de caja",
-    CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO,
+    CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO, CATEGORIA_NOMINA_TRANSFERENCIA,
 ]
 
 # Ingreso contable de una Orden: ANTES se generaba dos veces (al agregar el

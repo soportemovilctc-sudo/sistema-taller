@@ -37,6 +37,7 @@ from app.models import (
     MovimientoFinanciero, Configuracion, Producto, MovimientoInventario,
     METODOS_PAGO_CAJA, CATEGORIAS_EGRESO_MAYOR,
     CATEGORIA_OTRO_INGRESO_CAJA, CATEGORIAS_SALIDA_CAJA, CATEGORIA_DEPOSITO_BANCO,
+    CATEGORIA_NOMINA_EFECTIVO, CATEGORIA_NOMINA_TRANSFERENCIA,
     CuentaContable, AsientoContable, DetalleAsiento,
 )
 from app.utils.calculations import to_decimal
@@ -105,6 +106,18 @@ def _resolver_fecha_mov(fecha_str: str) -> datetime | None:
     return datetime.combine(fecha_date, datetime.now().time())
 
 
+def _cuenta_de_nomina(categoria: str, cuenta: str) -> str:
+    """La nómina dice en su nombre de dónde salió el dinero: «Nómina por
+    transferencia» siempre sale del Banco y «Nómina en efectivo» siempre de
+    la Caja Chica (antes quedaba «en efectivo» aunque se pagara por
+    transferencia)."""
+    if categoria == CATEGORIA_NOMINA_TRANSFERENCIA:
+        return CUENTA_BANCO
+    if categoria == CATEGORIA_NOMINA_EFECTIVO:
+        return CUENTA_CAJA_CHICA
+    return cuenta
+
+
 def _puede_editar_movimiento(usuario: dict, mov: MovimientoFinanciero) -> bool:
     """Un Administrador puede editar/eliminar cualquier movimiento (por
     ejemplo para limpiar uno que quedó huérfano de una orden ya eliminada).
@@ -162,6 +175,7 @@ def caja_registrar_form(request: Request, db: Session = Depends(get_db), usuario
         "request": request, "usuario": usuario,
         "metodos_pago": METODOS_PAGO_CAJA,
         "categorias_salida": CATEGORIAS_SALIDA_CAJA,
+        "nomina_cuentas": {CATEGORIA_NOMINA_EFECTIVO: CUENTA_CAJA_CHICA, CATEGORIA_NOMINA_TRANSFERENCIA: CUENTA_BANCO},
         "categoria_otro_ingreso": CATEGORIA_OTRO_INGRESO_CAJA,
         "categoria_deposito_banco": CATEGORIA_DEPOSITO_BANCO,
         "transacciones_hoy": transacciones_hoy,
@@ -345,6 +359,7 @@ def caja_salida_crear(
     if categoria != CATEGORIA_DEPOSITO_BANCO and cuenta not in (CUENTA_CAJA_CHICA, CUENTA_BANCO):
         flash(request, "Cuenta no válida.", "error")
         return RedirectResponse("/caja/registrar", status_code=303)
+    cuenta = _cuenta_de_nomina(categoria, cuenta)
 
     try:
         monto_dec = to_decimal(monto)
@@ -443,6 +458,7 @@ def caja_movimiento_editar_form(
         "request": request, "usuario": usuario, "mov": mov, "volver": volver,
         "es_simple": es_simple, "es_cobro": es_cobro,
         "categorias_salida": CATEGORIAS_SALIDA_CAJA, "metodos_pago": METODOS_PAGO_CAJA,
+        "nomina_cuentas": {CATEGORIA_NOMINA_EFECTIVO: CUENTA_CAJA_CHICA, CATEGORIA_NOMINA_TRANSFERENCIA: CUENTA_BANCO},
         "categoria_deposito_banco": CATEGORIA_DEPOSITO_BANCO,
     })
 
@@ -506,7 +522,7 @@ def caja_movimiento_editar(
             # Depósito bancario, que siempre sale de Caja Chica (ver
             # caja_salida_crear).
             if categoria in CATEGORIAS_SALIDA_CAJA and categoria != CATEGORIA_DEPOSITO_BANCO and cuenta in (CUENTA_CAJA_CHICA, CUENTA_BANCO):
-                mov.cuenta = cuenta
+                mov.cuenta = _cuenta_de_nomina(categoria, cuenta)
 
     # Si este movimiento es la mitad de un Depósito bancario, la otra mitad
     # se mantiene en sincronía: mismo monto, fecha y descripción.

@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     CuentaContable, AsientoContable, DetalleAsiento, MovimientoFinanciero,
-    CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO, CATEGORIA_VENTA_FACTURADA,
+    CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO, CATEGORIA_NOMINA_TRANSFERENCIA, CATEGORIA_VENTA_FACTURADA,
 )
 from app.utils.numbering import siguiente_numero
 
@@ -65,7 +65,7 @@ CATEGORIA_REVERSION_CANCELACION = "Reversión por orden cancelada"
 CATEGORIAS_SALIDA_CAJA_CHICA = {
     "Salida de caja", "Crédito por garantía", "Compra menor", "Otro gasto de caja",
     "Compras", "Proveedores", "Servicios básicos", "Transporte",
-    CATEGORIA_NOMINA_EFECTIVO,
+    CATEGORIA_NOMINA_EFECTIVO, CATEGORIA_NOMINA_TRANSFERENCIA,
 }
 
 

@@ -73,4 +73,21 @@
     <a href="{{ volver }}" class="btn btn-outline">Cancelar</a>
   </form>
 </div>
+
+<script>
+  // Nómina: la categoría y «¿De dónde salió?» siempre coinciden
+  // (por transferencia = Banco, en efectivo = Caja Chica).
+  (function () {
+    var cat = document.getElementById('categoriaSalida');
+    var cta = document.querySelector('#campoCuentaSalida select[name="cuenta"]');
+    var mapa = {{ nomina_cuentas|tojson }};
+    if (!cat || !cta) return;
+    cat.addEventListener('change', function () { if (mapa[cat.value]) cta.value = mapa[cat.value]; });
+    cta.addEventListener('change', function () {
+      if (!mapa[cat.value]) return;
+      for (var c in mapa) { if (mapa[c] === cta.value) { cat.value = c; break; } }
+    });
+    if (mapa[cat.value]) cta.value = mapa[cat.value];
+  })();
+</script>
 {% endblock %}

@@ -83,7 +83,7 @@ RUTAS = [
     (r"^/contabilidad/nuevo$", "Contabilidad", "Registró un movimiento en Contabilidad", ""),
     (r"^/admin/limpiar-datos-prueba$", "Configuración", "BORRÓ los datos de prueba", ""),
 ]
-IGNORAR = (r"^/mi-perfil/", r"^/api/", r"^/static/", r"^/logout")
+IGNORAR = (r"^/mi-perfil/", r"^/api/", r"^/static/", r"^/logout", r"^/notas")  # las notas son privadas
 _COMPILADAS = [(re.compile(p), m, d, e) for p, m, d, e in RUTAS]
 _IGNORAR = [re.compile(p) for p in IGNORAR]
 

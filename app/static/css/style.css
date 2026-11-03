@@ -1870,3 +1870,73 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
 .ent-acciones { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 @media (max-width: 480px) { .ent-acciones .btn { flex: 1 1 100%; } .ent-cifras { grid-template-columns: 1fr 1fr 1fr; } }
 .pago-op.is-off { opacity: .45; cursor: not-allowed; }
+
+/* ---------- Notas (libreta personal) ---------- */
+.nota, .nota-form { --nc: transparent; }
+[data-color="amarillo"] { --nc: #eab308; }
+[data-color="verde"] { --nc: #16a34a; }
+[data-color="azul"] { --nc: #2563eb; }
+[data-color="rosa"] { --nc: #db2777; }
+[data-color="morado"] { --nc: #7c3aed; }
+[data-color="naranja"] { --nc: #ea580c; }
+.notas-barra { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.notas-buscar input { min-width: 240px; }
+.notas-grid { columns: 3 260px; column-gap: 14px; }
+.nota { break-inside: avoid; margin: 0 0 14px; background: color-mix(in srgb, var(--nc) 12%, var(--panel)); border: 1px solid color-mix(in srgb, var(--nc) 35%, var(--border)); border-radius: 14px; padding: 14px 14px 10px; display: flex; flex-direction: column; gap: 8px; }
+.nota[data-color=""] { background: var(--panel); border-color: var(--border); }
+.nota-imp { box-shadow: inset 3px 0 0 var(--warning); }
+.nota-hecha { opacity: .72; }
+.nota-hecha h3 { text-decoration: line-through; }
+.nota-cab { display: flex; gap: 6px; align-items: flex-start; }
+.nota-cab h3 { margin: 0; font-size: 15.5px; font-weight: 600; line-height: 1.35; word-break: break-word; }
+.nota-pin svg { width: 16px; height: 16px; fill: var(--warning); stroke: none; margin-top: 2px; }
+.nota-cuerpo { font-size: 14px; line-height: 1.55; word-break: break-word; max-height: 340px; overflow: auto; }
+.nota-cuerpo > :first-child { margin-top: 0; } .nota-cuerpo > :last-child { margin-bottom: 0; }
+.nota-cuerpo h2, .nota-cuerpo h3, .ed-area h2, .ed-area h3 { font-size: 15px; font-weight: 700; margin: 10px 0 4px; }
+.nota-cuerpo p, .nota-cuerpo div { margin: 0 0 6px; }
+.nota-cuerpo ul, .nota-cuerpo ol, .ed-area ul, .ed-area ol { margin: 4px 0 8px; padding-left: 22px; }
+.nota-pie { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.nota-rec, .nota-fecha { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); }
+.nota-rec svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.nota-rec.is-hoy { color: var(--warning-text); font-weight: 600; }
+.nota-rec.is-vencida { color: var(--danger-text); font-weight: 600; }
+.nota-acc { display: flex; gap: 2px; }
+.nota-acc form { margin: 0; }
+.nota-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; }
+.nota-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.nota-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.nota-btn.on { color: var(--warning); } .nota-btn.on svg { fill: currentColor; }
+.nota-btn-del:hover { color: var(--danger-text); }
+.notas-vacio { padding: 40px 16px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 14px; }
+
+.nota-form { background: color-mix(in srgb, var(--nc) 8%, var(--panel)); border: 1px solid var(--border); border-radius: 16px; padding: 18px; }
+.nota-titulo-in { width: 100%; font-size: 20px; font-weight: 600; border: 0 !important; background: transparent !important; padding: 4px 2px 10px; box-shadow: none !important; }
+.ed-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 10px 10px 0 0; background: var(--panel-2); position: sticky; top: 60px; z-index: 5; }
+.ed-btn { min-width: 34px; height: 32px; padding: 0 8px; border-radius: 7px; border: 1px solid transparent; background: transparent; color: var(--text); cursor: pointer; font-size: 14px; display: inline-grid; place-items: center; }
+.ed-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.ed-btn.on { background: color-mix(in srgb, var(--primary) 18%, transparent); border-color: color-mix(in srgb, var(--primary) 45%, transparent); }
+.ed-btn svg, .ed-lbl svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ed-txt { font-size: 12.5px; }
+.ed-sep { width: 1px; height: 20px; background: var(--border); margin: 0 3px; }
+.ed-grupo { display: inline-flex; align-items: center; gap: 4px; }
+.ed-lbl { font-weight: 700; font-size: 13px; color: var(--text-muted); display: inline-grid; place-items: center; width: 18px; }
+.ed-color { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--border); background: var(--sw); cursor: pointer; padding: 0; }
+.ed-color:hover { transform: scale(1.12); }
+.ed-area { min-height: 220px; padding: 14px; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 10px 10px; background: var(--bg); font-size: 15px; line-height: 1.6; outline: none; }
+.ed-area:focus { border-color: var(--primary); }
+.ed-area:empty::before { content: attr(data-placeholder); color: var(--text-muted); }
+.nota-opciones { display: grid; gap: 14px; margin-top: 16px; }
+.nota-colores { display: flex; flex-wrap: wrap; gap: 8px; }
+.nota-sw { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 999px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+.nota-sw input { position: absolute; opacity: 0; pointer-events: none; }
+.nota-sw span { width: 18px; height: 18px; border-radius: 50%; background: var(--nc); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 25%, transparent); }
+.nota-sw[data-color=""] span { background: var(--panel); }
+.nota-sw em { font-style: normal; }
+.nota-sw:has(input:checked) { border-color: var(--primary); background: var(--panel-2); font-weight: 600; }
+.nota-sw:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.nota-rec-in { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.nota-rec-in input[type=date] { max-width: 180px; }
+.nav-cuenta { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--warning); color: #111; font-size: 11.5px; font-weight: 700; display: inline-grid; place-items: center; }
+@media (max-width: 600px) { .notas-buscar, .notas-buscar input { width: 100%; min-width: 0; } .ed-barra { top: 56px; } }
+/* El resaltado es claro: su texto siempre oscuro para que se lea en tema oscuro. */
+.nota-cuerpo [style*="background-color"], .ed-area [style*="background-color"] { color: #111827; border-radius: 3px; padding: 0 2px; }

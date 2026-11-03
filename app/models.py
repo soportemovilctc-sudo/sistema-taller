@@ -1272,3 +1272,30 @@ class Bitacora(Base):
     enlace = Column(String(255), default="")
     resultado = Column(String(10), default="")
     ip = Column(String(60), default="")
+
+
+# ---------------------------------------------------------------------------
+# Notas personales: libreta privada de cada usuario (solo la ve quien la
+# escribió). Texto con formato básico (negrita, colores, listas...).
+# ---------------------------------------------------------------------------
+COLORES_NOTA = {
+    "": "Sin color", "amarillo": "Amarillo", "verde": "Verde", "azul": "Azul",
+    "rosa": "Rosa", "morado": "Morado", "naranja": "Naranja",
+}
+
+
+class Nota(Base):
+    __tablename__ = "notas"
+
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    titulo = Column(String(150), default="")
+    contenido = Column(Text, default="")          # HTML ya limpio (ver app/utils/html_notas.py)
+    contenido_texto = Column(Text, default="")    # mismo contenido sin formato, para buscar
+    color = Column(String(20), default="")
+    importante = Column(Boolean, nullable=False, default=False)
+    hecha = Column(Boolean, nullable=False, default=False)
+    hecha_en = Column(DateTime, nullable=True)
+    fecha_recordatorio = Column(Date, nullable=True)
+    creada = Column(DateTime, default=datetime.utcnow, nullable=False)
+    actualizada = Column(DateTime, default=datetime.utcnow, nullable=False)

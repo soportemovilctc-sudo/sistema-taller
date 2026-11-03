@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar nota' if nota else 'Nueva nota' }}{% endblock %}
+{% block content %}
+{% set colores_letra = [('#dc2626','Rojo'),('#ea580c','Naranja'),('#16a34a','Verde'),('#2563eb','Azul'),('#7c3aed','Morado')] %}
+{% set colores_resalte = [('#fef08a','Amarillo'),('#bbf7d0','Verde'),('#bfdbfe','Azul'),('#fbcfe8','Rosa'),('#fed7aa','Naranja')] %}
+<div class="m-wrap" style="max-width:760px;">
+  <div class="m-head">
+    <div>
+      <a href="/notas" class="m-muted" style="font-size:13px;">← Mis notas</a>
+      <h1 class="m-title" style="margin-top:6px;">{{ 'Editar nota' if nota else 'Nueva nota' }}</h1>
+    </div>
+  </div>
+
+  <form method="post" action="{{ '/notas/' ~ nota.id ~ '/editar' if nota else '/notas/nueva' }}" id="formNota" class="nota-form" data-color="{{ nota.color if nota else '' }}">
+    <input type="text" name="titulo" class="nota-titulo-in" maxlength="150" placeholder="Título" value="{{ nota.titulo if nota else '' }}" aria-label="Título" autofocus>
+
+    <div class="ed-barra" role="toolbar" aria-label="Formato del texto">
+      <button type="button" class="ed-btn" data-cmd="bold" title="Negrita (Ctrl+B)" aria-label="Negrita"><b>B</b></button>
+      <button type="button" class="ed-btn" data-cmd="italic" title="Cursiva (Ctrl+I)" aria-label="Cursiva"><i>I</i></button>
+      <button type="button" class="ed-btn" data-cmd="underline" title="Subrayado (Ctrl+U)" aria-label="Subrayado"><u>U</u></button>
+      <button type="button" class="ed-btn" data-cmd="strikeThrough" title="Tachado" aria-label="Tachado"><s>S</s></button>
+      <span class="ed-sep"></span>
+      <button type="button" class="ed-btn ed-txt" data-cmd="formatBlock" data-val="H3" title="Título dentro de la nota">Título</button>
+      <button type="button" class="ed-btn ed-txt" data-cmd="formatBlock" data-val="P" title="Texto normal">Normal</button>
+      <span class="ed-sep"></span>
+      <button type="button" class="ed-btn" data-cmd="insertUnorderedList" title="Lista con viñetas" aria-label="Lista con viñetas"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></button>
+      <button type="button" class="ed-btn" data-cmd="insertOrderedList" title="Lista numerada" aria-label="Lista numerada"><svg viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10M4 5h1.5v4M3.5 9h3M3.5 14.5c0-1 .8-1.5 1.5-1.5s1.5.5 1.5 1.3c0 1.2-3 2.2-3 3.7h3"/></svg></button>
+      <span class="ed-sep"></span>
+      <span class="ed-grupo" title="Color de letra">
+        <span class="ed-lbl">A</span>
+        {% for c, nom in colores_letra %}<button type="button" class="ed-color" data-cmd="foreColor" data-val="{{ c }}" style="--sw: {{ c }};" title="Letra {{ nom|lower }}" aria-label="Letra {{ nom|lower }}"></button>{% endfor %}
+      </span>
+      <span class="ed-sep"></span>
+      <span class="ed-grupo" title="Resaltar">
+        <span class="ed-lbl"><svg viewBox="0 0 24 24"><path d="M9 11l-5 5v4h4l5-5M14 4l6 6-7 7-6-6z"/></svg></span>
+        {% for c, nom in colores_resalte %}<button type="button" class="ed-color" data-cmd="hiliteColor" data-val="{{ c }}" style="--sw: {{ c }};" title="Resaltar {{ nom|lower }}" aria-label="Resaltar {{ nom|lower }}"></button>{% endfor %}
+      </span>
+      <span class="ed-sep"></span>
+      <button type="button" class="ed-btn" data-cmd="removeFormat" title="Quitar formato" aria-label="Quitar formato"><svg viewBox="0 0 24 24"><path d="M6 5h12M12 5l-3 14M4 20l16-16"/></svg></button>
+    </div>
+    <div id="edNota" class="ed-area" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Contenido de la nota" data-placeholder="Escribe tu nota…">{{ (nota.contenido if nota else '')|safe }}</div>
+    <textarea name="contenido" id="edContenido" hidden></textarea>
+
+    <div class="nota-opciones">
+      <div class="field">
+        <label>Color de la nota</label>
+        <div class="nota-colores" role="radiogroup" aria-label="Color de la nota">
+          {% for clave, nom in colores.items() %}
+          <label class="nota-sw" data-color="{{ clave }}" title="{{ nom }}"><input type="radio" name="color" value="{{ clave }}" {{ 'checked' if (nota.color if nota else '') == clave else '' }}><span></span><em>{{ nom }}</em></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <label for="fechaRec">Recordatorio</label>
+        <div class="nota-rec-in">
+          <input type="date" id="fechaRec" name="fecha_recordatorio" value="{{ nota.fecha_recordatorio.isoformat() if nota and nota.fecha_recordatorio else '' }}">
+          <button type="button" class="m-chip" data-dias="0">Hoy</button>
+          <button type="button" class="m-chip" data-dias="1">Mañana</button>
+          <button type="button" class="m-chip" data-dias="">Sin fecha</button>
+        </div>
+        <div class="help">El día del recordatorio la nota aparece arriba, en «Para hoy», y el menú Notas muestra un número.</div>
+      </div>
+      <label class="checkbox-chip"><input type="checkbox" name="importante" value="1" {{ 'checked' if nota and nota.importante else '' }}> Fijar como importante (queda arriba y resaltada)</label>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;">
+      <button type="submit" class="btn btn-primary">Guardar nota</button>
+      <a href="/notas" class="btn btn-outline">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var area = document.getElementById("edNota");
+  var oculto = document.getElementById("edContenido");
+  var form = document.getElementById("formNota");
+  try { document.execCommand("styleWithCSS", false, true); } catch (e) {}
+  document.querySelectorAll(".ed-barra [data-cmd]").forEach(function (b) {
+    b.addEventListener("mousedown", function (e) { e.preventDefault(); });  // no perder la selección
+    b.addEventListener("click", function () {
+      area.focus();
+      var cmd = b.getAttribute("data-cmd"), val = b.getAttribute("data-val");
+      if (cmd === "formatBlock") val = "<" + val + ">";
+      if (cmd === "hiliteColor" && !document.queryCommandSupported("hiliteColor")) cmd = "backColor";
+      document.execCommand(cmd, false, val);
+      marcar();
+    });
+  });
+  function marcar() {
+    ["bold", "italic", "underline", "strikeThrough", "insertUnorderedList", "insertOrderedList"].forEach(function (c) {
+      var b = document.querySelector('.ed-barra [data-cmd="' + c + '"]');
+      if (b) { var on = false; try { on = document.queryCommandState(c); } catch (e) {} b.classList.toggle("on", on); }
+    });
+  }
+  document.addEventListener("selectionchange", function () { if (document.activeElement === area) marcar(); });
+  // Pegar como texto simple (sin el formato de otra página).
+  area.addEventListener("paste", function (e) {
+    var t = (e.clipboardData || window.clipboardData);
+    if (!t) return;
+    e.preventDefault();
+    document.execCommand("insertText", false, t.getData("text/plain"));
+  });
+  form.addEventListener("submit", function () { oculto.value = area.innerHTML; });
+  // Color de la nota: vista previa en vivo.
+  document.querySelectorAll('input[name="color"]').forEach(function (r) {
+    r.addEventListener("change", function () { form.setAttribute("data-color", r.value); });
+  });
+  // Atajos de fecha.
+  var fecha = document.getElementById("fechaRec");
+  document.querySelectorAll(".nota-rec-in [data-dias]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var d = b.getAttribute("data-dias");
+      if (d === "") { fecha.value = ""; return; }
+      var f = new Date(); f.setDate(f.getDate() + parseInt(d, 10));
+      fecha.value = f.getFullYear() + "-" + String(f.getMonth() + 1).padStart(2, "0") + "-" + String(f.getDate()).padStart(2, "0");
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -150,3 +150,22 @@ def fmt_estado(valor):
 
 
 templates.env.filters["estado_txt"] = fmt_estado
+
+
+def notas_recordatorio(usuario_id):
+    """Cuántas notas del usuario tienen recordatorio para hoy o ya vencido
+    (el número junto a «Notas» en el menú). Nunca lanza error."""
+    if not usuario_id:
+        return 0
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        from app.routers.notas import contar_recordatorios
+        return contar_recordatorios(db, usuario_id)
+    except Exception:
+        return 0
+    finally:
+        db.close()
+
+
+templates.env.globals["notas_recordatorio"] = notas_recordatorio

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Mis notas{% endblock %}
+{% macro tarjeta(n) %}
+<article class="nota{{ ' nota-imp' if n.importante else '' }}{{ ' nota-hecha' if n.hecha else '' }}" data-color="{{ n.color or '' }}">
+  <header class="nota-cab">
+    {% if n.importante %}<span class="nota-pin" title="Importante"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg></span>{% endif %}
+    <h3>{{ n.titulo or 'Sin título' }}</h3>
+  </header>
+  {% if n.contenido %}<div class="nota-cuerpo">{{ n.contenido|safe }}</div>{% endif %}
+  <footer class="nota-pie">
+    {% if n.fecha_recordatorio and not n.hecha %}
+      {% set dias = (n.fecha_recordatorio - hoy).days %}
+      <span class="nota-rec {{ 'is-vencida' if dias < 0 else ('is-hoy' if dias == 0 else '') }}">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M5 3 2 6M19 3l3 3"/></svg>
+        {% if dias < 0 %}Venció {{ n.fecha_recordatorio.strftime('%d/%m') }}{% elif dias == 0 %}Hoy{% elif dias == 1 %}Mañana{% else %}{{ n.fecha_recordatorio.strftime('%d/%m/%Y') }}{% endif %}
+      </span>
+    {% elif n.hecha and n.hecha_en %}
+      <span class="nota-rec">Hecha {{ n.hecha_en|hn('%d/%m/%Y') }}</span>
+    {% else %}<span class="nota-fecha">{{ (n.actualizada or n.creada)|hn('%d/%m/%Y') }}</span>{% endif %}
+    <div class="nota-acc">
+      <form method="post" action="/notas/{{ n.id }}/hecha"><input type="hidden" name="volver" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+        <button type="submit" class="nota-btn" title="{{ 'Volver a pendientes' if n.hecha else 'Marcar como hecha' }}" aria-label="{{ 'Volver a pendientes' if n.hecha else 'Marcar como hecha' }}">
+          {% if n.hecha %}<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>{% else %}<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>{% endif %}
+        </button></form>
+      {% if not n.hecha %}
+      <form method="post" action="/notas/{{ n.id }}/importante"><input type="hidden" name="volver" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+        <button type="submit" class="nota-btn{{ ' on' if n.importante else '' }}" title="{{ 'Quitar de importantes' if n.importante else 'Fijar como importante' }}" aria-label="Importante">
+          <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg>
+        </button></form>
+      <a class="nota-btn" href="/notas/{{ n.id }}/editar" title="Editar" aria-label="Editar"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></a>
+      {% endif %}
+      <form method="post" action="/notas/{{ n.id }}/eliminar" onsubmit="return confirm('¿Eliminar esta nota? No se puede deshacer.');"><input type="hidden" name="volver" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+        <button type="submit" class="nota-btn nota-btn-del" title="Eliminar" aria-label="Eliminar"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></form>
+    </div>
+  </footer>
+</article>
+{% endmacro %}
+{% block content %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Mis notas</h1>
+      <div class="m-muted" style="margin-top:4px;">Solo tú ves tus notas.</div>
+    </div>
+    <a href="/notas/nueva" class="btn btn-primary">+ Nueva nota</a>
+  </div>
+
+  <div class="notas-barra">
+    <div class="m-chips">
+      <a class="m-chip {{ 'on' if ver == 'pendientes' else '' }}" href="/notas?ver=pendientes{% if q %}&q={{ q|urlencode }}{% endif %}">Pendientes <b>{{ n_pendientes }}</b></a>
+      <a class="m-chip {{ 'on' if ver == 'hechas' else '' }}" href="/notas?ver=hechas{% if q %}&q={{ q|urlencode }}{% endif %}">Hechas <b>{{ n_hechas }}</b></a>
+    </div>
+    <form method="get" action="/notas" class="notas-buscar">
+      <input type="hidden" name="ver" value="{{ ver }}">
+      <input type="search" name="q" value="{{ q }}" placeholder="Buscar en mis notas…" aria-label="Buscar en mis notas">
+    </form>
+  </div>
+
+  {% if para_hoy %}
+  <div class="m-sec-t" style="margin-top:4px;">Para hoy</div>
+  <div class="notas-grid">{% for n in para_hoy %}{{ tarjeta(n) }}{% endfor %}</div>
+  {% if notas %}<div class="m-sec-t" style="margin-top:22px;">Otras notas</div>{% endif %}
+  {% endif %}
+
+  {% if notas %}
+  <div class="notas-grid">{% for n in notas %}{{ tarjeta(n) }}{% endfor %}</div>
+  {% elif not para_hoy %}
+  <div class="notas-vacio">
+    {% if q %}No hay notas que digan «{{ q }}».
+    {% elif ver == 'hechas' %}Todavía no has marcado notas como hechas.
+    {% else %}No tienes notas pendientes. <a href="/notas/nueva">Escribe la primera</a>.{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

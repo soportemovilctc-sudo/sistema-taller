@@ -16,7 +16,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 
-from app.models import MovimientoFinanciero, SaldoInicialMensual, CATEGORIA_DEPOSITO_BANCO
+from app.models import MovimientoFinanciero, SaldoInicialMensual, CATEGORIA_DEPOSITO_BANCO, CATEGORIAS_FUERA_DE_RESULTADOS
 from app.utils.calculations import to_decimal
 
 CUENTA_CAJA_CHICA = "caja_chica"
@@ -104,6 +104,10 @@ def calcular_liquidez(db: Session, anio: int | None = None, mes: int | None = No
     fila_saldo = obtener_saldo_inicial(db, anio, mes)
     saldo_inicial_caja_chica = to_decimal(fila_saldo.saldo_inicial_caja_chica) if fila_saldo else Decimal("0.00")
     saldo_inicial_banco = to_decimal(fila_saldo.saldo_inicial_banco) if fila_saldo else Decimal("0.00")
+    if fila_saldo:
+        # el saldo configurado es el del banco principal; se suman los demás bancos
+        from app.utils.bancos import neto_otros_bancos_antes
+        saldo_inicial_banco += neto_otros_bancos_antes(db, desde)
 
     ingresos_caja_chica = _suma(db, "ingreso", CUENTA_CAJA_CHICA, desde, hasta)
     egresos_caja_chica = _suma(db, "gasto", CUENTA_CAJA_CHICA, desde, hasta)
@@ -145,13 +149,13 @@ def calcular_utilidad_neta(db: Session, fecha_desde: datetime, fecha_hasta: date
         MovimientoFinanciero.tipo == "ingreso",
         MovimientoFinanciero.fecha >= fecha_desde, MovimientoFinanciero.fecha <= fecha_hasta,
         MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
-        MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
+        MovimientoFinanciero.categoria.notin_(CATEGORIAS_FUERA_DE_RESULTADOS),
     ).scalar()
     egresos = db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
         MovimientoFinanciero.tipo == "gasto",
         MovimientoFinanciero.fecha >= fecha_desde, MovimientoFinanciero.fecha <= fecha_hasta,
         MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
-        MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
+        MovimientoFinanciero.categoria.notin_(CATEGORIAS_FUERA_DE_RESULTADOS),
     ).scalar()
     ingresos = to_decimal(ingresos)
     egresos = to_decimal(egresos)

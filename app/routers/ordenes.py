@@ -27,6 +27,7 @@ from app.utils.flash import flash
 from app.utils.notificaciones import enviar_whatsapp
 from app.deps import login_required, roles_required
 from app.utils.turnos_caja import verificar_caja
+from app.utils.bancos import banco_si_aplica
 
 router = APIRouter()
 
@@ -207,6 +208,7 @@ def ordenes_crear(
     abono_transferencia: str = Form("0"),
     abono_tarjeta: str = Form("0"),
     abono_otro: str = Form("0"),
+    banco_id: str = Form(""),
     fecha_orden: str = Form(""),
     fecha_entrega: str = Form(""),
     repuesto_producto_id: list[str] = Form([]),
@@ -438,7 +440,8 @@ def ordenes_crear(
             )
         else:
             for forma, monto_dec in montos_iniciales:
-                _aplicar_abono(db, orden, monto_dec, forma, "Pago inicial al crear la orden", usuario["nombre_completo"])
+                _aplicar_abono(db, orden, monto_dec, forma, "Pago inicial al crear la orden", usuario["nombre_completo"],
+                               banco_si_aplica(db, forma, banco_id))
             db.flush()
 
     db.commit()
@@ -916,7 +919,8 @@ def _aplicar_cambio_estado(db: Session, orden: OrdenServicio, nuevo_estado: str,
     return monto_pago_automatico, monto_revertido
 
 
-def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, observacion: str, usuario_nombre: str) -> Decimal:
+def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, observacion: str, usuario_nombre: str,
+                   banco_id: int | None = None) -> Decimal:
     """Registra un abono sobre una orden (valida el monto contra el saldo
     actual, puede lanzar ValueError/InvalidOperation). Ya NO genera un
     ingreso contable aquí (ver CATEGORIA_VENTA_FACTURADA) — el abono queda
@@ -925,7 +929,8 @@ def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, ob
     monto ya validado."""
     monto_validado = validar_abono(monto, orden.saldo)
     pago = Pago(orden_id=orden.id, monto=monto_validado, forma_pago=forma_pago,
-                usuario_nombre=usuario_nombre, observacion=observacion)
+                usuario_nombre=usuario_nombre, observacion=observacion,
+                banco_id=banco_id if forma_pago != "Efectivo" else None)
     db.add(pago)
     db.flush()
     db.refresh(orden)
@@ -1023,6 +1028,7 @@ def ordenes_cambiar_estado(
 def ordenes_registrar_abono(
     orden_id: int, request: Request,
     monto: str = Form(...), forma_pago: str = Form("Efectivo"), observacion: str = Form(""), referencia: str = Form(""),
+    banco_id: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
@@ -1035,7 +1041,8 @@ def ordenes_registrar_abono(
         flash(request, mensaje_caja, "error")
         return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
     try:
-        monto_validado = _aplicar_abono(db, orden, monto, forma_pago, observacion, usuario["nombre_completo"])
+        monto_validado = _aplicar_abono(db, orden, monto, forma_pago, observacion, usuario["nombre_completo"],
+                                        banco_si_aplica(db, forma_pago, banco_id))
     except (ValueError, InvalidOperation) as e:
         flash(request, str(e), "error")
         return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)

@@ -5,6 +5,7 @@
   <a href="/caja/panel">Panel gerencial</a>
   <a href="/caja/conciliacion" class="active">Conciliación y egresos</a>
   <a href="/banco/estado-cuenta">Estado de cuenta bancario</a>
+  <a href="/banco/cuentas">Bancos</a>
   <a href="/caja/informe">Informe mensual</a>
   <a href="/caja/reporte">Reportes de caja chica</a>
   <a href="/caja/libro-diario">Libro Diario</a>
@@ -17,7 +18,7 @@
 <div class="card" style="margin-bottom:18px;">
   <div class="card-title">Auditoría de Depósitos bancarios</div>
   <p class="help" style="margin-bottom:10px;">
-    Un depósito bien registrado siempre son dos filas: una salida de Caja Chica (gasto) y una entrada a Banco (ingreso), por el mismo monto. Si alguna quedó mal — de antes de que existiera este sistema de pares, o corregida a mano — aquí aparece marcada como <b>anómala</b>, con el detalle de qué está mal.
+    Un depósito bien registrado siempre son dos filas: una salida de Caja Chica (egreso) y una entrada a Banco (ingreso), por el mismo monto. Si alguna quedó mal — de antes de que existiera este sistema de pares, o corregida a mano — aquí aparece marcada como <b>anómala</b>, con el detalle de qué está mal.
   </p>
   {% if total_anomalos %}
   <div class="badge badge-cancelado" style="margin-bottom:10px;">{{ total_anomalos }} depósito{{ 's' if total_anomalos != 1 else '' }} con anomalías</div>
@@ -40,14 +41,14 @@
           <td>{{ g.monto|moneda(config_taller().moneda) }}</td>
           <td>
             {% if g.lado_caja_chica %}
-              #{{ g.lado_caja_chica.id }} — {{ g.lado_caja_chica.tipo }} — {{ g.lado_caja_chica.referencia or '-' }}
+              #{{ g.lado_caja_chica.id }} — {{ g.lado_caja_chica.tipo|tipo_mov }} — {{ g.lado_caja_chica.referencia or '-' }}
             {% else %}
               <span class="text-muted">— no tiene —</span>
             {% endif %}
           </td>
           <td>
             {% if g.lado_banco %}
-              #{{ g.lado_banco.id }} — {{ g.lado_banco.tipo }} — {{ g.lado_banco.referencia or '-' }}
+              #{{ g.lado_banco.id }} — {{ g.lado_banco.tipo|tipo_mov }} — {{ g.lado_banco.referencia or '-' }}
             {% else %}
               <span class="text-muted">— no tiene —</span>
             {% endif %}
@@ -59,10 +60,10 @@
                 {% for a in g.anomalias %}<li>{{ a }}</li>{% endfor %}
               </ul>
               {% for extra in g.otros %}
-              <div class="help" style="margin-top:4px;">Fila suelta: #{{ extra.id }} — {{ extra.tipo }} / {{ extra.cuenta }} — {{ extra.monto|moneda(config_taller().moneda) }}</div>
+              <div class="help" style="margin-top:4px;">Fila suelta: #{{ extra.id }} — {{ extra.tipo|tipo_mov }} / {{ extra.cuenta }} — {{ extra.monto|moneda(config_taller().moneda) }}</div>
               {% endfor %}
               {% if g.auto_corregible %}
-              <form method="post" action="/caja/conciliacion/depositos/{{ g.mov_id_para_corregir }}/corregir-cuenta" style="margin-top:8px;" onsubmit="return confirm('¿Corregir este depósito? El lado \'gasto\' quedará en Caja Chica y el lado \'ingreso\' en Banco.');">
+              <form method="post" action="/caja/conciliacion/depositos/{{ g.mov_id_para_corregir }}/corregir-cuenta" style="margin-top:8px;" onsubmit="return confirm('¿Corregir este depósito? El lado de egreso quedará en Caja Chica y el de ingreso en Banco.');">
                 <button type="submit" class="btn btn-success btn-sm">Corregir automáticamente</button>
               </form>
               {% else %}

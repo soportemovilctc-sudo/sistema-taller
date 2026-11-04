@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "_bancos.html" import selector_banco %}
+{% block title %}{{ 'Nueva venta al crédito' if tipo == 'venta' else 'Nuevo préstamo' }}{% endblock %}
+{% block content %}
+<div class="m-wrap" style="max-width:680px;">
+  <div class="m-head">
+    <div>
+      <a href="/cxc" class="m-muted" style="font-size:13px;">← CxC</a>
+      <h1 class="m-title" style="margin-top:6px;">{{ 'Nueva venta al crédito' if tipo == 'venta' else 'Nuevo préstamo' }}</h1>
+    </div>
+    <div class="m-chips">
+      <a class="m-chip {{ 'on' if tipo == 'venta' else '' }}" href="/cxc/nueva?tipo=venta">Venta al crédito</a>
+      <a class="m-chip {{ 'on' if tipo == 'prestamo' else '' }}" href="/cxc/nueva?tipo=prestamo">Préstamo</a>
+    </div>
+  </div>
+  <div class="card">
+    <p class="help" style="margin-top:0;">
+      {% if tipo == 'venta' %}Algo que vendiste o reparaste y te pagan después. <b>No mueve la caja ni el banco ahora</b>: cada pago que entre cuenta como venta.
+      {% else %}Dinero que prestas. <b>Sale hoy de la caja o del banco</b> y regresa cuando te lo devuelven. No cuenta como egreso ni como venta.{% endif %}
+    </p>
+    <form method="post" action="/cxc/nueva" id="formCxc">
+      <input type="hidden" name="tipo" value="{{ tipo }}">
+      <div class="field">
+        <label>Cliente registrado (opcional)</label>
+        <select name="cliente_id" id="cxcCliente" class="js-buscar-select" data-placeholder="Escribe el nombre del cliente...">
+          <option value="">— Ninguno / otra persona —</option>
+          {% for cl in clientes %}<option value="{{ cl.id }}" data-nombre="{{ cl.nombre }}" data-tel="{{ cl.whatsapp or cl.telefono or '' }}">{{ cl.nombre }}{% if cl.telefono %} · {{ cl.telefono }}{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="field" style="flex:2;"><label for="cxcDeudor">{{ 'Cliente' if tipo == 'venta' else 'A quién se le presta' }} *</label><input id="cxcDeudor" type="text" name="deudor" maxlength="150" placeholder="Nombre" required></div>
+        <div class="field" style="flex:1;"><label for="cxcTel">Teléfono</label><input id="cxcTel" type="tel" name="telefono" maxlength="40"></div>
+      </div>
+      <div class="field"><label for="cxcConcepto">Concepto</label><input id="cxcConcepto" type="text" name="concepto" maxlength="300" placeholder="{{ 'Ej: pantalla iPhone 13, pagará el viernes' if tipo == 'venta' else 'Ej: adelanto de sueldo' }}"></div>
+      <div class="form-row">
+        <div class="field" style="flex:1;"><label for="cxcMonto">Monto {{ '(con ISV incluido)' if tipo == 'venta' else '' }} *</label><input id="cxcMonto" type="number" name="monto" step="0.01" min="0.01" inputmode="decimal" required></div>
+        <div class="field" style="flex:1;"><label for="cxcVence">Fecha en que debe pagar</label><input id="cxcVence" type="date" name="vence" min="{{ hoy_iso }}"></div>
+      </div>
+      {% if tipo == 'venta' %}
+      <label class="checkbox-chip"><input type="checkbox" name="con_isv" value="1" checked> El monto incluye ISV ({{ tasa_isv|int }}%)</label>
+      <div class="help">El ISV se separa en los Estados financieros. Si necesitas factura fiscal, emítela desde la orden o el Punto de Venta.</div>
+      {% else %}
+      <div class="field">
+        <label>¿De dónde sale el dinero? *</label>
+        <div class="pago-opciones" role="radiogroup">
+          <label class="pago-op"><input type="radio" name="cuenta_salida" value="caja_chica" checked><span>Caja Chica (efectivo)</span></label>
+          <label class="pago-op"><input type="radio" name="cuenta_salida" value="banco"><span>Banco (transferencia)</span></label>
+        </div>
+      </div>
+      {{ selector_banco(segun='cuenta_salida', etiqueta='¿De qué banco?') }}
+      {% endif %}
+      <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary">{{ 'Anotar venta al crédito' if tipo == 'venta' else 'Anotar préstamo' }}</button>
+        <a href="/cxc" class="btn btn-outline">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var sel = document.getElementById("cxcCliente"), nom = document.getElementById("cxcDeudor"), tel = document.getElementById("cxcTel");
+  function llenar() {
+    var o = sel && sel.options[sel.selectedIndex];
+    if (!o || !o.value) return;
+    nom.value = o.getAttribute("data-nombre") || nom.value;
+    if (!tel.value) tel.value = o.getAttribute("data-tel") || "";
+  }
+  if (sel) { sel.addEventListener("change", llenar); if (window.jQuery) window.jQuery(sel).on("change", llenar); }
+})();
+</script>
+{% endblock %}

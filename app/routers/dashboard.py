@@ -10,6 +10,7 @@ from sqlalchemy import func
 from app.templates_env import templates
 from app.database import get_db
 from app.models import (
+    CATEGORIAS_FUERA_DE_RESULTADOS,
     OrdenServicio, MovimientoFinanciero, Venta, Producto, Configuracion, Tecnico, Pago,
     CATEGORIA_DEPOSITO_BANCO, CATEGORIA_VENTA_FACTURADA,
 )
@@ -50,7 +51,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), usuario=Depends(l
         return db.query(func.coalesce(func.sum(MovimientoFinanciero.monto), 0)).filter(
             MovimientoFinanciero.tipo == tipo, MovimientoFinanciero.fecha >= desde,
             MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
-            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
+            MovimientoFinanciero.categoria.notin_(CATEGORIAS_FUERA_DE_RESULTADOS),
         ).scalar() or 0
 
     def cobrado_entre(desde, hasta):

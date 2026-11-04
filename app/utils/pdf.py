@@ -589,7 +589,7 @@ def generar_pdf_informe_caja(data: dict) -> bytes:
     story.append(Paragraph("ESTADO DE RESULTADOS (rentabilidad del período)", styles["Seccion"]))
     filas_util = [
         ["Ingresos del período", _moneda(util.get("ingresos", 0), moneda)],
-        ["Egresos / gastos del período", _moneda(util.get("egresos", 0), moneda)],
+        ["Egresos del período", _moneda(util.get("egresos", 0), moneda)],
         ["UTILIDAD NETA", _moneda(util.get("utilidad_neta", 0), moneda)],
         ["Margen", f"{util.get('margen_pct', 0)}%"],
     ]

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_bancos.html" import selector_banco %}
 {% block title %}Compra {{ sol.numero }}{% endblock %}
 {% block content %}
 {% set moneda = config_taller().moneda %}
@@ -106,6 +107,7 @@
             <select id="forma-{{ r.id }}" name="forma"><option value="Efectivo">Efectivo de la caja abierta</option><option value="Banco">Banco (transferencia)</option></select>
           </div>
         </div>
+        {{ selector_banco(segun='forma', etiqueta='¿De qué banco?') }}
         <div class="field"><label for="nota-{{ r.id }}">Nota</label><input id="nota-{{ r.id }}" type="text" name="nota" placeholder="Opcional: número de transferencia..."></div>
         <button class="btn btn-primary btn-sm" type="submit">Registrar pago</button>
       </form>

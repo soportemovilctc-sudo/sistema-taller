@@ -143,7 +143,9 @@ def cerrar_solicitud(db: Session, sol: SolicitudCompra, motivo: str, usuario_nom
 # ---------------------------------------------------------------------------
 # Pagos
 # ---------------------------------------------------------------------------
-def _registrar_pago(db: Session, rec: RecepcionCompra, monto: Decimal, forma: str, usuario_nombre: str, nota: str = ""):
+def _registrar_pago(db: Session, rec: RecepcionCompra, monto: Decimal, forma: str, usuario_nombre: str, nota: str = "",
+                    banco_id=None):
+    from app.utils.bancos import resolver_banco_id
     efectivo = forma == PAGO_COMPRA_EFECTIVO
     mov = MovimientoFinanciero(
         tipo="gasto", categoria=CATEGORIA_COMPRA_MERCADERIA, monto=monto.quantize(CENT),
@@ -153,6 +155,7 @@ def _registrar_pago(db: Session, rec: RecepcionCompra, monto: Decimal, forma: st
         usuario_nombre=usuario_nombre, referencia=rec.numero,
         cuenta=CUENTA_CAJA_CHICA if efectivo else CUENTA_BANCO,
         metodo_pago="Efectivo" if efectivo else "Transferencia",
+        banco_id=None if efectivo else resolver_banco_id(db, banco_id),
         recepcion_compra_id=rec.id, fecha=datetime.utcnow(),
     )
     db.add(mov)
@@ -211,7 +214,8 @@ def agregar_isv_recepcion(db: Session, rec: RecepcionCompra, tasa, usuario_nombr
     return None, f"Se agregó el ISV de L {isv:,.2f}. Total de la factura: L {rec.total:,.2f}; quedan L {rec.total - to_decimal(rec.pagado or 0):,.2f} por pagar al proveedor."
 
 
-def pagar_recepcion(db: Session, rec: RecepcionCompra, monto_texto: str, forma: str, nota: str, usuario_nombre: str) -> str | None:
+def pagar_recepcion(db: Session, rec: RecepcionCompra, monto_texto: str, forma: str, nota: str, usuario_nombre: str,
+                    banco_id=None) -> str | None:
     if rec.anulada:
         return "Esta compra fue anulada: ya no se le puede pagar."
     try:
@@ -229,7 +233,7 @@ def pagar_recepcion(db: Session, rec: RecepcionCompra, monto_texto: str, forma: 
         mensaje = verificar_caja(db)
         if mensaje:
             return mensaje
-    _registrar_pago(db, rec, monto, forma, usuario_nombre, nota)
+    _registrar_pago(db, rec, monto, forma, usuario_nombre, nota, banco_id)
     return None
 
 
@@ -238,7 +242,7 @@ def pagar_recepcion(db: Session, rec: RecepcionCompra, monto_texto: str, forma: 
 # ---------------------------------------------------------------------------
 def recibir(db: Session, sol: SolicitudCompra, lineas: dict, forma_pago: str, factura_proveedor: str,
             isv_texto: str, notas: str, usuario_nombre: str,
-            costo_con_isv: bool = False, precio_con_isv: bool = False, tasa=15):
+            costo_con_isv: bool = False, precio_con_isv: bool = False, tasa=15, banco_id=None):
     """lineas: {detalle_id: (cantidad, costo[, precio])} -> (recepcion, errores).
     El precio de venta (si se escribe, o el de la solicitud) queda en el
     producto al recibir."""
@@ -327,7 +331,7 @@ def recibir(db: Session, sol: SolicitudCompra, lineas: dict, forma_pago: str, fa
     rec.total = (subtotal + isv).quantize(CENT)
     sol.estado = COMPRA_RECIBIDA if all(d.pendiente == 0 for d in sol.detalles) else COMPRA_PARCIAL
     if forma_pago != PAGO_COMPRA_CREDITO and rec.total > 0:
-        _registrar_pago(db, rec, to_decimal(rec.total), forma_pago, usuario_nombre)
+        _registrar_pago(db, rec, to_decimal(rec.total), forma_pago, usuario_nombre, banco_id=banco_id)
     db.flush()
     return rec, []
 

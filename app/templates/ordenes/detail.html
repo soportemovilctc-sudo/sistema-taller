@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_bancos.html" import selector_banco %}
 {% block title %}Orden {{ orden.numero_orden }}{% endblock %}
 {% block content %}
 {% set moneda = config_taller().moneda %}
@@ -212,6 +213,7 @@
             {% endfor %}
           </div>
         </div>
+        {{ selector_banco(segun='forma_pago', etiqueta='¿A qué banco entró?') }}
         <div class="field" id="campoRefAbono" style="display:none;"><label for="refAbono">N.º de referencia de la transferencia *</label><input id="refAbono" type="text" name="referencia" placeholder="Número del comprobante"></div>
         <div class="field"><label for="obsAbono">Observación</label><input id="obsAbono" type="text" name="observacion"></div>
         <button type="submit" class="btn btn-success btn-sm">Registrar abono</button>

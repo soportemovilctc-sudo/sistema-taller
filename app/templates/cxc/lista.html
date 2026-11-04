@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}CxC · Cuentas por cobrar{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">CxC · Cuentas por cobrar</h1>
+      <div class="m-muted" style="margin-top:4px;">Ventas al crédito y préstamos que anotas a mano. Las órdenes con saldo siguen en <a href="/cuentas-por-cobrar">Ventas → Cuentas por cobrar</a>.</div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="/cxc/nueva?tipo=venta" class="btn btn-primary">+ Venta al crédito</a>
+      <a href="/cxc/nueva?tipo=prestamo" class="btn btn-outline">+ Préstamo</a>
+    </div>
+  </div>
+
+  <section class="cxc-kpis">
+    <div class="cxc-kpi"><span>Por cobrar</span><b>{{ resumen.por_cobrar|moneda(moneda) }}</b></div>
+    <div class="cxc-kpi"><span>Ventas al crédito</span><b>{{ resumen.ventas|moneda(moneda) }}</b></div>
+    <div class="cxc-kpi"><span>Préstamos</span><b>{{ resumen.prestamos|moneda(moneda) }}</b></div>
+    <div class="cxc-kpi {{ 'is-bad' if resumen.vencido > 0 else '' }}"><span>Vencido</span><b>{{ resumen.vencido|moneda(moneda) }}</b></div>
+  </section>
+
+  <div class="notas-barra">
+    <div class="m-chips">
+      {% for clave, nom in [('pendientes','Pendientes'),('vencidas','Vencidas'),('pagadas','Pagadas'),('anuladas','Anuladas')] %}
+      <a class="m-chip {{ 'on' if ver == clave else '' }}" href="/cxc?ver={{ clave }}{% if tipo %}&tipo={{ tipo }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">{{ nom }} <b>{{ n[clave] }}</b></a>
+      {% endfor %}
+    </div>
+    <form method="get" action="/cxc" class="notas-buscar" style="display:flex; gap:8px; flex-wrap:wrap;">
+      <input type="hidden" name="ver" value="{{ ver }}">
+      <select name="tipo" onchange="this.form.submit()" aria-label="Tipo">
+        <option value="">Todo</option>
+        <option value="venta" {{ 'selected' if tipo == 'venta' else '' }}>Ventas al crédito</option>
+        <option value="prestamo" {{ 'selected' if tipo == 'prestamo' else '' }}>Préstamos</option>
+      </select>
+      <input type="search" name="q" value="{{ q }}" placeholder="Buscar nombre, CXC-…, concepto" aria-label="Buscar">
+    </form>
+  </div>
+
+  {% if filas %}
+  <div class="table-wrap">
+    <table class="cxc-tabla">
+      <thead><tr><th>Cuenta</th><th>A quién</th><th>Concepto</th><th>Vence</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Saldo</th><th></th></tr></thead>
+      <tbody>
+      {% for c in filas %}
+        {% set vencida = c.estado == 'pendiente' and c.vence and c.vence < hoy %}
+        <tr>
+          <td data-label="Cuenta"><a href="/cxc/{{ c.id }}"><b>{{ c.numero }}</b></a><br><span class="pill {{ 'pill-info' if c.tipo == 'venta' else 'pill-warn' }}">{{ 'Venta al crédito' if c.tipo == 'venta' else 'Préstamo' }}</span></td>
+          <td data-label="A quién">{{ c.deudor }}{% if c.telefono %}<br><span class="m-muted" style="font-size:12.5px;">{{ c.telefono }}</span>{% endif %}</td>
+          <td data-label="Concepto" class="cxc-concepto">{{ c.concepto or '—' }}</td>
+          <td data-label="Vence">{% if c.vence %}<span class="{{ 'm-bad' if vencida else '' }}">{{ c.vence.strftime('%d/%m/%Y') }}{% if vencida %} · vencida{% endif %}</span>{% else %}<span class="m-muted">—</span>{% endif %}</td>
+          <td data-label="Total" class="num">{{ c.monto|moneda(moneda) }}</td>
+          <td data-label="Pagado" class="num">{{ c.pagado|moneda(moneda) }}</td>
+          <td data-label="Saldo" class="num"><b class="{{ 'm-bad' if c.saldo > 0 and c.estado != 'anulada' else '' }}">{{ c.saldo|moneda(moneda) if c.estado != 'anulada' else 'Anulada' }}</b></td>
+          <td>{% if c.estado == 'pendiente' %}<a href="/cxc/{{ c.id }}#pagar" class="btn btn-primary btn-sm">Registrar pago</a>{% else %}<a href="/cxc/{{ c.id }}" class="btn btn-outline btn-sm">Ver</a>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="notas-vacio">{% if q %}No hay cuentas que coincidan con «{{ q }}».{% elif ver == 'pendientes' %}No hay cuentas por cobrar pendientes.{% else %}Nada por aquí.{% endif %}</div>
+  {% endif %}
+</div>
+{% endblock %}

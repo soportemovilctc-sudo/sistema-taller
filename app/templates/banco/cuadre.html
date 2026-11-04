@@ -25,6 +25,7 @@
   <a href="/caja/panel">Panel gerencial</a>
   <a href="/caja/conciliacion">Conciliación y egresos</a>
   <a href="/banco/estado-cuenta">Estado de cuenta bancario</a>
+  <a href="/banco/cuentas">Bancos</a>
   <a href="/banco/cuadre" class="active">Cuadre de banco</a>
   <a href="/caja/informe">Informe mensual</a>
   <a href="/caja/libro-diario">Libro Diario</a>
@@ -38,13 +39,17 @@
   </div>
 
   <form method="get" action="/banco/cuadre" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:22px;">
+    {% if bancos|length > 1 %}
+    <div class="field" style="margin:0;"><label for="cbBanco">Banco</label>
+      <select id="cbBanco" name="banco">{% for b in bancos %}<option value="{{ b.id }}" {{ 'selected' if b.id == banco_id else '' }}>{{ b.etiqueta }}</option>{% endfor %}</select></div>
+    {% endif %}
     <div class="field" style="margin:0;"><label for="cbFecha">Saldo al día</label><input id="cbFecha" type="date" name="fecha" value="{{ dia.isoformat() }}" max="{{ hoy_iso }}"></div>
     <div class="field" style="margin:0;"><label for="cbReal">Saldo real del banco</label><input id="cbReal" type="text" inputmode="decimal" name="real" value="{{ real_txt }}" placeholder="Ej: 416812.53" style="font-size:18px; font-weight:700;"></div>
     <button type="submit" class="btn btn-primary">Comparar</button>
   </form>
 
   <section class="m-stats" style="padding-bottom:22px; border-bottom:1px solid var(--border);">
-    <div><div class="m-label">Banco en el sistema · {{ dia.strftime('%d/%m/%Y') }}</div><div class="m-val">{{ sistema|moneda(moneda) }}</div>
+    <div><div class="m-label">{{ banco_nombre if bancos|length > 1 else 'Banco' }} en el sistema · {{ dia.strftime('%d/%m/%Y') }}</div><div class="m-val">{{ sistema|moneda(moneda) }}</div>
       {% if panel is not none and panel != sistema %}<div class="m-muted" style="font-size:12px;">Panel gerencial muestra {{ panel|moneda(moneda) }}</div>{% endif %}</div>
     {% if real is not none %}
     <div><div class="m-label">Banco real</div><div class="m-val">{{ real|moneda(moneda) }}</div></div>
@@ -99,6 +104,7 @@
     <form method="post" action="/banco/cuadre" class="m-box" onsubmit="return confirm('¿Registrar el ajuste de {{ diferencia|abs|moneda(moneda) }} para que el banco del sistema quede igual al real? Se puede anular después.');">
       <input type="hidden" name="fecha" value="{{ dia.isoformat() }}">
       <input type="hidden" name="real" value="{{ real_txt }}">
+      <input type="hidden" name="banco" value="{{ banco_id }}">
       <p style="margin:0 0 10px;">Se registra {{ 'una <b>salida</b>'|safe if diferencia > 0 else 'una <b>entrada</b>'|safe }} en Banco de <b>{{ diferencia|abs|moneda(moneda) }}</b> el {{ dia.strftime('%d/%m/%Y') }}, con su asiento contable. Así el banco del sistema queda en <b>{{ real|moneda(moneda) }}</b>.</p>
       <div class="form-row">
         <div class="field">
@@ -109,7 +115,7 @@
         </div>
         <div class="field"><label for="cbNota">Nota</label><input id="cbNota" type="text" name="nota" placeholder="Opcional: qué se encontró"></div>
       </div>
-      <p class="help">{% if diferencia > 0 %}Cuenta como gasto en los Estados Financieros (las comisiones y cargos del banco lo son).{% else %}Cuenta como otro ingreso.{% endif %} Si después encuentras el error exacto, anula este cuadre y corrige el movimiento.</p>
+      <p class="help">{% if diferencia > 0 %}Cuenta como egreso en los Estados Financieros (las comisiones y cargos del banco lo son).{% else %}Cuenta como otro ingreso.{% endif %} Si después encuentras el error exacto, anula este cuadre y corrige el movimiento.</p>
       <button type="submit" class="btn btn-primary">Cuadrar el banco</button>
     </form>
   </div>

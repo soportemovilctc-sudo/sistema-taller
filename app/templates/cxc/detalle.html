@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "_bancos.html" import selector_banco %}
+{% block title %}{{ c.numero }} · CxC{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+{% set vencida = c.estado == 'pendiente' and c.vence and c.vence < hoy %}
+<div class="m-wrap" style="max-width:900px;">
+  <div class="m-head">
+    <div>
+      <a href="/cxc" class="m-muted" style="font-size:13px;">← CxC</a>
+      <h1 class="m-title" style="margin-top:6px;">{{ c.numero }} · {{ c.deudor }}</h1>
+      <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <span class="pill {{ 'pill-info' if c.tipo == 'venta' else 'pill-warn' }}">{{ 'Venta al crédito' if c.tipo == 'venta' else 'Préstamo' }}</span>
+        {% if c.estado == 'pagada' %}<span class="pill pill-ok">Pagada</span>{% elif c.estado == 'anulada' %}<span class="pill pill-bad">Anulada</span>{% elif vencida %}<span class="pill pill-bad">Vencida</span>{% else %}<span class="pill">Pendiente</span>{% endif %}
+        <span class="m-muted" style="font-size:13px;">Anotada el {{ fecha_local.strftime('%d/%m/%Y') }} por {{ c.usuario_nombre }}{% if c.telefono %} · Tel. {{ c.telefono }}{% endif %}</span>
+      </div>
+    </div>
+  </div>
+
+  <section class="m-stats" style="padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:20px;">
+    {% set tot = c.monto|moneda(moneda) %}
+    <div><div class="m-label">Total</div><div class="m-hero">{{ tot[:-3] }}<small>{{ tot[-3:] }}</small></div></div>
+    <div><div class="m-label">Pagado</div><div class="m-val m-ok">{{ c.pagado|moneda(moneda) }}</div></div>
+    <div><div class="m-label">Saldo</div><div class="m-val {{ 'm-bad' if c.saldo > 0 and c.estado != 'anulada' else '' }}">{{ c.saldo|moneda(moneda) if c.estado != 'anulada' else '—' }}</div></div>
+    <div><div class="m-label">Vence</div><div class="m-val {{ 'm-bad' if vencida else '' }}">{{ c.vence.strftime('%d/%m/%Y') if c.vence else '—' }}</div></div>
+  </section>
+
+  <div class="m-grid2" style="gap:28px;">
+    <div>
+      <div class="m-sec-t">Detalle</div>
+      <div class="m-row"><span>Concepto</span><span>{{ c.concepto or '—' }}</span></div>
+      {% if c.tipo == 'venta' %}<div class="m-row"><span>ISV incluido</span><span>{{ c.isv_monto|moneda(moneda) if c.con_isv else 'Sin ISV' }}</span></div>
+      {% else %}<div class="m-row"><span>Salió de</span><span>{{ origen }}</span></div>{% endif %}
+      {% if c.estado == 'anulada' %}<div class="m-row"><span>Anulada</span><span>{{ c.anulada_motivo }} — {{ c.anulada_por }}{% if c.anulada_en %}, {{ c.anulada_en|hn('%d/%m/%Y') }}{% endif %}</span></div>{% endif %}
+
+      <div class="m-sec-t" style="margin-top:22px;">Pagos</div>
+      {% for x in pagos %}{% set p = x.p %}
+      <div class="m-row cxc-pago {{ 'is-anulado' if p.anulado else '' }}">
+        <span>{{ p.forma_pago }}{% if x.banco %} · {{ x.banco }}{% endif %}{% if p.referencia %} · Ref. {{ p.referencia }}{% endif %}<br>
+          <span class="m-muted" style="font-size:12.5px;">{{ x.fecha.strftime('%d/%m/%Y %I:%M %p') }} · {{ p.usuario_nombre }}{% if p.anulado %} · ANULADO: {{ p.anulado_motivo }}{% endif %}</span></span>
+        <span style="display:inline-flex; gap:8px; align-items:center;"><b>{{ p.monto|moneda(moneda) }}</b>
+          {% if not p.anulado %}
+          <details class="abono-anular"><summary>Anular</summary>
+            <form method="post" action="/cxc/{{ c.id }}/pagos/{{ p.id }}/anular" class="abono-anular-box">
+              <label>Motivo</label><input type="text" name="motivo" required placeholder="Ej: se registró dos veces">
+              <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);">Anular este pago</button>
+            </form>
+          </details>
+          {% endif %}
+        </span>
+      </div>
+      {% else %}<p class="m-muted">Todavía no hay pagos.</p>{% endfor %}
+    </div>
+
+    <div>
+      {% if c.estado == 'pendiente' %}
+      <div class="card" id="pagar">
+        <div class="card-title">Registrar pago</div>
+        <form method="post" action="/cxc/{{ c.id }}/pago">
+          <div class="field"><label for="pagoMonto">Monto</label>
+            <div style="display:flex; gap:8px;"><input id="pagoMonto" type="number" name="monto" step="0.01" min="0.01" max="{{ c.saldo }}" inputmode="decimal" required style="flex:1;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('pagoMonto').value='{{ c.saldo }}'">Todo ({{ c.saldo|moneda(moneda) }})</button></div>
+          </div>
+          <div class="field"><label>¿Cómo pagó?</label>
+            <div class="pago-opciones" role="radiogroup">
+              {% for f in formas %}<label class="pago-op"><input type="radio" name="forma_pago" value="{{ f }}" {{ 'checked' if f == 'Efectivo' else '' }}><span>{{ f }}</span></label>{% endfor %}
+            </div>
+          </div>
+          {{ selector_banco(segun='forma_pago', etiqueta='¿A qué banco entró?') }}
+          <div class="field campo-banco" data-segun="forma_pago"><label for="pagoRef">N.º de referencia <span class="m-muted">(obligatorio en transferencia)</span></label><input id="pagoRef" type="text" name="referencia" maxlength="60"></div>
+          <button type="submit" class="btn btn-primary" style="width:100%;">Registrar pago</button>
+          <div class="help" style="margin-top:8px;">Efectivo entra a la caja abierta; transferencia y tarjeta, al banco elegido.</div>
+        </form>
+      </div>
+      {% endif %}
+      {% if c.estado != 'anulada' and not c.pagos %}
+      <details class="m-more" style="margin-top:16px;">
+        <summary>Anular esta cuenta</summary>
+        <form method="post" action="/cxc/{{ c.id }}/anular" style="margin-top:10px;">
+          <div class="field"><label>Motivo</label><input type="text" name="motivo" required placeholder="Ej: se anotó por error"></div>
+          <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);">Anular {{ c.numero }}</button>
+          {% if c.tipo == 'prestamo' %}<div class="help">El dinero del préstamo vuelve a contar en {{ origen }}.</div>{% endif %}
+        </form>
+      </details>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

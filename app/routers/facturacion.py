@@ -178,35 +178,35 @@ def _validar_fiscal_disponible(cfg: ConfiguracionFacturacion) -> str | None:
     return None
 
 
-def _desglose_pagos_orden(orden: OrdenServicio, total_factura, forma_saldo: str = "Efectivo") -> list[tuple[str, Decimal]]:
+def _desglose_pagos_orden(orden: OrdenServicio, total_factura, forma_saldo: str = "Efectivo") -> list[tuple[str, Decimal, int | None]]:
     """Reparte el total de una factura de orden entre Efectivo/Transferencia/
-    Tarjeta/Otro según los abonos (Pago.forma_pago) que ya tiene registrados
-    esa orden -- para que el ingreso contable se clasifique en la cuenta
-    real donde cayó el dinero (ver _crear_ingresos_factura). Si lo ya
-    abonado no alcanza el total facturado (por ejemplo se factura antes de
-    terminar de cobrar), la diferencia se suma a Efectivo, igual que el
-    comportamiento de siempre antes de este desglose -- no se inventa un
-    método de pago que el cliente nunca eligió."""
-    acumulado: dict[str, Decimal] = {}
+    Tarjeta/Otro (y, con varios bancos, el banco al que entró cada abono)
+    según los abonos (Pago.forma_pago, Pago.banco_id) que ya tiene
+    registrados esa orden -- para que el ingreso contable se clasifique en
+    la cuenta real donde cayó el dinero (ver _crear_ingresos_factura). Si lo
+    ya abonado no alcanza el total facturado, la diferencia se suma a la
+    forma de pago elegida (Efectivo si no se eligió otra) -- no se inventa
+    un método de pago que el cliente nunca eligió."""
+    acumulado: dict[tuple, Decimal] = {}
     for p in orden.pagos:
         forma = p.forma_pago if p.forma_pago in FORMAS_PAGO else "Efectivo"
-        acumulado[forma] = acumulado.get(forma, Decimal("0.00")) + to_decimal(p.monto)
+        clave = (forma, None if forma == "Efectivo" else getattr(p, "banco_id", None))
+        acumulado[clave] = acumulado.get(clave, Decimal("0.00")) + to_decimal(p.monto)
 
     suma_pagos = sum(acumulado.values(), Decimal("0.00"))
     faltante = (to_decimal(total_factura) - suma_pagos).quantize(Decimal("0.01"))
     if faltante > 0:
-        # Lo que falta por abonar se cobra con la forma de pago elegida al
-        # generar la factura (Efectivo si no se eligió otra).
         forma_saldo = forma_saldo if forma_saldo in FORMAS_PAGO else "Efectivo"
-        acumulado[forma_saldo] = acumulado.get(forma_saldo, Decimal("0.00")) + faltante
+        clave = (forma_saldo, None)
+        acumulado[clave] = acumulado.get(clave, Decimal("0.00")) + faltante
     elif faltante < 0:
         # Se abonó de más que el total facturado (caso raro, por ejemplo un
         # redondeo): se recorta el excedente del método con mayor monto, para
         # nunca contar como ingreso más de lo que la factura realmente vale.
-        clave_mayor = max(acumulado, key=acumulado.get) if acumulado else "Efectivo"
+        clave_mayor = max(acumulado, key=acumulado.get) if acumulado else ("Efectivo", None)
         acumulado[clave_mayor] = acumulado.get(clave_mayor, Decimal("0.00")) + faltante
 
-    return [(forma, monto.quantize(Decimal("0.01"))) for forma, monto in acumulado.items() if monto > 0]
+    return [(forma, monto.quantize(Decimal("0.01")), banco_id) for (forma, banco_id), monto in acumulado.items() if monto > 0]
 
 
 def _crear_ingresos_factura(
@@ -222,7 +222,7 @@ def _crear_ingresos_factura(
     para que el asiento del Libro Diario quede balanceado fila por fila."""
     desglose = _desglose_pagos_orden(orden, factura.total, forma_saldo)
     total_factura = to_decimal(factura.total)
-    for forma_pago, monto in desglose:
+    for forma_pago, monto, banco_id in desglose:
         if total_factura > 0:
             isv_fila = (monto * isv_monto_total / total_factura).quantize(Decimal("0.01"))
         else:
@@ -233,7 +233,7 @@ def _crear_ingresos_factura(
             tipo="ingreso", categoria=CATEGORIA_VENTA_FACTURADA, monto=monto,
             descripcion=f"Factura {factura.numero_documento} - Orden {orden.numero_orden}",
             usuario_nombre=usuario_nombre, referencia=orden.numero_orden,
-            cuenta=cuenta, metodo_pago=forma_pago,
+            cuenta=cuenta, metodo_pago=forma_pago, banco_id=banco_id if cuenta == CUENTA_BANCO else None,
             fecha=factura.fecha_emision, factura_id=factura.id,
         )
         db.add(mov)
@@ -254,6 +254,8 @@ def _corregir_formas_abonos(db: Session, orden: OrdenServicio, form, usuario_nom
         if not nueva or nueva not in FORMAS_PAGO or nueva == actual:
             continue
         p.forma_pago = nueva
+        if nueva == "Efectivo":
+            p.banco_id = None
         nota = f"Forma de pago corregida al facturar: {actual} → {nueva} ({usuario_nombre})"
         p.observacion = f"{p.observacion or ''} · {nota}".strip(" ·")
         cambios.append(f"abono de L {to_decimal(p.monto):,.2f}: {actual} → {nueva}")

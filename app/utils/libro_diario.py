@@ -63,7 +63,7 @@ CATEGORIAS_VENTA_CONTADO = {
 CATEGORIA_OTRO_INGRESO = "Otros ingresos"
 CATEGORIA_REVERSION_CANCELACION = "Reversión por orden cancelada"
 CATEGORIAS_SALIDA_CAJA_CHICA = {
-    "Salida de caja", "Crédito por garantía", "Compra menor", "Otro gasto de caja",
+    "Salida de caja", "Crédito por garantía", "Compra menor", "Otro egreso de caja",
     "Compras", "Proveedores", "Servicios básicos", "Transporte",
     CATEGORIA_NOMINA_EFECTIVO, CATEGORIA_NOMINA_TRANSFERENCIA,
 }
@@ -208,6 +208,35 @@ def registrar_asiento_para_movimiento(
             return registrar_asiento(
                 db, fecha, f"Reversión por orden cancelada - {mov.descripcion or ''}".strip(" -"),
                 "reversion_cancelacion", [(CTA_VENTAS, mov.monto, 0), (cuenta_caja, 0, mov.monto)],
+                referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
+            )
+
+        # Cuentas por cobrar anotadas a mano (ver app/utils/cxc.py)
+        from app.models import CATEGORIA_PRESTAMO_OTORGADO, CATEGORIA_COBRO_PRESTAMO, CATEGORIA_COBRO_VENTA_CREDITO
+        if mov.categoria == CATEGORIA_PRESTAMO_OTORGADO:
+            return registrar_asiento(
+                db, fecha, f"Préstamo otorgado - {mov.descripcion or ''}".strip(" -"),
+                "prestamo_otorgado", [(CTA_CXC_EMPLEADOS, mov.monto, 0), (cuenta_caja, 0, mov.monto)],
+                referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
+            )
+        if mov.categoria == CATEGORIA_COBRO_PRESTAMO:
+            return registrar_asiento(
+                db, fecha, f"Cobro de préstamo - {mov.descripcion or ''}".strip(" -"),
+                "cobro_prestamo", [(cuenta_caja, mov.monto, 0), (CTA_CXC_EMPLEADOS, 0, mov.monto)],
+                referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
+            )
+        if mov.categoria == CATEGORIA_COBRO_VENTA_CREDITO:
+            if isv_monto is None:
+                from app.models import CxCPago
+                pago = db.query(CxCPago).filter(CxCPago.mov_id == mov.id).first()
+                isv_monto = Decimal(pago.isv_monto) if pago else Decimal("0.00")
+            isv = Decimal(isv_monto or 0).quantize(Decimal("0.01"))
+            lineas = [(cuenta_caja, mov.monto, 0), (CTA_VENTAS, 0, Decimal(mov.monto) - isv)]
+            if isv > 0:
+                lineas.append((CTA_DEBITO_FISCAL_ISV, 0, isv))
+            return registrar_asiento(
+                db, fecha, f"Cobro de venta al crédito - {mov.descripcion or ''}".strip(" -"),
+                "cobro_venta_credito", lineas,
                 referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
             )
 

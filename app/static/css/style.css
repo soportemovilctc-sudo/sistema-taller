@@ -1940,3 +1940,31 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
 @media (max-width: 600px) { .notas-buscar, .notas-buscar input { width: 100%; min-width: 0; } .ed-barra { top: 56px; } }
 /* El resaltado es claro: su texto siempre oscuro para que se lea en tema oscuro. */
 .nota-cuerpo [style*="background-color"], .ed-area [style*="background-color"] { color: #111827; border-radius: 3px; padding: 0 2px; }
+
+/* ---------- CxC ---------- */
+.cxc-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.cxc-kpi { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--panel); }
+.cxc-kpi span { display: block; font-size: 12.5px; color: var(--text-muted); }
+.cxc-kpi b { font-size: 19px; font-variant-numeric: tabular-nums; }
+.cxc-kpi.is-bad b { color: var(--danger-text); }
+.cxc-tabla td.num, .cxc-tabla th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cxc-concepto { max-width: 260px; color: var(--text-muted); }
+.cxc-pago.is-anulado b { text-decoration: line-through; color: var(--text-muted); }
+@media (max-width: 720px) { .cxc-kpis { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- Bancos ---------- */
+.bancos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.banco-card { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: var(--panel); display: flex; flex-direction: column; gap: 12px; }
+.banco-card.is-off { opacity: .6; }
+.banco-card header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.banco-card h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.banco-saldo span { display: block; font-size: 12.5px; color: var(--text-muted); }
+.banco-saldo b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.banco-acc { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.banco-acc details { flex-basis: 100%; }
+.bancos-resumen { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
+.bancos-resumen a { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; color: var(--text); text-decoration: none; font-size: 13px; }
+.bancos-resumen a.on { border-color: var(--primary); background: var(--panel-2); font-weight: 600; }
+.bancos-resumen b { display: block; font-size: 15px; font-variant-numeric: tabular-nums; }
+.notas-buscar select { width: auto; min-width: 150px; }
+@media (min-width: 601px) { form.notas-buscar { flex-wrap: nowrap !important; } }

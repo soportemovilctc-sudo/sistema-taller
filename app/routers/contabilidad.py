@@ -9,7 +9,7 @@ from sqlalchemy import func
 
 from app.templates_env import templates
 from app.database import get_db
-from app.models import MovimientoFinanciero, CATEGORIA_DEPOSITO_BANCO
+from app.models import MovimientoFinanciero, CATEGORIA_DEPOSITO_BANCO, CATEGORIAS_FUERA_DE_RESULTADOS
 from app.utils.calculations import to_decimal
 from app.utils.flash import flash
 from app.deps import roles_required
@@ -51,7 +51,7 @@ def contabilidad_index(
         # ingreso ni un gasto real — se excluye de Contabilidad para no
         # inflar Ingresos y Gastos con el mismo monto (ver /caja/panel y
         # /caja/conciliacion, que es donde sí se controla ese traslado).
-        MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
+        MovimientoFinanciero.categoria.notin_(CATEGORIAS_FUERA_DE_RESULTADOS),
     )
     # La Cajera nunca debe ver movimientos de banco (transferencias/tarjeta
     # conciliadas como banco, egresos mayores) — solo Caja Chica. El Admin
@@ -82,7 +82,7 @@ def contabilidad_crear(
 ):
     # Ya no se registra desde aquí: los ingresos y gastos van por Caja, para
     # que queden en la caja abierta y cuadren en el cierre del día.
-    flash(request, "Los ingresos y gastos ahora se registran desde Caja → Registrar movimientos.", "error")
+    flash(request, "Los ingresos y egresos ahora se registran desde Caja → Registrar movimientos.", "error")
     return RedirectResponse("/caja/registrar", status_code=303)
     try:
         monto_dec = to_decimal(monto)

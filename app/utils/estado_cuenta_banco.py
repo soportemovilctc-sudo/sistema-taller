@@ -89,21 +89,34 @@ def periodo_desde_texto(desde_txt: str, hasta_txt: str) -> tuple[date, date]:
     return desde, hasta
 
 
-def estado_cuenta(db: Session, desde: date, hasta: date, tipo: str = "") -> dict:
-    from app.utils.estados_financieros import saldo_efectivo_a  # evita import circular
+def estado_cuenta(db: Session, desde: date, hasta: date, tipo: str = "", banco_id: int | None = None) -> dict:
+    """banco_id: un banco en particular, o None = todos los bancos juntos."""
+    from app.utils.bancos import saldo_banco_a, filtro_banco, nombre_banco, bancos_activos
+
+    def saldo_a(instante):
+        return q(saldo_banco_a(db, banco_id, instante))
 
     inicio = inicio_dia_local_en_utc(desde)
     fin = inicio_dia_local_en_utc(hasta + timedelta(days=1))
-    saldo_inicial = q(saldo_efectivo_a(db, inicio)["banco"])
+    saldo_inicial = saldo_a(inicio)
 
-    movs = (
+    consulta = (
         db.query(MovimientoFinanciero)
         .filter(MovimientoFinanciero.cuenta == CUENTA_BANCO,
                 MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
                 MovimientoFinanciero.fecha >= inicio, MovimientoFinanciero.fecha < fin)
-        .order_by(MovimientoFinanciero.fecha.asc(), MovimientoFinanciero.id.asc())
-        .all()
     )
+    cond = filtro_banco(db, banco_id)
+    if cond is not None:
+        consulta = consulta.filter(cond)
+    movs = consulta.order_by(MovimientoFinanciero.fecha.asc(), MovimientoFinanciero.id.asc()).all()
+    varios = len(bancos_activos(db)) > 1 or db.query(MovimientoFinanciero.id).filter(MovimientoFinanciero.banco_id != None).first() is not None  # noqa: E711
+    nombres = {}
+
+    def banco_de(m):
+        if m.banco_id not in nombres:
+            nombres[m.banco_id] = nombre_banco(db, m.banco_id)
+        return nombres[m.banco_id]
     # Inicios de mes dentro del período: si ese mes tiene un saldo inicial
     # configurado en Caja distinto de lo que venía, se muestra el ajuste
     # (así el saldo final cuadra con «Banco actual» del Panel gerencial).
@@ -119,7 +132,7 @@ def estado_cuenta(db: Session, desde: date, hasta: date, tipo: str = "") -> dict
 
     def aplicar_corte(dia):
         nonlocal saldo, ajustes
-        esperado = q(saldo_efectivo_a(db, inicio_dia_local_en_utc(dia))["banco"])
+        esperado = saldo_a(inicio_dia_local_en_utc(dia))
         if esperado != saldo:
             dif = q(esperado - saldo)
             ajustes += dif
@@ -144,7 +157,7 @@ def estado_cuenta(db: Session, desde: date, hasta: date, tipo: str = "") -> dict
             "detalle": _detalle(m), "referencia": _referencia(m),
             "entrada": monto if m.tipo == "ingreso" else CERO, "salida": monto if m.tipo != "ingreso" else CERO,
             "saldo": saldo, "conciliacion": _conciliacion(m), "id": m.id, "usuario": m.usuario_nombre or "",
-            "convertible": es_convertible(m),
+            "convertible": es_convertible(m), "banco": banco_de(m) if varios else "",
         })
     while i_corte < len(cortes):
         aplicar_corte(cortes[i_corte])
@@ -154,7 +167,8 @@ def estado_cuenta(db: Session, desde: date, hasta: date, tipo: str = "") -> dict
     salidas = q(totales["salida"]["monto"])
     visibles = [f for f in filas if not tipo or f["tipo"] == tipo or (tipo == "entradas" and f["tipo"] not in ("salida", "ajuste"))]
     return {
-        "desde": desde, "hasta": hasta, "tipo": tipo,
+        "desde": desde, "hasta": hasta, "tipo": tipo, "banco_id": banco_id,
+        "banco_nombre": nombre_banco(db, banco_id) if banco_id else "Todos los bancos", "varios_bancos": varios,
         "saldo_inicial": saldo_inicial, "saldo_final": saldo,
         "entradas": entradas, "salidas": salidas, "ajustes": q(ajustes),
         "totales": {k: {"n": v["n"], "monto": q(v["monto"])} for k, v in totales.items()},

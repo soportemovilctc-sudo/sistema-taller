@@ -169,3 +169,27 @@ def notas_recordatorio(usuario_id):
 
 
 templates.env.globals["notas_recordatorio"] = notas_recordatorio
+
+
+def bancos_activos_plantilla():
+    """Bancos activos para los selectores (el principal primero). Nunca lanza error."""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        from app.utils.bancos import bancos_activos
+        return [{"id": b.id, "nombre": b.nombre, "etiqueta": b.etiqueta, "principal": b.principal} for b in bancos_activos(db)]
+    except Exception:
+        return []
+    finally:
+        db.close()
+
+
+templates.env.globals["bancos_activos"] = bancos_activos_plantilla
+
+
+def fmt_tipo_mov(valor):
+    """«gasto»/«ingreso» guardado -> texto que se muestra (Egreso/Ingreso)."""
+    return {"gasto": "Egreso", "ingreso": "Ingreso"}.get((valor or "").lower(), valor or "")
+
+
+templates.env.filters["tipo_mov"] = fmt_tipo_mov

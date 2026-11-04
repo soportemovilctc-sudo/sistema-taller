@@ -2,11 +2,13 @@
 {% block title %}Estado de cuenta bancario{% endblock %}
 {% block content %}
 {% set moneda = config_taller().moneda %}
-{% set qs = 'desde=' ~ desde ~ '&hasta=' ~ hasta ~ ('&tipo=' ~ ec.tipo if ec.tipo else '') %}
+{% set qb = ('&banco=' ~ ec.banco_id) if ec.banco_id else '' %}
+{% set qs = 'desde=' ~ desde ~ '&hasta=' ~ hasta ~ ('&tipo=' ~ ec.tipo if ec.tipo else '') ~ qb %}
 <div class="pill-tabs">
   <a href="/caja/panel">Panel gerencial</a>
   <a href="/caja/conciliacion">Conciliación y egresos</a>
   <a href="/banco/estado-cuenta" class="active">Estado de cuenta bancario</a>
+  <a href="/banco/cuentas">Bancos</a>
   <a href="/banco/cuadre">Cuadre de banco</a>
   <a href="/caja/informe">Informe mensual</a>
   <a href="/caja/reporte">Reportes de caja chica</a>
@@ -16,7 +18,7 @@
   <div class="m-head">
     <div>
       <h1 class="m-title">Estado de cuenta bancario</h1>
-      <div class="m-sub">Del {{ ec.desde.strftime('%d/%m/%Y') }} al {{ ec.hasta.strftime('%d/%m/%Y') }} · {{ ec.n_total }} movimiento{{ 's' if ec.n_total != 1 else '' }} en Banco</div>
+      <div class="m-sub">{% if ec.varios_bancos %}<b>{{ ec.banco_nombre }}</b> · {% endif %}Del {{ ec.desde.strftime('%d/%m/%Y') }} al {{ ec.hasta.strftime('%d/%m/%Y') }} · {{ ec.n_total }} movimiento{{ 's' if ec.n_total != 1 else '' }} en Banco</div>
     </div>
     <div class="m-acciones">
       <a href="/banco/estado-cuenta/pdf?{{ qs }}" target="_blank" class="btn btn-outline">PDF</a>
@@ -25,6 +27,12 @@
     </div>
   </div>
 
+  {% if saldos_bancos %}
+  <nav class="bancos-resumen" aria-label="Elegir banco">
+    <a href="/banco/estado-cuenta?desde={{ desde }}&hasta={{ hasta }}" class="{{ 'on' if not ec.banco_id else '' }}">Todos los bancos<b>{{ saldos_bancos|sum(attribute='saldo')|moneda(moneda) }}</b></a>
+    {% for x in saldos_bancos %}<a href="/banco/estado-cuenta?desde={{ desde }}&hasta={{ hasta }}&banco={{ x.banco.id }}" class="{{ 'on' if ec.banco_id == x.banco.id else '' }}">{{ x.banco.nombre }}<b>{{ x.saldo|moneda(moneda) }}</b></a>{% endfor %}
+  </nav>
+  {% endif %}
   <section class="m-stats" aria-label="Saldos" style="gap:44px; padding-bottom:22px; border-bottom:1px solid var(--border);">
     <div><div class="m-label">Saldo inicial</div><div class="m-val">{{ ec.saldo_inicial|moneda(moneda) }}</div></div>
     <div><div class="m-label">+ Entradas</div><div class="m-val m-ok">{{ ec.entradas|moneda(moneda) }}</div></div>
@@ -35,7 +43,7 @@
 
   <nav class="m-strip" aria-label="Por tipo" style="margin-top:0;">
     {% for clave, nombre in ec.tipos.items() %}
-    <a href="/banco/estado-cuenta?desde={{ desde }}&hasta={{ hasta }}&tipo={{ clave }}" style="{{ 'color:var(--primary-light);' if ec.tipo == clave else '' }}">
+     <a href="/banco/estado-cuenta?desde={{ desde }}&hasta={{ hasta }}&tipo={{ clave }}{{ qb }}" style="{{ 'color:var(--primary-light);' if ec.tipo == clave else '' }}">
       <div class="m-label">{{ nombre }} · {{ ec.totales[clave].n }}</div>
       <div style="font-size:20px; font-weight:800; margin-top:4px; font-variant-numeric:tabular-nums;" class="{{ 'm-bad' if clave == 'salida' else '' }}">{{ ec.totales[clave].monto|moneda(moneda) }}</div>
     </a>
@@ -53,9 +61,10 @@
         {% for clave, nombre in ec.tipos.items() %}<option value="{{ clave }}" {{ 'selected' if ec.tipo == clave else '' }}>{{ nombre }}</option>{% endfor %}
       </select>
     </div>
+    {% if ec.banco_id %}<input type="hidden" name="banco" value="{{ ec.banco_id }}">{% endif %}
     <button type="submit" class="btn btn-outline btn-sm">Ver</button>
-    <a class="m-chip" href="/banco/estado-cuenta?desde={{ este_mes[0] }}&hasta={{ este_mes[1] }}">Este mes</a>
-    <a class="m-chip" href="/banco/estado-cuenta?desde={{ mes_anterior[0] }}&hasta={{ mes_anterior[1] }}">Mes anterior</a>
+    <a class="m-chip" href="/banco/estado-cuenta?desde={{ este_mes[0] }}&hasta={{ este_mes[1] }}{{ qb }}">Este mes</a>
+    <a class="m-chip" href="/banco/estado-cuenta?desde={{ mes_anterior[0] }}&hasta={{ mes_anterior[1] }}{{ qb }}">Mes anterior</a>
   </form>
   {% if ec.pendientes_conciliar %}<p class="help m-warn">{{ ec.pendientes_conciliar }} transferencia{{ 's' if ec.pendientes_conciliar != 1 else '' }} sin conciliar con el banco: <a href="/caja/conciliacion">revisarlas en Conciliación</a>.</p>{% endif %}
 
@@ -71,7 +80,7 @@
           <td class="m-muted" style="white-space:nowrap;">{{ f.fecha|hn('%d/%m/%Y %I:%M %p') if f.fecha else f.dia.strftime('%d/%m/%Y') }}</td>
           <td style="font-weight:600; white-space:nowrap;" class="{{ 'm-bad' if f.tipo == 'salida' else ('m-warn' if f.tipo == 'ajuste' else '') }}">{{ f.tipo_texto }}</td>
           <td>{{ f.detalle }}{% if f.usuario %}<div class="m-muted" style="font-size:11.5px;">{{ f.usuario }}</div>{% endif %}</td>
-          <td class="m-muted nw" style="font-size:12.5px;">{{ f.referencia }}</td>
+          <td class="m-muted nw" style="font-size:12.5px;">{{ f.referencia }}{% if f.banco and not ec.banco_id %}<div>{{ f.banco }}</div>{% endif %}</td>
           <td class="num m-ok" style="font-weight:700;">{{ f.entrada|moneda(moneda) if f.entrada else '' }}</td>
           <td class="num m-bad" style="font-weight:700;">{{ f.salida|moneda(moneda) if f.salida else '' }}</td>
           <td class="num" style="font-weight:800;">{{ f.saldo|moneda(moneda) }}</td>

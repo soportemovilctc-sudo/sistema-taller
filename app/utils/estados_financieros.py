@@ -171,7 +171,8 @@ def _movimientos(db: Session, inicio: datetime, fin: datetime, incluir_depositos
         MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
     )
     if not incluir_depositos:
-        consulta = consulta.filter(MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO)
+        from app.models import CATEGORIAS_FUERA_DE_RESULTADOS
+        consulta = consulta.filter(MovimientoFinanciero.categoria.notin_(CATEGORIAS_FUERA_DE_RESULTADOS))
     return consulta.all()
 
 
@@ -191,6 +192,11 @@ def _isv_de_movimientos(db: Session, ingresos) -> dict:
             for f in db.query(Factura).filter(Factura.venta_id.in_(list(ids_venta)), Factura.orden_id.is_(None)).all():
                 recibos_por_venta[ids_venta[f.venta_id]] = f
     isv = {}
+    from app.models import CATEGORIA_COBRO_VENTA_CREDITO, CxCPago
+    ids_credito = [m.id for m in ingresos if m.categoria == CATEGORIA_COBRO_VENTA_CREDITO]
+    if ids_credito:
+        for p in db.query(CxCPago).filter(CxCPago.mov_id.in_(ids_credito)).all():
+            isv[p.mov_id] = q(p.isv_monto)
     for m in ingresos:
         factura = None
         if m.categoria == CATEGORIA_VENTA_FACTURADA and m.factura_id:
@@ -255,7 +261,10 @@ def _saldo_al_iniciar_mes(db: Session, anio: int, mes: int, profundidad: int = 0
         SaldoInicialMensual.anio == anio, SaldoInicialMensual.mes == mes,
     ).first()
     if fila is not None:
-        return to_decimal(fila.saldo_inicial_caja_chica), to_decimal(fila.saldo_inicial_banco), True
+        # El saldo configurado es el del banco principal; se suman los demás bancos.
+        from app.utils.bancos import neto_otros_bancos_antes
+        banco = to_decimal(fila.saldo_inicial_banco) + neto_otros_bancos_antes(db, _inicio_mes_utc(anio, mes))
+        return to_decimal(fila.saldo_inicial_caja_chica), banco, True
     if profundidad >= 36:
         return CERO, CERO, False
     anio_prev, mes_prev = (anio - 1, 12) if mes == 1 else (anio, mes - 1)
@@ -291,12 +300,15 @@ def estado_resultados(db: Session, periodo: Periodo, inv: InventarioHistorico, p
 
     ventas_ordenes = [m for m in ingresos if m.categoria == CATEGORIA_VENTA_FACTURADA]
     ventas_pos = [m for m in ingresos if m.categoria == CATEGORIA_VENTA_POS]
-    otros = [m for m in ingresos if m.categoria not in (CATEGORIA_VENTA_FACTURADA, CATEGORIA_VENTA_POS)]
+    from app.models import CATEGORIA_COBRO_VENTA_CREDITO
+    ventas_credito = [m for m in ingresos if m.categoria == CATEGORIA_COBRO_VENTA_CREDITO]
+    otros = [m for m in ingresos if m.categoria not in (CATEGORIA_VENTA_FACTURADA, CATEGORIA_VENTA_POS, CATEGORIA_COBRO_VENTA_CREDITO)]
     bruto_ord, isv_ord, neto_ord = neto(ventas_ordenes)
     bruto_pos, isv_pos, neto_pos = neto(ventas_pos)
+    bruto_cre, isv_cre, neto_cre = neto(ventas_credito)
     otros_ingresos = _agrupar(otros)
     total_otros = q(sum((v for _, v in otros_ingresos), CERO))
-    total_ingresos = q(neto_ord + neto_pos + total_otros)
+    total_ingresos = q(neto_ord + neto_pos + neto_cre + total_otros)
 
     inv_inicial = inv.valor_a(periodo.inicio_utc)["valor"]
     inv_final = inv.valor_a(periodo.fin_utc)["valor"]
@@ -323,6 +335,8 @@ def estado_resultados(db: Session, periodo: Periodo, inv: InventarioHistorico, p
     lineas = [_l("Ingresos", tipo="titulo", nivel=0)]
     lineas.append(_l("Ventas de órdenes de servicio (sin ISV)", neto_ord))
     lineas.append(_l("Ventas del Punto de Venta (sin ISV)", neto_pos))
+    if ventas_credito:
+        lineas.append(_l("Ventas al crédito cobradas (sin ISV)", neto_cre))
     for cat, monto in otros_ingresos:
         lineas.append(_l(f"{cat}", monto))
     lineas.append(_l("Total de ingresos", total_ingresos, "subtotal", 0))
@@ -332,23 +346,23 @@ def estado_resultados(db: Session, periodo: Periodo, inv: InventarioHistorico, p
     lineas.append(_l("(+) Compras de mercadería (recepciones de compra y egresos «Compras»/«Proveedores»)", total_compras))
     lineas.append(_l("(−) Inventario al final del período", -inv_final))
     if ajustes_neto:
-        lineas.append(_l("(±) Faltantes/sobrantes de inventario (se muestran abajo, en gastos)", ajustes_neto))
+        lineas.append(_l("(±) Faltantes/sobrantes de inventario (se muestran abajo, en egresos)", ajustes_neto))
     lineas.append(_l("Costo de ventas", costo_ventas, "subtotal", 0))
     lineas.append(_l("Utilidad bruta", utilidad_bruta, "total", 0))
 
-    lineas.append(_l("Gastos de operación", tipo="titulo", nivel=0))
+    lineas.append(_l("Egresos de operación", tipo="titulo", nivel=0))
     for cat, monto in gastos_operacion:
         lineas.append(_l(cat, monto))
     if depreciacion:
         lineas.append(_l("Depreciación de activos fijos", depreciacion))
     if perdida_ajustes:
         lineas.append(_l("Pérdida por faltantes de inventario" if perdida_ajustes > 0 else "Sobrantes de inventario (ganancia)", perdida_ajustes))
-    lineas.append(_l("Total de gastos de operación", total_gastos, "subtotal", 0))
+    lineas.append(_l("Total de egresos de operación", total_gastos, "subtotal", 0))
     lineas.append(_l("Utilidad (o pérdida) neta del período", utilidad_neta, "total", 0,
                      "Antes del Impuesto Sobre la Renta."))
 
     notas = [
-        f"El ISV cobrado en el período ({q(isv_ord + isv_pos):,.2f}) no es ingreso del negocio: se muestra como ISV por pagar en el Balance.",
+        f"El ISV cobrado en el período ({q(isv_ord + isv_pos + isv_cre):,.2f}) no es ingreso del negocio: se muestra como ISV por pagar en el Balance.",
         "El inventario se valora con el costo actual de cada producto.",
     ]
     if costo_ventas < 0:
@@ -358,7 +372,7 @@ def estado_resultados(db: Session, periodo: Periodo, inv: InventarioHistorico, p
         "titulo": "Estado de Resultados", "periodo": periodo.texto, "lineas": lineas, "notas": notas,
         "total_ingresos": total_ingresos, "costo_ventas": costo_ventas, "utilidad_bruta": utilidad_bruta,
         "total_gastos": total_gastos, "utilidad_neta": utilidad_neta,
-        "isv_cobrado": q(isv_ord + isv_pos), "ventas_brutas": q(bruto_ord + bruto_pos + total_otros),
+        "isv_cobrado": q(isv_ord + isv_pos + isv_cre), "ventas_brutas": q(bruto_ord + bruto_pos + bruto_cre + total_otros),
         "inventario_inicial": inv_inicial, "inventario_final": inv_final, "compras": total_compras,
         "ajustes_inventario": ajustes_neto, "depreciacion": depreciacion,
         "margen_bruto": float((utilidad_bruta / total_ingresos * 100).quantize(Decimal("0.1"))) if total_ingresos else 0.0,
@@ -444,10 +458,12 @@ def balance_general(db: Session, dia: date, inv: InventarioHistorico, partidas) 
         return q(sum((to_decimal(p.monto) for p in vigentes if p.tipo == tipo), CERO))
 
     otros_activos = suma("otro_activo")
+    from app.utils.cxc import prestamos_por_cobrar_a
+    prestamos_cobrar = prestamos_por_cobrar_a(db, instante)
     fijos = [p for p in vigentes if p.tipo == "activo_fijo"]
     fijos_bruto = q(sum((to_decimal(p.monto) for p in fijos), CERO))
     dep_acumulada = q(sum((_depreciacion_acumulada(p, siguiente) for p in fijos), CERO))
-    total_corriente = q(efectivo["caja_chica"] + efectivo["banco"] + inventario + otros_activos)
+    total_corriente = q(efectivo["caja_chica"] + efectivo["banco"] + inventario + otros_activos + prestamos_cobrar)
     total_activo = q(total_corriente + fijos_bruto - dep_acumulada)
 
     isv = _isv_por_pagar(db, dia)
@@ -466,6 +482,8 @@ def balance_general(db: Session, dia: date, inv: InventarioHistorico, partidas) 
     lineas = [_l("Activo", tipo="titulo", nivel=0), _l("Activo corriente", tipo="titulo", nivel=1)]
     lineas += [_l("Caja Chica", efectivo["caja_chica"], nivel=2), _l("Banco", efectivo["banco"], nivel=2),
                _l("Inventario de mercadería (al costo)", inventario, nivel=2)]
+    if prestamos_cobrar:
+        lineas.append(_l("Préstamos por cobrar (CxC)", prestamos_cobrar, nivel=2))
     if otros_activos:
         lineas.append(_l("Otros activos", otros_activos, nivel=2))
     lineas.append(_l("Total activo corriente", total_corriente, "subtotal", 1))

@@ -18,6 +18,7 @@ from app.utils.calculations import to_decimal, aplicar_impuesto
 from app.utils.libro_diario import registrar_asiento_para_movimiento
 from app.utils.caja_calculos import CUENTA_CAJA_CHICA, CUENTA_BANCO
 from app.utils.turnos_caja import verificar_caja
+from app.utils.bancos import banco_si_aplica
 from app.deps import login_required
 
 router = APIRouter()
@@ -153,6 +154,7 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
         tipo="ingreso", categoria="Venta POS", monto=total,
         descripcion=f"Venta {venta.numero_venta}", usuario_nombre=usuario["nombre_completo"],
         referencia=venta.numero_venta, cuenta=cuenta_venta, metodo_pago=venta.forma_pago,
+        banco_id=banco_si_aplica(db, cuenta_venta, venta_in.banco_id),
     )
     db.add(mov_venta)
     db.flush()

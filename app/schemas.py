@@ -22,6 +22,7 @@ class VentaIn(BaseModel):
     cliente_id: Optional[int] = None
     cotizacion_id: Optional[int] = None
     tipo_documento: str = "interno"  # "interno" (comprobante) o "fiscal" (factura con CAI)
+    banco_id: Optional[int] = None    # transferencia/tarjeta: a qué banco entró
     cliente_rtn: str = ""
 
 

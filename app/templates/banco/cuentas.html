@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Bancos{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+<div class="pill-tabs">
+  <a href="/caja/panel">Panel gerencial</a>
+  <a href="/caja/conciliacion">Conciliación y egresos</a>
+  <a href="/banco/estado-cuenta">Estado de cuenta bancario</a>
+  <a href="/banco/cuentas" class="active">Bancos</a>
+  <a href="/banco/cuadre">Cuadre de banco</a>
+  <a href="/caja/informe">Informe mensual</a>
+  <a href="/caja/libro-diario">Libro Diario</a>
+</div>
+<div class="m-wrap" style="max-width:980px;">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Bancos</h1>
+      <div class="m-muted" style="margin-top:4px;">Las cuentas bancarias del negocio. Al cobrar o pagar por transferencia o tarjeta se elige a cuál va. Lo registrado antes de tener varios bancos quedó en el principal.</div>
+    </div>
+  </div>
+
+  <div class="bancos-grid">
+    {% for b in bancos %}
+    <article class="banco-card {{ 'is-off' if not b.activo else '' }}">
+      <header>
+        <div>
+          <h3>{{ b.nombre }}</h3>
+          <div class="m-muted" style="font-size:13px;">{{ b.tipo_cuenta or 'Cuenta' }}{% if b.numero_cuenta %} · N.º {{ b.numero_cuenta }}{% endif %}</div>
+        </div>
+        {% if b.principal %}<span class="pill pill-info">Principal</span>{% elif not b.activo %}<span class="pill">Desactivado</span>{% endif %}
+      </header>
+      <div class="banco-saldo"><span>Saldo en el sistema</span><b>{{ (saldos.get(b.id) or 0)|moneda(moneda) }}</b></div>
+      <div class="banco-acc">
+        <a class="btn btn-outline btn-sm" href="/banco/estado-cuenta?banco={{ b.id }}">Estado de cuenta</a>
+        <a class="btn btn-outline btn-sm" href="/banco/cuadre?banco={{ b.id }}">Cuadrar</a>
+        <details class="m-more"><summary>Editar</summary>
+          <form method="post" action="/banco/cuentas/{{ b.id }}/editar" style="margin-top:10px;">
+            <div class="field"><label>Nombre</label><input type="text" name="nombre" value="{{ b.nombre }}" required maxlength="100"></div>
+            <div class="form-row">
+              <div class="field" style="flex:1;"><label>N.º de cuenta</label><input type="text" name="numero_cuenta" value="{{ b.numero_cuenta or '' }}" maxlength="60"></div>
+              <div class="field" style="flex:1;"><label>Tipo</label><input type="text" name="tipo_cuenta" value="{{ b.tipo_cuenta or '' }}" maxlength="40" placeholder="Ahorro, cheques…"></div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+          </form>
+          {% if not b.principal %}
+          <form method="post" action="/banco/cuentas/{{ b.id }}/estado" style="margin-top:8px;">
+            <button type="submit" class="btn btn-outline btn-sm">{{ 'Desactivar' if b.activo else 'Activar' }}</button>
+          </form>
+          {% endif %}
+        </details>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+
+  <div class="card" style="margin-top:22px; max-width:620px;">
+    <div class="card-title">Agregar banco</div>
+    <form method="post" action="/banco/cuentas">
+      <div class="field"><label for="bNombre">Nombre del banco *</label><input id="bNombre" type="text" name="nombre" required maxlength="100" placeholder="Ej: BAC Credomatic, Banpaís, Ficohsa"></div>
+      <div class="form-row">
+        <div class="field" style="flex:1;"><label for="bNum">N.º de cuenta</label><input id="bNum" type="text" name="numero_cuenta" maxlength="60"></div>
+        <div class="field" style="flex:1;"><label for="bTipo">Tipo</label><input id="bTipo" type="text" name="tipo_cuenta" maxlength="40" placeholder="Ahorro, cheques…"></div>
+      </div>
+      <div class="form-row">
+        <div class="field" style="flex:1;"><label for="bSaldo">Saldo que tiene hoy</label><input id="bSaldo" type="number" name="saldo_inicial" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
+        <div class="field" style="flex:1;"><label for="bFecha">Desde el día</label><input id="bFecha" type="date" name="fecha_saldo" value="{{ hoy_iso }}" max="{{ hoy_iso }}"></div>
+      </div>
+      <div class="help" style="margin-bottom:10px;">El saldo inicial se suma al banco, pero no cuenta como venta ni ingreso del negocio.</div>
+      <button type="submit" class="btn btn-primary">Agregar banco</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

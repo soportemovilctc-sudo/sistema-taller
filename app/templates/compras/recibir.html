@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_bancos.html" import selector_banco %}
 {% block title %}Recibir {{ sol.numero }}{% endblock %}
 {% block content %}
 {% set moneda = config_taller().moneda %}
@@ -57,6 +58,7 @@
         {% endfor %}
       </fieldset>
       <div>
+        {{ selector_banco(segun='forma_pago', etiqueta='¿De qué banco salió?') }}
         <div class="field"><label for="facturaProveedor">Número de factura del proveedor</label><input id="facturaProveedor" type="text" name="factura_proveedor" placeholder="Opcional"></div>
         <div class="field"><label for="notasRec">Notas</label><input id="notasRec" type="text" name="notas" placeholder="Opcional: llegó incompleto, producto dañado..."></div>
       </div>

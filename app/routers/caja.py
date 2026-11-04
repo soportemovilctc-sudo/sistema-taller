@@ -50,6 +50,7 @@ from app.utils.caja_calculos import (
 from app.utils.libro_diario import registrar_asiento_para_movimiento, eliminar_asiento_de_movimiento
 from app.utils.flash import flash
 from app.utils.pdf import generar_pdf_informe_caja
+from app.utils.bancos import banco_si_aplica
 from app.utils.turnos_caja import verificar_caja
 
 
@@ -207,7 +208,7 @@ def caja_registrar_crear(
     request: Request,
     monto: str = Form(...), cliente_nombre: str = Form(""), metodo_pago: str = Form(...),
     num_referencia: str = Form(""), comprobante: UploadFile | None = File(None),
-    fecha: str = Form(""),
+    fecha: str = Form(""), banco_id: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     bloqueo = _bloqueo_por_caja_cerrada(request, db)
@@ -246,7 +247,7 @@ def caja_registrar_crear(
         tipo="ingreso", categoria="Cobro de caja", monto=monto_dec.quantize(Decimal("0.01")),
         descripcion=f"Cobro en {metodo_pago}" + (f" - {cliente_nombre.strip()}" if cliente_nombre.strip() else ""),
         usuario_nombre=usuario["nombre_completo"], referencia="Caja",
-        cuenta=cuenta, metodo_pago=metodo_pago,
+        cuenta=cuenta, metodo_pago=metodo_pago, banco_id=banco_si_aplica(db, cuenta, banco_id),
         cliente_nombre=cliente_nombre.strip() or None,
         num_referencia=num_referencia.strip() or None,
         comprobante_data=comprobante_data, comprobante_mime=comprobante_mime,
@@ -297,7 +298,7 @@ def caja_ingreso_otro_crear(
 
 def _registrar_deposito_bancario(
     db: Session, monto_final: Decimal, descripcion: str, fecha_final: datetime,
-    usuario_nombre: str, referencia_caja_chica: str,
+    usuario_nombre: str, referencia_caja_chica: str, banco_id: int | None = None,
 ) -> MovimientoFinanciero:
     """Crea las dos filas vinculadas de un Depósito Bancario: la salida de
     Caja Chica (gasto) y la entrada a Banco (ingreso), por el mismo monto y
@@ -323,7 +324,7 @@ def _registrar_deposito_bancario(
     mov_banco = MovimientoFinanciero(
         tipo="ingreso", categoria=CATEGORIA_DEPOSITO_BANCO, monto=monto_final,
         descripcion=descripcion.strip(), usuario_nombre=usuario_nombre,
-        referencia="Depósito bancario de Caja Chica", cuenta=CUENTA_BANCO,
+        referencia="Depósito bancario de Caja Chica", cuenta=CUENTA_BANCO, banco_id=banco_id,
         fecha=fecha_final, movimiento_vinculado_id=mov.id,
     )
     db.add(mov_banco)
@@ -335,7 +336,7 @@ def _registrar_deposito_bancario(
 @router.post("/caja/salida")
 def caja_salida_crear(
     request: Request, categoria: str = Form(...), monto: str = Form(...), descripcion: str = Form(""),
-    fecha: str = Form(""), cuenta: str = Form(CUENTA_CAJA_CHICA),
+    fecha: str = Form(""), cuenta: str = Form(CUENTA_CAJA_CHICA), banco_id: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     """Salida de Caja / Crédito por Garantía: egresos de efectivo del día a
@@ -376,13 +377,13 @@ def caja_salida_crear(
     if categoria == CATEGORIA_DEPOSITO_BANCO:
         _registrar_deposito_bancario(
             db, monto_final, descripcion, fecha_final, usuario["nombre_completo"],
-            referencia_caja_chica=REFERENCIA_CAJA,
+            referencia_caja_chica=REFERENCIA_CAJA, banco_id=banco_si_aplica(db, CUENTA_BANCO, banco_id),
         )
     else:
         mov = MovimientoFinanciero(
             tipo="gasto", categoria=categoria, monto=monto_final,
             descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
-            referencia=REFERENCIA_CAJA, cuenta=cuenta,
+            referencia=REFERENCIA_CAJA, cuenta=cuenta, banco_id=banco_si_aplica(db, cuenta, banco_id),
             fecha=fecha_final,
         )
         db.add(mov)
@@ -397,6 +398,7 @@ def caja_salida_crear(
 @router.post("/caja/conciliacion/deposito")
 def caja_deposito_admin_crear(
     request: Request, monto: str = Form(...), descripcion: str = Form(""), fecha: str = Form(""),
+    banco_id: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
 ):
     """Registrar un Depósito Bancario (traslado de Caja Chica a Banco)
@@ -419,7 +421,7 @@ def caja_deposito_admin_crear(
 
     _registrar_deposito_bancario(
         db, monto_final, descripcion, fecha_final, usuario["nombre_completo"],
-        referencia_caja_chica="Depósito bancario (Admin)",
+        referencia_caja_chica="Depósito bancario (Admin)", banco_id=banco_si_aplica(db, CUENTA_BANCO, banco_id),
     )
     db.commit()
     flash(request, "Depósito bancario registrado correctamente.", "success")
@@ -454,8 +456,10 @@ def caja_movimiento_editar_form(
 
     es_simple = mov.categoria == CATEGORIA_OTRO_INGRESO_CAJA or mov.categoria in CATEGORIAS_SALIDA_CAJA
     es_cobro = mov.categoria == "Cobro de caja"
+    vinc = db.get(MovimientoFinanciero, mov.movimiento_vinculado_id) if mov.movimiento_vinculado_id else None
+    banco_actual = (vinc.banco_id if vinc and vinc.cuenta == CUENTA_BANCO else mov.banco_id)
     return templates.TemplateResponse("caja/movimiento_editar.html", {
-        "request": request, "usuario": usuario, "mov": mov, "volver": volver,
+        "request": request, "usuario": usuario, "mov": mov, "volver": volver, "banco_actual": banco_actual,
         "es_simple": es_simple, "es_cobro": es_cobro,
         "categorias_salida": CATEGORIAS_SALIDA_CAJA, "metodos_pago": METODOS_PAGO_CAJA,
         "nomina_cuentas": {CATEGORIA_NOMINA_EFECTIVO: CUENTA_CAJA_CHICA, CATEGORIA_NOMINA_TRANSFERENCIA: CUENTA_BANCO},
@@ -469,6 +473,7 @@ def caja_movimiento_editar(
     monto: str = Form(...), descripcion: str = Form(""), fecha: str = Form(""),
     categoria: str = Form(""), cliente_nombre: str = Form(""), metodo_pago: str = Form(""),
     num_referencia: str = Form(""), cuenta: str = Form(""), volver: str = Form("/caja/registrar"),
+    banco_id: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("vendedor")),
 ):
     mov = db.get(MovimientoFinanciero, mov_id)
@@ -531,6 +536,13 @@ def caja_movimiento_editar(
         vinculado.monto = mov.monto
         vinculado.descripcion = mov.descripcion
         vinculado.fecha = mov.fecha
+    # Banco elegido (si el dinero es del banco). En un depósito, el banco es
+    # el de la fila de Banco del par.
+    if banco_id:
+        fila_banco = vinculado if (mov.categoria == CATEGORIA_DEPOSITO_BANCO and vinculado and vinculado.cuenta == CUENTA_BANCO) else mov
+        fila_banco.banco_id = banco_si_aplica(db, fila_banco.cuenta, banco_id)
+    elif mov.cuenta != CUENTA_BANCO:
+        mov.banco_id = None
 
     # El asiento del Libro Diario de un Depósito bancario siempre vive en la
     # fila de Caja Chica del par (ver caja_salida_crear), así que se
@@ -740,8 +752,10 @@ def caja_panel(
         "total": (tot["transferencia"]["monto"] + tot["tarjeta"]["monto"] + tot["deposito"]["monto"]).quantize(Decimal("0.01")),
     }
 
+    from app.utils.bancos import saldos_por_banco, bancos_activos
+    saldos_bancos = saldos_por_banco(db, datetime.utcnow() + timedelta(seconds=1)) if len(bancos_activos(db)) > 1 else []
     return templates.TemplateResponse("caja/panel.html", {
-        "request": request, "usuario": usuario, "entradas_banco": entradas_banco,
+        "request": request, "usuario": usuario, "entradas_banco": entradas_banco, "saldos_bancos": saldos_bancos,
         "liquidez": liquidez, "utilidad": utilidad, "cierre_hoy": cierre_hoy,
         "periodo": periodo, "desde": desde, "hasta": hasta,
         "anio": anio, "mes": mes,
@@ -839,7 +853,7 @@ def caja_depositos_auditoria(request: Request, db: Session = Depends(get_db), us
             tipos = {m.tipo, vinculado.tipo}
             tipos_correctos = tipos == {"gasto", "ingreso"}
             if not tipos_correctos:
-                anomalias.append(f"Los tipos no son un gasto y un ingreso (son: {m.tipo}, {vinculado.tipo}).")
+                anomalias.append(f"Los tipos no son un egreso y un ingreso.")
             cuentas = {m.cuenta, vinculado.cuenta}
             cuentas_correctas = cuentas == {CUENTA_CAJA_CHICA, CUENTA_BANCO}
             if not cuentas_correctas:
@@ -911,7 +925,7 @@ def caja_deposito_corregir_cuenta(mov_id: int, request: Request, db: Session = D
     gasto_row = mov if mov.tipo == "gasto" else vinculado
     ingreso_row = vinculado if gasto_row is mov else mov
     if gasto_row.cuenta == CUENTA_CAJA_CHICA and ingreso_row.cuenta == CUENTA_BANCO:
-        flash(request, "Esta fila ya está correcta (gasto en Caja Chica, ingreso en Banco).", "success")
+        flash(request, "Esta fila ya está correcta (egreso en Caja Chica, ingreso en Banco).", "success")
         return RedirectResponse("/caja/conciliacion/depositos/auditoria", status_code=303)
 
     gasto_row.cuenta = CUENTA_CAJA_CHICA
@@ -923,7 +937,7 @@ def caja_deposito_corregir_cuenta(mov_id: int, request: Request, db: Session = D
     eliminar_asiento_de_movimiento(db, gasto_row.id)
     registrar_asiento_para_movimiento(db, gasto_row)
     db.commit()
-    flash(request, f"Depósito de {gasto_row.monto} corregido: #{gasto_row.id} quedó en Caja Chica (gasto) y #{ingreso_row.id} en Banco (ingreso).", "success")
+    flash(request, f"Depósito de {gasto_row.monto} corregido: #{gasto_row.id} quedó en Caja Chica (egreso) y #{ingreso_row.id} en Banco (ingreso).", "success")
     return RedirectResponse("/caja/conciliacion/depositos/auditoria", status_code=303)
 
 
@@ -945,6 +959,7 @@ def caja_conciliacion_validar(mov_id: int, request: Request, db: Session = Depen
 @router.post("/caja/egresos/nuevo")
 def caja_egreso_crear(
     request: Request, categoria: str = Form(...), monto: str = Form(...), descripcion: str = Form(""),
+    banco_id: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(roles_required("admin")),
 ):
     try:
@@ -959,7 +974,7 @@ def caja_egreso_crear(
     mov = MovimientoFinanciero(
         tipo="gasto", categoria=categoria_limpia, monto=monto_dec.quantize(Decimal("0.01")),
         descripcion=descripcion.strip(), usuario_nombre=usuario["nombre_completo"],
-        referencia="Egreso mayor", cuenta=CUENTA_BANCO,
+        referencia="Egreso mayor", cuenta=CUENTA_BANCO, banco_id=banco_si_aplica(db, CUENTA_BANCO, banco_id),
     )
     db.add(mov)
     db.flush()
@@ -1102,7 +1117,7 @@ def caja_informe_excel(anio: int = 0, mes: int = 0, db: Session = Depends(get_db
     fila += 1
     filas_util = [
         ("Ingresos del período", float(util["ingresos"])),
-        ("Egresos / gastos del período", float(util["egresos"])),
+        ("Egresos del período", float(util["egresos"])),
         ("UTILIDAD NETA", float(util["utilidad_neta"])),
     ]
     for etiqueta, valor in filas_util:

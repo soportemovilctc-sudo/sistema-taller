@@ -283,7 +283,7 @@ async def compras_recibir(solicitud_id: int, request: Request, db: Session = Dep
     rec, errores = recibir(db, sol, lineas, form.get("forma_pago", ""), form.get("factura_proveedor", ""),
                            form.get("isv", ""), form.get("notas", ""), usuario["nombre_completo"],
                            costo_con_isv=bool(form.get("costo_con_isv")), precio_con_isv=bool(form.get("precio_con_isv")),
-                           tasa=_isv_tasa(db))
+                           tasa=_isv_tasa(db), banco_id=form.get("banco_id", ""))
     if errores:
         db.rollback()
         flash(request, "No se registró la recepción: " + " ".join(errores), "error")
@@ -344,12 +344,13 @@ def compras_agregar_isv(recepcion_id: int, request: Request, db: Session = Depen
 @router.post(BASE + "/recepcion/{recepcion_id}/pagar")
 def compras_pagar(
     recepcion_id: int, request: Request, monto: str = Form(""), forma: str = Form(""), nota: str = Form(""),
+    banco_id: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(solo_admin),
 ):
     rec = db.get(RecepcionCompra, recepcion_id)
     if not rec:
         return RedirectResponse(BASE, status_code=303)
-    error = pagar_recepcion(db, rec, monto, forma, nota, usuario["nombre_completo"])
+    error = pagar_recepcion(db, rec, monto, forma, nota, usuario["nombre_completo"], banco_id)
     if error:
         db.rollback()
         flash(request, error, "error")

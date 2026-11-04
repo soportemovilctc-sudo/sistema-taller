@@ -38,17 +38,22 @@ def fin_del_dia_utc(dia: date) -> datetime:
     return inicio_dia_local_en_utc(dia + timedelta(days=1))
 
 
-def saldo_sistema(db: Session, dia: date) -> Decimal:
-    from app.utils.estados_financieros import saldo_efectivo_a
-    return q(saldo_efectivo_a(db, fin_del_dia_utc(dia))["banco"])
+def saldo_sistema(db: Session, dia: date, banco_id: int | None = None) -> Decimal:
+    """Saldo del banco al final de `dia` (banco_id None = todos los bancos)."""
+    from app.utils.bancos import saldo_banco_a
+    return q(saldo_banco_a(db, banco_id, fin_del_dia_utc(dia)))
 
 
-def _movs_banco(db, inicio, fin):
-    return (db.query(MovimientoFinanciero)
-            .filter(MovimientoFinanciero.cuenta == CUENTA_BANCO,
-                    MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
-                    MovimientoFinanciero.fecha >= inicio, MovimientoFinanciero.fecha < fin)
-            .order_by(MovimientoFinanciero.fecha).all())
+def _movs_banco(db, inicio, fin, banco_id=None):
+    from app.utils.bancos import filtro_banco
+    consulta = (db.query(MovimientoFinanciero)
+                .filter(MovimientoFinanciero.cuenta == CUENTA_BANCO,
+                        MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
+                        MovimientoFinanciero.fecha >= inicio, MovimientoFinanciero.fecha < fin))
+    cond = filtro_banco(db, banco_id)
+    if cond is not None:
+        consulta = consulta.filter(cond)
+    return consulta.order_by(MovimientoFinanciero.fecha).all()
 
 
 def _fila(m):
@@ -59,11 +64,11 @@ def _fila(m):
             "usuario": m.usuario_nombre or ""}
 
 
-def pistas(db: Session, dia: date, diferencia: Decimal) -> dict:
+def pistas(db: Session, dia: date, diferencia: Decimal, banco_id: int | None = None) -> dict:
     """Todo lo del mes de `dia` hasta ese día. diferencia = sistema - real."""
     desde = dia.replace(day=1)
     inicio, fin = inicio_dia_local_en_utc(desde), fin_del_dia_utc(dia)
-    movs = _movs_banco(db, inicio, fin)
+    movs = _movs_banco(db, inicio, fin, banco_id)
     entradas = [m for m in movs if m.tipo == "ingreso"]
 
     tarjeta = [m for m in entradas if clasificar(m) == "tarjeta"]
@@ -120,7 +125,7 @@ def pistas(db: Session, dia: date, diferencia: Decimal) -> dict:
         "pendientes": [_fila(m) for m in pendientes][:60], "n_pendientes": len(pendientes), "total_pendientes": total_pendientes,
         "duplicados": duplicados[:40], "exactos": exactos[:20], "pares": pares,
         "saldo_inicial_mes": q(fila_mes.saldo_inicial_banco) if fila_mes else None,
-        "saldo_inicio_calculado": saldo_sistema(db, desde - timedelta(days=1)) if not fila_mes else None,
+        "saldo_inicio_calculado": saldo_sistema(db, desde - timedelta(days=1), banco_id) if not fila_mes else None,
     }
 
 
@@ -129,13 +134,19 @@ def cuadres(db: Session) -> list:
             .order_by(MovimientoFinanciero.fecha.desc()).limit(50).all())
 
 
-def cuadrar(db: Session, dia: date, saldo_real: Decimal, motivo: str, nota: str, usuario_nombre: str):
-    """Devuelve (movimiento, diferencia, error)."""
+def cuadrar(db: Session, dia: date, saldo_real: Decimal, motivo: str, nota: str, usuario_nombre: str, banco_id: int | None = None):
+    """Devuelve (movimiento, diferencia, error). Con varios bancos se cuadra uno a la vez."""
+    from app.utils.bancos import banco_principal, nombre_banco
     from app.utils.libro_diario import registrar_asiento, CTA_BANCO, CTA_GASTOS_OPERATIVOS, CTA_OTROS_INGRESOS
     if dia > hoy_local():
         return None, CERO, "La fecha no puede ser futura."
     saldo_real = q(saldo_real)
-    sistema = saldo_sistema(db, dia)
+    if banco_id is None:
+        from app.utils.bancos import bancos_activos
+        if len(bancos_activos(db)) > 1:
+            return None, CERO, "Elige qué banco estás cuadrando."
+        banco_id = banco_principal(db).id
+    sistema = saldo_sistema(db, dia, banco_id)
     diferencia = q(sistema - saldo_real)
     if diferencia == 0:
         return None, diferencia, "El banco del sistema ya cuadra con ese saldo."
@@ -146,10 +157,11 @@ def cuadrar(db: Session, dia: date, saldo_real: Decimal, motivo: str, nota: str,
     monto = abs(diferencia)
     # al final de ese día (o ahora, si es hoy), para que cuente en el saldo de ese día
     fecha = min(datetime.utcnow(), fin_del_dia_utc(dia) - timedelta(seconds=1))
-    descripcion = (f"Cuadre con el saldo real del banco al {dia.strftime('%d/%m/%Y')}: real L {saldo_real:,.2f}, "
+    descripcion = (f"Cuadre con el saldo real de {nombre_banco(db, banco_id)} al {dia.strftime('%d/%m/%Y')}: real L {saldo_real:,.2f}, "
                    f"sistema L {sistema:,.2f}" + (f". {nota.strip()}" if nota.strip() else ""))
     mov = MovimientoFinanciero(tipo=tipo, categoria=motivo, monto=monto, descripcion=descripcion, usuario_nombre=usuario_nombre,
-                               referencia=REFERENCIA_CUADRE, cuenta=CUENTA_BANCO, metodo_pago=None, fecha=fecha)
+                               referencia=REFERENCIA_CUADRE, cuenta=CUENTA_BANCO, metodo_pago=None, fecha=fecha,
+                               banco_id=None if banco_id == banco_principal(db).id else banco_id)
     db.add(mov)
     db.flush()
     mov.turno_caja_id = None  # es del banco, no de la caja de la cajera

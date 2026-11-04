@@ -1,0 +1,17 @@
+{# Selector del banco al que entra o del que sale el dinero.
+   segun: nombre del campo que dice la forma de pago o la cuenta; el selector
+   solo se muestra cuando NO es Efectivo / Caja Chica. Si solo hay un banco,
+   va oculto con el principal. #}
+{% macro selector_banco(nombre='banco_id', actual=None, segun='', etiqueta='¿A qué banco?', clase='field') %}
+{% set _bs = bancos_activos() %}
+{% if _bs|length > 1 %}
+<div class="{{ clase }} campo-banco" {% if segun %}data-segun="{{ segun }}"{% endif %}>
+  <label>{{ etiqueta }}</label>
+  <select name="{{ nombre }}">
+    {% for b in _bs %}<option value="{{ b.id }}" {{ 'selected' if (actual and actual == b.id) or (not actual and b.principal) else '' }}>{{ b.etiqueta }}</option>{% endfor %}
+  </select>
+</div>
+{% else %}
+<input type="hidden" name="{{ nombre }}" value="{{ _bs[0].id if _bs else '' }}">
+{% endif %}
+{% endmacro %}

@@ -20,14 +20,14 @@
 
 <div class="grid cols-3">
   <div class="kpi accent-green"><div class="kpi-label">Ingresos</div><div class="kpi-value">{{ ingresos|moneda(config_taller().moneda) }}</div></div>
-  <div class="kpi accent-red"><div class="kpi-label">Gastos</div><div class="kpi-value">{{ gastos|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-red"><div class="kpi-label">Egresos</div><div class="kpi-value">{{ gastos|moneda(config_taller().moneda) }}</div></div>
   <div class="kpi {{ 'accent-green' if balance >= 0 else 'accent-red' }}"><div class="kpi-label">Balance</div><div class="kpi-value">{{ balance|moneda(config_taller().moneda) }}</div></div>
 </div>
 
 <div class="grid" style="grid-template-columns: minmax(240px, 1fr) minmax(0, 2.6fr); align-items:start;">
   <div class="card">
-    <div class="card-title">Registrar ingreso / gasto</div>
-    <p class="help">Los ingresos y gastos ahora se registran desde <a href="/caja/registrar"><b>Caja → Registrar movimientos</b></a>, para que queden en la caja abierta y cuadren en el cierre del día.</p>
+    <div class="card-title">Registrar ingreso / egreso</div>
+    <p class="help">Los ingresos y egresos ahora se registran desde <a href="/caja/registrar"><b>Caja → Registrar movimientos</b></a>, para que queden en la caja abierta y cuadren en el cierre del día.</p>
     <a href="/caja/registrar" class="btn btn-primary">Ir a Caja</a>
   </div>
 
@@ -40,7 +40,7 @@
         {% for m in movimientos %}
         <tr>
           <td class="nw">{{ m.fecha|fecha('%d/%m/%Y %H:%M') }}</td>
-          <td>{% if m.tipo == 'ingreso' %}<span class="badge badge-listo-para-entregar">Ingreso</span>{% else %}<span class="badge badge-cancelado">Gasto</span>{% endif %}</td>
+          <td>{% if m.tipo == 'ingreso' %}<span class="badge badge-listo-para-entregar">Ingreso</span>{% else %}<span class="badge badge-cancelado">Egreso</span>{% endif %}</td>
           <td>{{ m.categoria }}</td>
           <td class="nw num">{{ m.monto|moneda(config_taller().moneda) }}</td>
           <td>{{ m.descripcion or m.referencia or '-' }}</td>

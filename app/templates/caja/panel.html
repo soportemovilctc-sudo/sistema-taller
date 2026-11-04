@@ -5,6 +5,7 @@
   <a href="/caja/panel" class="active">Panel gerencial</a>
   <a href="/caja/conciliacion">Conciliación y egresos</a>
   <a href="/banco/estado-cuenta">Estado de cuenta bancario</a>
+  <a href="/banco/cuentas">Bancos</a>
   <a href="/banco/cuadre">Cuadre de banco</a>
   <a href="/caja/informe">Informe mensual</a>
   <a href="/caja/reporte">Reportes de caja chica</a>
@@ -13,7 +14,8 @@
 
 <div class="grid cols-3" style="margin-bottom:18px;">
   <div class="kpi accent-green"><div class="kpi-label">Caja Chica actual</div><div class="kpi-value">{{ liquidez.caja_chica_actual|moneda(config_taller().moneda) }}</div></div>
-  <div class="kpi accent-blue"><div class="kpi-label">Banco actual</div><div class="kpi-value">{{ liquidez.banco_actual|moneda(config_taller().moneda) }}</div></div>
+  <div class="kpi accent-blue"><div class="kpi-label">Banco actual{{ ' (todos)' if saldos_bancos else '' }}</div><div class="kpi-value">{{ liquidez.banco_actual|moneda(config_taller().moneda) }}</div>
+    {% if saldos_bancos %}<div class="help" style="margin-top:6px;">{% for x in saldos_bancos %}<a href="/banco/estado-cuenta?banco={{ x.banco.id }}">{{ x.banco.nombre }}</a>: {{ x.saldo|moneda(config_taller().moneda) }}{{ ' · ' if not loop.last else '' }}{% endfor %}</div>{% endif %}</div>
   <div class="kpi accent-blue"><div class="kpi-label">Liquidez Total</div><div class="kpi-value">{{ liquidez.liquidez_total|moneda(config_taller().moneda) }}</div></div>
 </div>
 

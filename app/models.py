@@ -53,6 +53,16 @@ CATEGORIA_OTRO_INGRESO_CAJA = "Otros ingresos"
 # de caja chica (efectivo físico), distintos de los Egresos Mayores del
 # Administrador (que siempre son contra la cuenta bancaria).
 CATEGORIA_DEPOSITO_BANCO = "Depósito bancario"
+# Préstamos que da el negocio y su cobro (ver Cuentas por cobrar): el dinero
+# sale o entra, pero no es venta ni egreso del negocio.
+CATEGORIA_PRESTAMO_OTORGADO = "Préstamo otorgado"
+CATEGORIA_COBRO_PRESTAMO = "Cobro de préstamo"
+CATEGORIA_COBRO_VENTA_CREDITO = "Cobro de venta al crédito"
+# Movimientos que mueven Caja/Banco pero NO son ingresos ni egresos del
+# negocio (no cuentan en utilidad ni Estados de resultados).
+CATEGORIAS_FUERA_DE_RESULTADOS = (
+    CATEGORIA_DEPOSITO_BANCO, "Saldo inicial de banco", CATEGORIA_PRESTAMO_OTORGADO, CATEGORIA_COBRO_PRESTAMO,
+)
 CATEGORIA_NOMINA_EFECTIVO = "Nómina en efectivo"
 CATEGORIA_NOMINA_TRANSFERENCIA = "Nómina por transferencia"
 # Los ingresos y egresos varios se registran SOLO desde Caja (ya no desde
@@ -61,7 +71,7 @@ CATEGORIA_NOMINA_TRANSFERENCIA = "Nómina por transferencia"
 # Financieros las usan para el costo de ventas.
 CATEGORIAS_SALIDA_CAJA = [
     "Salida de caja", "Compra menor", "Compras", "Proveedores", "Servicios básicos",
-    "Transporte", "Crédito por garantía", "Otro gasto de caja",
+    "Transporte", "Crédito por garantía", "Otro egreso de caja",
     CATEGORIA_DEPOSITO_BANCO, CATEGORIA_NOMINA_EFECTIVO, CATEGORIA_NOMINA_TRANSFERENCIA,
 ]
 
@@ -493,6 +503,7 @@ class Pago(Base):
     # ya no cuenta en el abonado de la orden, la Caja, Inicio ni reportes.
     anulado = Column(Boolean, nullable=False, default=False)
     anulado_factura_id = Column(Integer, nullable=True)
+    banco_id = Column(Integer, ForeignKey("bancos.id"), nullable=True)  # transferencia/tarjeta: a qué banco entró
 
     orden = relationship("OrdenServicio", back_populates="pagos")
 
@@ -617,6 +628,9 @@ class MovimientoFinanciero(Base):
     # por Caja: el cobro con Tarjeta (POS) o Transferencia se contabiliza en
     # "banco", y los Egresos Mayores del Administrador siempre son "banco".
     cuenta = Column(String(20), nullable=False, default="caja_chica")
+    # Banco al que entró/del que salió (solo cuando cuenta = "banco"). Vacío
+    # = el banco principal (Banco Atlántida), así todo lo anterior queda ahí.
+    banco_id = Column(Integer, ForeignKey("bancos.id"), nullable=True, index=True)
     # Método de cobro/pago: en un ingreso creado desde "Registrar cobro"
     # (Vista Cajera) es Efectivo/Transferencia/Tarjeta (POS); en un egreso
     # manual creado desde Reportes > Egresos es de dónde salió el dinero
@@ -1300,3 +1314,96 @@ class Nota(Base):
     fecha_recordatorio = Column(Date, nullable=True)
     creada = Column(DateTime, default=datetime.utcnow, nullable=False)
     actualizada = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Bancos: las cuentas bancarias del negocio. Siempre hay uno principal
+# (Banco Atlántida); los movimientos sin banco_id son de ese principal.
+# ---------------------------------------------------------------------------
+CATEGORIA_SALDO_INICIAL_BANCO = "Saldo inicial de banco"
+
+
+class Banco(Base):
+    __tablename__ = "bancos"
+
+    id = Column(Integer, primary_key=True)
+    nombre = Column(String(100), nullable=False)
+    numero_cuenta = Column(String(60), default="")
+    tipo_cuenta = Column(String(40), default="")
+    activo = Column(Boolean, nullable=False, default=True)
+    principal = Column(Boolean, nullable=False, default=False)
+    creado = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    @property
+    def etiqueta(self) -> str:
+        num = (self.numero_cuenta or "").strip()
+        return f"{self.nombre} · {num[-4:]}" if len(num) >= 4 else self.nombre
+
+
+# ---------------------------------------------------------------------------
+# Cuentas por cobrar (CxC) anotadas a mano: ventas al crédito y préstamos.
+# (Las órdenes con saldo pendiente siguen en su propia lista.)
+# ---------------------------------------------------------------------------
+CXC_VENTA = "venta"
+CXC_PRESTAMO = "prestamo"
+CXC_PENDIENTE, CXC_PAGADA, CXC_ANULADA = "pendiente", "pagada", "anulada"
+
+
+class CuentaPorCobrar(Base):
+    __tablename__ = "cuentas_por_cobrar"
+
+    id = Column(Integer, primary_key=True)
+    numero = Column(String(20), unique=True, nullable=False, index=True)
+    tipo = Column(String(10), nullable=False)  # venta | prestamo
+    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=True)
+    deudor = Column(String(150), nullable=False)
+    telefono = Column(String(40), default="")
+    concepto = Column(Text, default="")
+    monto = Column(Numeric(12, 2), nullable=False)
+    con_isv = Column(Boolean, nullable=False, default=False)
+    isv_monto = Column(Numeric(12, 2), nullable=False, default=0)
+    fecha = Column(DateTime, default=datetime.utcnow, nullable=False)
+    vence = Column(Date, nullable=True)
+    estado = Column(String(12), nullable=False, default=CXC_PENDIENTE)
+    # préstamo: de dónde salió el dinero
+    cuenta_salida = Column(String(20), nullable=True)
+    banco_id = Column(Integer, ForeignKey("bancos.id"), nullable=True)
+    mov_salida_id = Column(Integer, ForeignKey("movimientos_financieros.id"), nullable=True)
+    usuario_nombre = Column(String(150), default="")
+    anulada_motivo = Column(Text, default="")
+    anulada_por = Column(String(150), default="")
+    anulada_en = Column(DateTime, nullable=True)
+
+    cliente = relationship("Cliente")
+    pagos = relationship("CxCPago", order_by="CxCPago.fecha", viewonly=True,
+                         primaryjoin="and_(CuentaPorCobrar.id == CxCPago.cxc_id, CxCPago.anulado == False)")
+    todos_los_pagos = relationship("CxCPago", order_by="CxCPago.fecha", back_populates="cxc")
+
+    @property
+    def pagado(self):
+        from decimal import Decimal as _D
+        return sum((_D(str(p.monto)) for p in self.pagos), _D("0.00"))
+
+    @property
+    def saldo(self):
+        from decimal import Decimal as _D
+        return (_D(str(self.monto)) - self.pagado).quantize(_D("0.01"))
+
+
+class CxCPago(Base):
+    __tablename__ = "cxc_pagos"
+
+    id = Column(Integer, primary_key=True)
+    cxc_id = Column(Integer, ForeignKey("cuentas_por_cobrar.id"), nullable=False, index=True)
+    fecha = Column(DateTime, default=datetime.utcnow, nullable=False)
+    monto = Column(Numeric(12, 2), nullable=False)
+    isv_monto = Column(Numeric(12, 2), nullable=False, default=0)
+    forma_pago = Column(String(20), nullable=False, default="Efectivo")
+    banco_id = Column(Integer, ForeignKey("bancos.id"), nullable=True)
+    referencia = Column(String(60), default="")
+    mov_id = Column(Integer, ForeignKey("movimientos_financieros.id"), nullable=True)
+    usuario_nombre = Column(String(150), default="")
+    anulado = Column(Boolean, nullable=False, default=False)
+    anulado_motivo = Column(Text, default="")
+
+    cxc = relationship("CuentaPorCobrar", back_populates="todos_los_pagos")

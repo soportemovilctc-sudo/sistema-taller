@@ -226,6 +226,7 @@ function finalizarVenta() {
     cliente_id: (document.getElementById("posCliente") || {}).value || null,
     cotizacion_id: COTIZACION_ID,
     tipo_documento: tipoDocumento(),
+    banco_id: parseInt(((document.querySelector('[name="banco_id"]') || {}).value) || "", 10) || null,
     cliente_rtn: tipoDocumento() === "fiscal" ? ((document.getElementById("posRtn") || {}).value || "") : "",
   };
   var btnFin = document.getElementById("posFinalizar");

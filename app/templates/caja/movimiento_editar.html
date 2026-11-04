@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_bancos.html" import selector_banco %}
 {% block title %}Caja · Corregir movimiento{% endblock %}
 {% block content %}
 <div class="card" style="max-width:640px;">
@@ -37,6 +38,7 @@
         </select>
       </div>
     </div>
+    {{ selector_banco(actual=banco_actual, segun='metodo_pago', etiqueta='¿A qué banco entró?') }}
     <div id="campoTransferencia" style="{{ 'display:block;' if mov.metodo_pago == 'Transferencia' else 'display:none;' }}">
       <div class="field"><label>N. de comprobante / referencia</label><input type="text" name="num_referencia" value="{{ mov.num_referencia or '' }}"></div>
       <div class="help" style="margin-bottom:10px;">Si cambias el método a Transferencia, este movimiento volverá a quedar <b>Pendiente de verificación</b> hasta que el Administrador lo concilie.</div>
@@ -60,6 +62,8 @@
         <option value="banco" {{ 'selected' if mov.cuenta == 'banco' else '' }}>Banco (transferencia/débito)</option>
       </select>
     </div>
+    {% if mov.categoria == categoria_deposito_banco %}{{ selector_banco(actual=banco_actual, etiqueta='¿A qué banco se depositó?') }}
+    {% else %}{{ selector_banco(actual=banco_actual, segun='cuenta', etiqueta='¿De qué banco?') }}{% endif %}
     <script>
       document.getElementById('categoriaSalida').addEventListener('change', function (e) {
         var campo = document.getElementById('campoCuentaSalida');

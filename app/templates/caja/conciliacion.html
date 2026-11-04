@@ -1,10 +1,12 @@
 {% extends "base.html" %}
+{% from "_bancos.html" import selector_banco %}
 {% block title %}Caja · Conciliación bancaria{% endblock %}
 {% block content %}
 <div class="pill-tabs">
   <a href="/caja/panel">Panel gerencial</a>
   <a href="/caja/conciliacion" class="active">Conciliación y egresos</a>
   <a href="/banco/estado-cuenta">Estado de cuenta bancario</a>
+  <a href="/banco/cuentas">Bancos</a>
   <a href="/caja/informe">Informe mensual</a>
   <a href="/caja/reporte">Reportes de caja chica</a>
   <a href="/caja/libro-diario">Libro Diario</a>
@@ -74,6 +76,7 @@
       </div>
       <div class="field"><label>Monto</label><input type="number" step="0.01" min="0.01" name="monto" required></div>
       <div class="field"><label>Concepto / descripción</label><input type="text" name="descripcion"></div>
+      {{ selector_banco(etiqueta='¿De qué banco salió?') }}
       <button type="submit" class="btn btn-primary">Registrar egreso</button>
     </form>
   </div>
@@ -108,11 +111,12 @@
 <div class="grid cols-2" style="align-items:start; margin-top:18px;">
   <div class="card">
     <div class="card-title">Registrar depósito bancario</div>
-    <p class="help" style="margin-bottom:10px;">Traslado de efectivo de Caja Chica a Banco (no es un gasto: la Liquidez Total no cambia, solo se mueve de una cuenta a la otra).</p>
+    <p class="help" style="margin-bottom:10px;">Traslado de efectivo de Caja Chica a Banco (no es un egreso: la Liquidez Total no cambia, solo se mueve de una cuenta a la otra).</p>
     <form method="post" action="/caja/conciliacion/deposito">
       <div class="field"><label>Monto</label><input type="number" step="0.01" min="0.01" name="monto" required></div>
       <div class="field"><label>Fecha (opcional, por defecto hoy)</label><input type="date" name="fecha"></div>
       <div class="field"><label>Descripción</label><input type="text" name="descripcion"></div>
+      {{ selector_banco(etiqueta='¿A qué banco?') }}
       <button type="submit" class="btn btn-primary">Registrar depósito</button>
     </form>
   </div>

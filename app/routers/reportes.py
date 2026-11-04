@@ -20,6 +20,7 @@ from openpyxl.utils import get_column_letter
 from app.templates_env import templates
 from app.database import get_db
 from app.models import (
+    CATEGORIAS_FUERA_DE_RESULTADOS,
     OrdenServicio, MovimientoFinanciero, Venta, DetalleVenta, Producto, Tecnico, Configuracion,
     ConfiguracionFacturacion, ESTADOS_ORDEN, FORMAS_PAGO, Servicio, OrdenServicioExtra,
     CATEGORIA_DEPOSITO_BANCO,
@@ -247,7 +248,7 @@ def reportes_index(
         # no es un ingreso real, es el mismo dinero cambiando de cuenta.
         q = db.query(MovimientoFinanciero).filter(
             MovimientoFinanciero.tipo == "ingreso", MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
-            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
+            MovimientoFinanciero.categoria.notin_(CATEGORIAS_FUERA_DE_RESULTADOS),
         )
         if fecha_desde:
             q = q.filter(MovimientoFinanciero.fecha >= fecha_desde)
@@ -259,7 +260,7 @@ def reportes_index(
         # gasto real, es un traslado hacia Banco (ver /caja/conciliacion).
         q = db.query(MovimientoFinanciero).filter(
             MovimientoFinanciero.tipo == "gasto", MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
-            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
+            MovimientoFinanciero.categoria.notin_(CATEGORIAS_FUERA_DE_RESULTADOS),
         )
         if fecha_desde:
             q = q.filter(MovimientoFinanciero.fecha >= fecha_desde)
@@ -418,7 +419,7 @@ def _datos_reporte(tipo, fecha_desde, fecha_hasta, tecnico_id, estado, db):
             MovimientoFinanciero.excluir_de_contabilidad == False,  # noqa: E712
             # Depósito Bancario es un traslado de Caja Chica a Banco, no un
             # ingreso/gasto real — se excluye también en este export.
-            MovimientoFinanciero.categoria != CATEGORIA_DEPOSITO_BANCO,
+            MovimientoFinanciero.categoria.notin_(CATEGORIAS_FUERA_DE_RESULTADOS),
         )
         if fecha_desde:
             q = q.filter(MovimientoFinanciero.fecha >= fecha_desde)
@@ -601,6 +602,8 @@ def reportes_actualizar_forma_pago(
     valor = metodo_pago.strip()
     mov.metodo_pago = valor if valor in FORMAS_PAGO else None
     mov.cuenta = CUENTA_BANCO if mov.metodo_pago in ("Transferencia", "Tarjeta", "Otro") else CUENTA_CAJA_CHICA
+    if mov.cuenta != CUENTA_BANCO:
+        mov.banco_id = None
     db.commit()
     flash(request, "Forma de pago actualizada.", "success")
     return RedirectResponse(destino, status_code=303)

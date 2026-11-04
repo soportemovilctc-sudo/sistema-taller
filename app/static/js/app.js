@@ -1249,3 +1249,36 @@ document.addEventListener("DOMContentLoaded", function () {
     abrirModal(form, select, select ? form.dataset.estado : null);
   }, true);
 })();
+
+// ---------------------------------------------------------------------------
+// Selector de banco (templates/_bancos.html): se muestra solo cuando la
+// forma de pago o la cuenta elegida NO es Efectivo / Caja Chica.
+// ---------------------------------------------------------------------------
+(function () {
+  function esEfectivo(v) { return !v || v === "Efectivo" || v === "caja_chica" || v === "Crédito"; }
+  function valorDe(form, nombre) {
+    var els = form ? form.querySelectorAll('[name="' + nombre + '"]') : [];
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.type === "radio" || el.type === "checkbox") { if (el.checked) return el.value; }
+      else return el.value;
+    }
+    return "";
+  }
+  function actualizar() {
+    document.querySelectorAll(".campo-banco[data-segun]").forEach(function (c) {
+      var form = c.closest("form") || document;
+      var nombres = c.getAttribute("data-segun").split(",");
+      var mostrar = nombres.some(function (n) {
+        var n2 = n.trim();
+        if (n2.indexOf("monto:") === 0) { var v = parseFloat(valorDe(form, n2.slice(6))); return v > 0; }
+        return !esEfectivo(valorDe(form, n2));
+      });
+      c.style.display = mostrar ? "" : "none";
+    });
+  }
+  document.addEventListener("change", actualizar);
+  document.addEventListener("input", function (e) { if (e.target && e.target.type === "number") actualizar(); });
+  document.addEventListener("DOMContentLoaded", actualizar);
+  window.actualizarSelectorBanco = actualizar;
+})();

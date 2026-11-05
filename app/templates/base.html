@@ -80,17 +80,27 @@
       </div>
     </nav>
     <script>
-    // Recuerda qué secciones del menú dejaste abiertas (la de la página actual siempre abre).
+    // Menú tipo acordeón: solo una sección abierta a la vez. Al abrir una,
+    // se cierra la que estaba abierta. La de la página actual abre sola; si
+    // la página no es de ninguna sección, se abre la última que usaste.
     (function () {
-      var clave = "navAbiertas";
-      var guardadas = {};
-      try { guardadas = JSON.parse(localStorage.getItem(clave) || "{}"); } catch (e) {}
-      document.querySelectorAll(".nav-sec").forEach(function (d) {
-        var id = d.getAttribute("data-sec");
-        if (!d.hasAttribute("data-actual") && guardadas[id]) d.open = true;
+      var clave = "navAbierta";
+      var secciones = Array.prototype.slice.call(document.querySelectorAll(".nav-sec"));
+      var actual = secciones.filter(function (d) { return d.hasAttribute("data-actual"); })[0];
+      var guardada = null;
+      try { guardada = localStorage.getItem(clave); } catch (e) {}
+      secciones.forEach(function (d) {
+        if (actual) d.open = (d === actual);
+        else d.open = !!guardada && d.getAttribute("data-sec") === guardada;
+      });
+      secciones.forEach(function (d) {
         d.addEventListener("toggle", function () {
-          guardadas[id] = d.open;
-          try { localStorage.setItem(clave, JSON.stringify(guardadas)); } catch (e) {}
+          if (d.open) {
+            secciones.forEach(function (otra) { if (otra !== d && otra.open) otra.open = false; });
+            try { localStorage.setItem(clave, d.getAttribute("data-sec")); } catch (e) {}
+          } else if (!secciones.some(function (x) { return x.open; })) {
+            try { localStorage.removeItem(clave); } catch (e) {}
+          }
         });
       });
     })();

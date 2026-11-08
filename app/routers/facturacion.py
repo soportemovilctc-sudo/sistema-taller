@@ -302,7 +302,7 @@ def bloqueo_factura_por_pago(orden: OrdenServicio) -> str | None:
 
 
 @router.get("/ordenes/{orden_id}/factura/nueva")
-def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(get_db), usuario=Depends(login_required)):
+def factura_nueva_form(orden_id: int, request: Request, entregar: int = 0, db: Session = Depends(get_db), usuario=Depends(login_required)):
     orden = db.get(OrdenServicio, orden_id)
     if not orden:
         flash(request, "Orden no encontrada.", "error")
@@ -318,6 +318,8 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
     # factura, el que se haya usado en la reparación (opcional: no todos
     # los equipos llevan un repuesto, algunos solo pasan por diagnóstico).
     tasa_isv = to_decimal(cfg.isv_tasa if cfg.isv_tasa is not None else 15)
+    # Al entregar: si falta cobrar, se cobra aquí mismo junto con la factura.
+    cobrar_saldo = bool(entregar) and to_decimal(orden.total or 0) > 0 and to_decimal(orden.saldo or 0) > 0
     # Se muestra todo el inventario activo (no solo lo que tiene existencia
     # ahora mismo), igual que en "Nueva orden" y el detalle de la orden.
     productos_disponibles = (
@@ -338,7 +340,8 @@ def factura_nueva_form(orden_id: int, request: Request, db: Session = Depends(ge
         "formas_pago": FORMAS_PAGO,
         "pagos_por_forma": _pagos_por_forma(orden),
         "abonos": sorted(orden.pagos, key=lambda p: (p.fecha or datetime.min, p.id)),
-        "bloqueo": bloqueo_factura_por_pago(orden),
+        "bloqueo": None if cobrar_saldo else bloqueo_factura_por_pago(orden),
+        "entregar": bool(entregar), "cobrar_saldo": cobrar_saldo,
     })
 
 
@@ -350,6 +353,7 @@ async def factura_crear(
     servicio_nombre: str = Form(""), servicio_categoria: str = Form(""),
     servicio_cantidad: str = Form("1"), servicio_precio: str = Form(""), servicio_costo: str = Form(""),
     cliente_rtn: str = Form(""), forma_pago: str = Form("Efectivo"),
+    entregar: str = Form(""), cobrar_saldo: str = Form(""), banco_id: str = Form(""), referencia_saldo: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     if forma_pago not in FORMAS_PAGO:
@@ -466,6 +470,21 @@ async def factura_crear(
     db.flush()
     db.expire(orden, ["pagos"])
     recalcular_orden(orden)
+    # Entregar: el saldo que falta se cobra aquí mismo, junto con la factura.
+    cobro_entrega = None
+    if entregar == "1" and cobrar_saldo == "1" and to_decimal(orden.total or 0) > 0 and to_decimal(orden.saldo or 0) > 0:
+        if forma_pago == "Transferencia" and not referencia_saldo.strip():
+            db.rollback()
+            flash(request, "Escribe el número de referencia de la transferencia.", "error")
+            return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva?entregar=1", status_code=303)
+        from app.routers.ordenes import _aplicar_abono
+        from app.utils.bancos import banco_si_aplica
+        obs = "Cobrado al entregar y facturar" + (f" · Ref. {referencia_saldo.strip()}" if referencia_saldo.strip() else "")
+        cobro_entrega = _aplicar_abono(db, orden, orden.saldo, forma_pago, obs, usuario["nombre_completo"],
+                                       banco_si_aplica(db, forma_pago, banco_id))
+        db.flush()
+        db.expire(orden, ["pagos"])
+        recalcular_orden(orden)
     bloqueo = bloqueo_factura_por_pago(orden)
     if bloqueo:
         # Nada de lo que se mandó en este formulario se guarda.
@@ -542,9 +561,16 @@ async def factura_crear(
         monto_neto_total=(total - isv_monto), isv_monto_total=isv_monto, forma_saldo=forma_pago,
     )
 
+    entregada = False
+    if entregar == "1" and orden.estado != "ENTREGADO":
+        from app.routers.ordenes import _aplicar_cambio_estado
+        _aplicar_cambio_estado(db, orden, "ENTREGADO", f"Entregado al generar la factura {numero_documento}", usuario["nombre_completo"])
+        entregada = True
     db.commit()
     db.refresh(factura)
     flash(request, f"Factura {factura.numero_documento} generada correctamente."
+          + (f" Se cobró L {cobro_entrega:,.2f} en {forma_pago}." if cobro_entrega else "")
+          + (f" La orden {orden.numero_orden} quedó ENTREGADA." if entregada else "")
           + (" Forma de pago corregida: " + "; ".join(cambios_abonos) + "." if cambios_abonos else ""), "success")
     return RedirectResponse(f"/facturas/{factura.id}", status_code=303)
 

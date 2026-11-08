@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_bancos.html" import selector_banco %}
 {% block title %}Generar factura - Orden {{ orden.numero_orden }}{% endblock %}
 {% block content %}
 {% set moneda = config_taller().moneda %}
@@ -28,6 +29,8 @@
   </div>
   {% else %}
   <form method="post" action="/ordenes/{{ orden.id }}/factura/nueva" id="formFacturaNueva">
+    {% if entregar %}<input type="hidden" name="entregar" value="1">
+    <div class="flash flash-info" style="margin-bottom:16px;">Al generar la factura, la orden queda <b>ENTREGADA</b>.</div>{% endif %}
     <div class="m-sec-t">Documento</div>
     <div class="field">
       <label>Tipo de documento</label>
@@ -74,14 +77,27 @@
     </div>
     <div class="help" style="margin:-4px 0 12px;">Si un abono se anotó con la forma de pago equivocada, cámbiala aquí: se corrige en la orden y en la caja donde se cobró.</div>
     {% endif %}
+    {% if cobrar_saldo %}
+    <input type="hidden" name="cobrar_saldo" value="1">
+    <div class="m-box fac-cobro">
+      <div class="m-sec-t" style="margin-top:0;">Cobrar ahora el saldo: {{ orden.saldo|moneda(moneda) }}</div>
+      <div class="pago-opciones" role="radiogroup" aria-label="Cómo paga el saldo">
+        {% for fp in formas_pago %}<label class="pago-op"><input type="radio" name="forma_pago" value="{{ fp }}" required {{ 'checked' if fp == 'Efectivo' else '' }}><span>{{ fp }}</span></label>{% endfor %}
+      </div>
+      {{ selector_banco(segun='forma_pago', etiqueta='¿A qué banco entró?') }}
+      <div class="field campo-banco" data-segun="forma_pago" style="margin-top:8px;"><label for="refSaldo">N.º de referencia <span class="m-muted">(obligatorio en transferencia)</span></label><input id="refSaldo" type="text" name="referencia_saldo" maxlength="60"></div>
+      <div class="help">El cobro, la factura y la entrega se registran juntos.</div>
+    </div>
+    {% else %}
     <input type="hidden" name="forma_pago" value="Efectivo">
+    {% endif %}
     <div class="field">
       <label class="checkbox-chip"><input type="checkbox" name="exento" {{ 'checked' if cfg.servicios_exentos_default else '' }}> Este servicio está exento de ISV</label>
     </div>
 
     <p class="help">¿Falta un repuesto o servicio? Agrégalo en la orden y registra su pago antes de facturar: la factura solo se genera cuando la orden está pagada completa.</p>
     <p class="help">El monto total que pagó el cliente no cambia: la factura solo desglosa ese mismo total en exento/gravado + ISV según corresponda.</p>
-    <button type="submit" class="btn btn-primary" id="btnGenerarFactura">Generar factura</button>
+    <button type="submit" class="btn btn-primary" id="btnGenerarFactura">{% if cobrar_saldo %}Cobrar, facturar y entregar{% elif entregar %}Facturar y entregar{% else %}Generar factura{% endif %}</button>
     <a href="/ordenes/{{ orden.id }}" class="btn btn-outline">Cancelar</a>
   </form>
   {% endif %}

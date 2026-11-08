@@ -1197,9 +1197,9 @@ document.addEventListener("DOMContentLoaded", function () {
     if (total <= 0) {
       aviso = '<p class="ent-aviso ent-aviso-bad">Esta orden está en <b>L 0.00</b>. Si se cobró un servicio o repuesto, agrégalo a la orden y registra el pago <b>antes</b> de entregar; si no, la caja no lo va a contar.</p>';
     } else if (saldo > 0) {
-      aviso = '<p class="ent-aviso">Tiene un saldo de <b>' + lempiras(saldo) + '</b>. Si confirmas, se registra en caja el cobro de ese saldo en <b>' + esc(form.dataset.forma || "Efectivo") + '</b>.</p>';
+      aviso = '<p class="ent-aviso">Tiene un saldo de <b>' + lempiras(saldo) + '</b>. Al confirmar pasas a la factura: ahí eliges cómo pagó, y el cobro, la factura y la entrega se registran juntos.</p>';
     } else {
-      aviso = '<p class="ent-aviso ent-aviso-ok">La orden ya está pagada completa.</p>';
+      aviso = '<p class="ent-aviso ent-aviso-ok">La orden ya está pagada completa. Si todavía no tiene factura, al confirmar pasas a generarla y queda entregada.</p>';
     }
     var ov = document.createElement("div");
     ov.className = "modal-overlay ent-modal";

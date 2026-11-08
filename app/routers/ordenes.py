@@ -272,6 +272,13 @@ def ordenes_crear(
         fecha_orden_date = date.today()
     fecha_dt = datetime.combine(fecha_orden_date, datetime.now().time())
 
+    # Una orden con cobro no se entrega sin factura: si se crea ya como
+    # ENTREGADO, queda «Listo para entregar» y se abre «Generar factura»
+    # para cobrar, facturar y entregar en un paso (ver ordenes_cambiar_estado).
+    entregar_al_facturar = estado == "ENTREGADO"
+    if entregar_al_facturar:
+        estado = "LISTO PARA ENTREGAR"
+
     # Si el botón «Crear orden» se presiona dos veces (o dos personas crean
     # una orden al mismo tiempo), las dos peticiones calculaban el mismo
     # número de orden: la segunda chocaba y mostraba un error aunque la
@@ -458,6 +465,12 @@ def ordenes_crear(
     if montos_iniciales and not abono_inicial_error:
         detalle_abono = ", ".join(f"{forma} {monto}" for forma, monto in montos_iniciales)
         mensaje += f" Abono inicial registrado: {detalle_abono}."
+    if entregar_al_facturar:
+        if to_decimal(orden.total or 0) > 0:
+            flash(request, mensaje + " Para entregarla, revisa el cobro y genera la factura: al generarla queda ENTREGADA.", "success")
+            return RedirectResponse(f"/ordenes/{orden.id}/factura/nueva?entregar=1", status_code=303)
+        _aplicar_cambio_estado(db, orden, "ENTREGADO", "Entregada al crear la orden (sin cobro)", usuario["nombre_completo"])
+        db.commit()
     flash(request, mensaje, "success")
     return RedirectResponse(f"/ordenes/{orden.id}", status_code=303)
 
@@ -1001,6 +1014,17 @@ def ordenes_cambiar_estado(
             "request": request, "usuario": usuario, "orden": orden,
             "observacion": observacion, "redirect_to": destino,
         })
+    # Una orden con cobro no se entrega sin su factura: si todavía no tiene,
+    # se manda a «Generar factura», donde se cobra lo que falte, se factura y
+    # se entrega en un solo paso. Así la caja siempre cuadra con las facturas.
+    if (
+        orden and nuevo_estado == "ENTREGADO" and orden.estado != "ENTREGADO"
+        and to_decimal(orden.total or 0) > 0
+        and not any(not f.anulada for f in (orden.facturas or []))
+    ):
+        flash(request, "Para entregar el equipo falta su factura: revisa el cobro y genérala aquí; "
+                       "al generarla la orden queda ENTREGADA.", "info")
+        return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva?entregar=1", status_code=303)
     # Marcar ENTREGADO con saldo pendiente registra un pago automático (un
     # cobro), así que requiere la caja abierta igual que un abono.
     if (

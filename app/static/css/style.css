@@ -1982,3 +1982,5 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
 .nav-sec[open] > .nav-link.active::before { background: var(--primary); }
 @keyframes navEntra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .nav-sec[open] > .nav-link { animation: none; } }
+.fac-cobro { margin: 6px 0 16px; border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); border-radius: 12px; padding: 14px; }
+.fac-cobro .campo-banco { margin-top: 12px; }

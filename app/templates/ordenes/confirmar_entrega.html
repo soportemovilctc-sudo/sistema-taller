@@ -15,9 +15,9 @@
     {% if total <= 0 %}
     <p class="ent-aviso ent-aviso-bad">Esta orden está en <b>L 0.00</b>. Si se cobró un servicio o repuesto, agrégalo a la orden y registra el pago <b>antes</b> de entregar; si no, la caja no lo va a contar.</p>
     {% elif saldo > 0 %}
-    <p class="ent-aviso">Tiene un saldo de <b>{{ saldo|moneda(moneda) }}</b>. Si confirmas, se registra en caja el cobro de ese saldo en <b>{{ orden.forma_pago or 'Efectivo' }}</b>.</p>
+    <p class="ent-aviso">Tiene un saldo de <b>{{ saldo|moneda(moneda) }}</b>. Al confirmar pasas a la factura: ahí eliges cómo pagó, y el cobro, la factura y la entrega se registran juntos.</p>
     {% else %}
-    <p class="ent-aviso ent-aviso-ok">La orden ya está pagada completa.</p>
+    <p class="ent-aviso ent-aviso-ok">La orden ya está pagada completa. Si todavía no tiene factura, al confirmar pasas a generarla y queda entregada.</p>
     {% endif %}
     <form method="post" action="/ordenes/{{ orden.id }}/estado" class="ent-acciones">
       <input type="hidden" name="nuevo_estado" value="ENTREGADO">

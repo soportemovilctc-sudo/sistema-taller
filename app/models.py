@@ -1,5 +1,6 @@
 """Modelos de base de datos (SQLAlchemy). Compatibles con SQLite y PostgreSQL."""
 from datetime import datetime, date, timedelta, timezone
+from decimal import Decimal
 from sqlalchemy import (
     Column, Integer, String, Text, Numeric, Date, DateTime, Boolean,
     ForeignKey, UniqueConstraint, Index, LargeBinary
@@ -58,6 +59,7 @@ CATEGORIA_DEPOSITO_BANCO = "Depósito bancario"
 CATEGORIA_PRESTAMO_OTORGADO = "Préstamo otorgado"
 CATEGORIA_COBRO_PRESTAMO = "Cobro de préstamo"
 CATEGORIA_COBRO_VENTA_CREDITO = "Cobro de venta al crédito"
+CATEGORIA_COMISION_TARJETA = "Comisiones POS / tarjeta"
 # Movimientos que mueven Caja/Banco pero NO son ingresos ni egresos del
 # negocio (no cuentan en utilidad ni Estados de resultados).
 CATEGORIAS_FUERA_DE_RESULTADOS = (
@@ -631,6 +633,10 @@ class MovimientoFinanciero(Base):
     # Banco al que entró/del que salió (solo cuando cuenta = "banco"). Vacío
     # = el banco principal (Banco Atlántida), así todo lo anterior queda ahí.
     banco_id = Column(Integer, ForeignKey("bancos.id"), nullable=True, index=True)
+    # Comisión del POS: esta salida del banco es la comisión del cobro con
+    # tarjeta comision_de_id (se crea, corrige y anula sola con ese cobro).
+    comision_de_id = Column(Integer, ForeignKey("movimientos_financieros.id"), nullable=True, index=True)
+    comision_de = relationship("MovimientoFinanciero", remote_side=[id], foreign_keys=[comision_de_id])
     # Método de cobro/pago: en un ingreso creado desde "Registrar cobro"
     # (Vista Cajera) es Efectivo/Transferencia/Tarjeta (POS); en un egreso
     # manual creado desde Reportes > Egresos es de dónde salió el dinero
@@ -730,6 +736,7 @@ class AsientoContable(Base):
         "DetalleAsiento", backref="asiento",
         cascade="all, delete-orphan", order_by="DetalleAsiento.id",
     )
+    movimiento = relationship("MovimientoFinanciero", foreign_keys=[movimiento_financiero_id])
 
 
 class DetalleAsiento(Base):
@@ -810,6 +817,11 @@ class ConfiguracionFacturacion(Base):
     # --- Impuesto (ISV Honduras) ---
     isv_tasa = Column(Numeric(5, 2), default=15)
     servicios_exentos_default = Column(Boolean, default=False)
+    # Comisión que el banco descuenta de cada cobro con tarjeta (POS). Desde
+    # comision_tarjeta_desde, cada cobro con tarjeta genera una salida del
+    # banco por ese porcentaje (ver app/utils/comision_tarjeta.py).
+    comision_tarjeta_pct = Column(Numeric(5, 2), nullable=True, default=Decimal("3.80"))
+    comision_tarjeta_desde = Column(DateTime, nullable=True)
 
     # --- Documento interno (comprobante, no válido ante la SAR) ---
     prefijo_interno = Column(String(20), default="REC")

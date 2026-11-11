@@ -20,6 +20,11 @@ BASE = "/banco/estado-cuenta"
 solo_admin = roles_required("admin")
 
 
+def _cfg_fact(db):
+    from app.models import ConfiguracionFacturacion
+    return db.get(ConfiguracionFacturacion, 1)
+
+
 def _banco(db, banco):
     from app.models import Banco
     try:
@@ -120,6 +125,8 @@ def banco_cuadre(request: Request, fecha: str = "", real: str = "", banco: str =
         "sistema": sistema, "real": saldo_real, "real_txt": real, "diferencia": diferencia, "panel": panel,
         "p": pistas(db, dia, diferencia, banco_id) if diferencia else None, "cuadres": cuadres(db),
         "bancos": lista_bancos, "banco_id": banco_id, "banco_nombre": nombre_banco(db, banco_id),
+        "config_comision_desde": getattr(_cfg_fact(db), "comision_tarjeta_desde", None),
+        "config_comision_pct": getattr(_cfg_fact(db), "comision_tarjeta_pct", None),
         "motivos_salida": MOTIVOS_SALIDA, "motivos_entrada": MOTIVOS_ENTRADA,
     })
 

@@ -77,7 +77,7 @@
     {% endif %}
 
     {% if diferencia > 0 and p.total_tarjeta %}
-    <p style="margin:14px 0 8px;"><b>Comisiones del POS:</b> este mes se cobraron {{ p.total_tarjeta|moneda(moneda) }} con tarjeta ({{ p.n_tarjeta }} cobros). El sistema los suma completos, pero el banco deposita menos (comisión, ISV de la comisión y retención).
+    <p style="margin:14px 0 8px;"><b>Comisiones del POS:</b> este mes se cobraron {{ p.total_tarjeta|moneda(moneda) }} con tarjeta ({{ p.n_tarjeta }} cobros). {% if config_comision_desde %}Desde el {{ config_comision_desde|hn('%d/%m/%Y %I:%M %p') }} el sistema ya descuenta solo la comisión del {{ config_comision_pct }}% de cada cobro con tarjeta; lo cobrado antes se suma completo.{% else %}El sistema los suma completos, pero el banco deposita menos (comisión, ISV de la comisión y retención).{% endif %}
       La diferencia es el <b>{{ p.pct_tarjeta }}%</b> de lo cobrado con tarjeta{% if p.pct_tarjeta and p.pct_tarjeta <= 7 %}: <b>es muy probable que sean las comisiones</b>{% endif %}.</p>
     {% endif %}
 

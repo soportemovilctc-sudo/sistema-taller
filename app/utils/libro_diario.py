@@ -211,6 +211,13 @@ def registrar_asiento_para_movimiento(
                 referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
             )
 
+        if mov.categoria == "Comisiones POS / tarjeta":
+            return registrar_asiento(
+                db, fecha, f"Comisiones POS / tarjeta - {mov.descripcion or ''}".strip(" -"),
+                "comision_tarjeta", [(CTA_GASTOS_OPERATIVOS, mov.monto, 0), (cuenta_caja, 0, mov.monto)],
+                referencia=mov.referencia, movimiento_financiero_id=mov.id, usuario_nombre=mov.usuario_nombre,
+            )
+
         # Cuentas por cobrar anotadas a mano (ver app/utils/cxc.py)
         from app.models import CATEGORIA_PRESTAMO_OTORGADO, CATEGORIA_COBRO_PRESTAMO, CATEGORIA_COBRO_VENTA_CREDITO
         if mov.categoria == CATEGORIA_PRESTAMO_OTORGADO:

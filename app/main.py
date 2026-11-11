@@ -20,6 +20,8 @@ from app.utils.inventario_costos import registrar_costos_automaticos
 # Cada abono, cobro, venta y factura NUEVO queda guardado bajo la caja que
 # esté abierta en ese momento (ver app/utils/turnos_caja.py).
 registrar_vinculacion_automatica()
+from app.utils.comision_tarjeta import registrar_comision_tarjeta  # noqa: E402
+registrar_comision_tarjeta()
 # Cada movimiento de inventario, venta y repuesto NUEVO guarda el costo del
 # producto en ese momento (ver app/utils/inventario_costos.py).
 registrar_costos_automaticos()

@@ -90,6 +90,7 @@ def configuracion_facturacion_actualizar(
     alerta_umbral_fiscal: str = Form("50"),
     correlativo_fiscal_manual: str = Form(""),
     isv_tasa: str = Form("15"),
+    comision_tarjeta_pct: str = Form(""),
     servicios_exentos_default: bool = Form(False),
     prefijo_interno: str = Form("REC"),
     texto_legal_fiscal: str = Form(""),
@@ -146,6 +147,15 @@ def configuracion_facturacion_actualizar(
         cfg.isv_tasa = to_decimal(isv_tasa or 15)
     except (InvalidOperation, ValueError):
         cfg.isv_tasa = Decimal("15")
+    if comision_tarjeta_pct.strip():
+        try:
+            pct = to_decimal(comision_tarjeta_pct)
+            if Decimal("0") <= pct <= Decimal("20"):
+                cfg.comision_tarjeta_pct = pct.quantize(Decimal("0.01"))
+                if pct > 0 and cfg.comision_tarjeta_desde is None:
+                    cfg.comision_tarjeta_desde = datetime.utcnow()  # desde ahora en adelante
+        except (InvalidOperation, ValueError):
+            pass
     cfg.servicios_exentos_default = bool(servicios_exentos_default)
     cfg.prefijo_interno = (prefijo_interno.strip() or "REC").upper()
     cfg.texto_legal_fiscal = texto_legal_fiscal

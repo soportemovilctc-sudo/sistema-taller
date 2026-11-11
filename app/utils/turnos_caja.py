@@ -108,6 +108,7 @@ def _vincular_a_turno_abierto(session, flush_context, instances):
     nuevos = [
         obj for obj in session.new
         if isinstance(obj, _MODELOS_DEL_TURNO) and getattr(obj, "turno_caja_id", None) is None
+        and getattr(obj, "categoria", None) != "Comisiones POS / tarjeta"  # es del banco, no de la caja
     ]
     if not nuevos:
         return

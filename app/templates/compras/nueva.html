@@ -65,7 +65,11 @@
         <tbody id="filasCompra">
           <tr id="filaVacia"><td colspan="7" class="empty-state">Todavía no agregas productos.</td></tr>
         </tbody>
-        <tfoot><tr><td colspan="5" class="num">Total estimado (sin ISV)</td><td class="num" id="totalCompra" style="font-size:18px;">{{ moneda }} 0.00</td><td></td></tr></tfoot>
+        <tfoot>
+          <tr><td colspan="5" class="num">Subtotal (sin ISV)</td><td class="num" id="totalCompra">{{ moneda }} 0.00</td><td></td></tr>
+          <tr><td colspan="5" class="num">ISV ({{ tasa_isv|int }}%)</td><td class="num" id="isvCompra">{{ moneda }} 0.00</td><td></td></tr>
+          <tr><td colspan="5" class="num"><b>TOTAL (con ISV)</b></td><td class="num" id="totalCompraIsv" style="font-size:18px; font-weight:700;">{{ moneda }} 0.00</td><td></td></tr>
+        </tfoot>
       </table>
     </div>
     <div style="margin-top:18px; display:flex; gap:8px;">
@@ -97,14 +101,19 @@
       var c = parseInt(tr.querySelector('input[name="cantidad"]').value, 10) || 0;
       var kTxt = parseFloat(tr.querySelector('input[name="costo"]').value) || 0;
       var pTxt = parseFloat(tr.querySelector('input[name="precio"]').value) || 0;
-      var k = sinIsv(kTxt, chkCosto.checked), pv = sinIsv(pTxt, chkPrecio.checked);
+      // Igual que al guardar: el costo sin ISV queda redondeado a centavos.
+      var k = Math.round(sinIsv(kTxt, chkCosto.checked) * 100) / 100, pv = sinIsv(pTxt, chkPrecio.checked);
       tr.querySelector(".c-sub").textContent = fmt(c * k);
       tr.querySelector(".c-nota-costo").textContent = nota(kTxt, chkCosto.checked);
       tr.querySelector(".c-nota-precio").textContent = pTxt ? nota(pTxt, chkPrecio.checked) + (pv && pv < k ? " · ¡menor que el costo!" : "") : "";
       tr.querySelector(".c-nota-precio").style.color = pv && pv < k ? "var(--danger-text)" : "";
       total += c * k;
     });
+    total = Math.round(total * 100) / 100;
+    var isv = Math.round(total * tasa) / 100;
     document.getElementById("totalCompra").textContent = fmt(total);
+    document.getElementById("isvCompra").textContent = fmt(isv);
+    document.getElementById("totalCompraIsv").textContent = fmt(total + isv);
     filaVacia.style.display = filas.length ? "none" : "";
   }
 

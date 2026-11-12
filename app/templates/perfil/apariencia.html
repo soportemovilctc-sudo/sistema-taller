@@ -1,35 +1,66 @@
 {% extends "base.html" %}
 {% block title %}Apariencia{% endblock %}
 {% block content %}
-<div class="card" style="max-width:640px;">
+<div class="card" style="max-width:860px;">
   <div class="card-title">Apariencia</div>
   <p class="help" style="margin-top:-6px;">Esto es solo tuyo: cada usuario elige su propio tema y mascota, y queda guardado en tu cuenta (entra igual desde cualquier computadora).</p>
 
   <form method="post" action="/mi-perfil/apariencia" id="formApariencia">
+{% macro prev(c) %}<span class="ap-prev" style="--p-bg:{{ c[0] }}; --p-side:{{ c[1] }}; --p-panel:{{ c[2] }}; --p-pri:{{ c[3] }}; --p-text:{{ c[4] }};"><span class="ap-side"><i></i><i></i><i></i><i></i></span><span class="ap-main"><span class="ap-bar"></span><span class="ap-card"><i></i><i></i><i></i></span><span class="ap-btn"></span></span></span>{% endmacro %}
     <div class="field">
-      <label>Modo</label>
-      <div class="checkbox-grid">
-        {% for modo in temas_modo %}
-        <label class="checkbox-chip">
-          <input type="radio" name="tema_modo" value="{{ modo }}" {{ 'checked' if u.tema_modo == modo else '' }}>
-          {{ {'oscuro': 'Oscuro', 'claro': 'Claro', 'vidrio': 'Vidrio (efecto cristal)'}.get(modo, modo) }}
-        </label>
-        {% endfor %}
+      <label>Tema</label>
+      <div class="help" style="margin:-2px 0 10px;">Toca un tema para probarlo aquí mismo; queda cuando presionas «Guardar apariencia».</div>
+      {% for grupo in grupos %}
+      <div class="ap-grupo">
+        <div class="ap-grupo-t">{{ grupo }}</div>
+        <div class="ap-temas">
+          {% for clave, t in temas.items() if t.grupo == grupo %}
+          <label class="ap-tema">
+            <input type="radio" name="tema_modo" value="{{ clave }}" data-base="{{ t.base }}" data-variante="{{ clave if clave not in ('oscuro','claro','vidrio') else '' }}" data-propio="{{ '1' if t.propio else '0' }}" {{ 'checked' if tema_elegido == clave else '' }}>
+            <span class="ap-caja">{{ prev(t.prev) }}<span class="ap-nombre">{{ t.nombre }}<span class="ap-ok">✓</span></span></span>
+          </label>
+          {% endfor %}
+        </div>
       </div>
-      <div class="help" style="margin-top:6px;">El modo Vidrio trae su propio color cian con efecto de cristal esmerilado — mientras esté elegido, el color de acento de abajo no se usa.</div>
+      {% endfor %}
+      <div class="ap-grupo">
+        <div class="ap-grupo-t">De temporada</div>
+        <div class="ap-temas">
+          {% set th = temporadas_info[temporada_hoy] if temporada_hoy else None %}
+          <label class="ap-tema">
+            <input type="radio" name="tema_modo" value="temporada" id="temaTemporada" data-propio="1"
+                   data-base="{{ th.base if th else '' }}" data-variante="{{ temporada_hoy or '' }}" {{ 'checked' if tema_elegido == 'temporada' else '' }}>
+            <span class="ap-caja">{{ prev(th.prev if th else temas[base_temporada].prev) }}<span class="ap-nombre">Automático{% if th %} · {{ th.nombre }}{% endif %}<span class="ap-ok">✓</span></span></span>
+          </label>
+        </div>
+        <div id="cajaTemporada" style="{{ '' if tema_elegido == 'temporada' else 'display:none;' }} margin-top:12px;">
+          <div class="help">Cambia solo según la fecha.{% if th %} Hoy toca <b>{{ th.nombre }}</b>.{% endif %}</div>
+          <div class="ap-temporada">
+            {% for f in fechas_temporadas %}
+            <div class="ap-mini {{ 'is-hoy' if f.clave == temporada_hoy else '' }}">{{ prev(f.prev) }}<b>{{ f.nombre }}</b><span class="m-muted">{{ f.fechas }}</span></div>
+            {% endfor %}
+          </div>
+          <div class="field" style="margin-top:12px; max-width:320px;">
+            <label for="temaBaseTemporada">El resto del año usar</label>
+            <select id="temaBaseTemporada" name="tema_base_temporada">
+              {% for clave, t in temas.items() %}<option value="{{ clave }}" data-base="{{ t.base }}" data-variante="{{ clave if clave not in ('oscuro','claro','vidrio') else '' }}" data-propio="{{ '1' if t.propio else '0' }}" {{ 'selected' if base_temporada == clave else '' }}>{{ t.nombre }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="field">
       <label>Color de acento</label>
-      <div class="checkbox-grid" id="gridAcentos">
+      <div class="ap-acentos" id="gridAcentos">
         {% for a in temas_acento %}
-        <label class="checkbox-chip">
-          <input type="radio" name="tema_acento" value="{{ a.valor }}" {{ 'checked' if u.tema_acento == a.valor else '' }}>
-          {% if a.muestra %}<span style="display:inline-block; width:13px; height:13px; border-radius:50%; background:{{ a.muestra }}; border:1px solid var(--border);"></span>{% endif %}
-          {{ a.nombre }}
+        <label class="ap-acento {{ 'is-custom' if a.valor == 'personalizado' else '' }}" title="{{ a.nombre }}">
+          <input type="radio" name="tema_acento" value="{{ a.valor }}" aria-label="{{ a.nombre }}" {{ 'checked' if u.tema_acento == a.valor else '' }}>
+          <span style="--c: {{ a.muestra or '#888' }};"></span>
         </label>
         {% endfor %}
       </div>
+      <div class="help" id="ayudaAcento" style="margin-top:8px;">El acento se usa en los temas Oscuro y Claro; los demás temas traen su propio color.</div>
       <div class="field" id="campoColorPersonalizado" style="margin-top:10px; {{ '' if u.tema_acento == 'personalizado' else 'display:none;' }}">
         <label>Tu color</label>
         <input type="color" name="tema_color_personalizado" value="{{ u.tema_color_personalizado or '#2563eb' }}" style="width:70px; height:36px; padding:2px; cursor:pointer;">
@@ -106,6 +137,28 @@
 {% block scripts %}
 <script>
   (function () {
+    // Vista previa del tema: se aplica al momento en <html> (no se guarda
+    // hasta «Guardar apariencia»).
+    var htmlEl0 = document.documentElement;
+    var cajaTemp = document.getElementById('cajaTemporada'), selBase = document.getElementById('temaBaseTemporada');
+    var gridAc = document.getElementById('gridAcentos');
+    function aplicarTema() {
+      var r = document.querySelector('input[name="tema_modo"]:checked');
+      if (!r) return;
+      var fuente = r;
+      if (r.value === 'temporada') {
+        if (cajaTemp) cajaTemp.style.display = '';
+        if (!r.getAttribute('data-variante') && selBase) fuente = selBase.options[selBase.selectedIndex];
+      } else if (cajaTemp) { cajaTemp.style.display = 'none'; }
+      htmlEl0.setAttribute('data-tema', fuente.getAttribute('data-base') || 'oscuro');
+      var v = fuente.getAttribute('data-variante');
+      if (v) htmlEl0.setAttribute('data-variante', v); else htmlEl0.removeAttribute('data-variante');
+      if (gridAc) gridAc.classList.toggle('is-off', fuente.getAttribute('data-propio') === '1');
+    }
+    document.querySelectorAll('input[name="tema_modo"]').forEach(function (r) { r.addEventListener('change', aplicarTema); });
+    if (selBase) selBase.addEventListener('change', aplicarTema);
+    aplicarTema();
+
     var grid = document.getElementById('gridAcentos');
     var campoColor = document.getElementById('campoColorPersonalizado');
     if (grid && campoColor) {

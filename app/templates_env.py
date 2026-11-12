@@ -196,3 +196,16 @@ templates.env.filters["tipo_mov"] = fmt_tipo_mov
 
 from app.utils.pantalla_pdf import url_pantalla  # noqa: E402
 templates.env.filters["pantalla"] = url_pantalla
+
+
+def tema_de(usuario):
+    """data-tema / data-variante / temporada para <html> (ver app/utils/temas.py)."""
+    from app.utils.temas import resolver
+    try:
+        valor = usuario.get("tema_modo") if isinstance(usuario, dict) else getattr(usuario, "tema_modo", None)
+    except Exception:  # noqa: BLE001 - sin usuario (login): tema por defecto
+        valor = None
+    return resolver(valor if isinstance(valor, str) else "")
+
+
+templates.env.globals["tema_de"] = tema_de

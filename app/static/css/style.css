@@ -2024,3 +2024,158 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
 .bs-prod .bs-hay { color: var(--text-muted); }
 .bs-prod .bs-hay.is-cero { color: var(--danger-text); font-weight: 600; }
 .bs-prod .bs-costo { color: var(--text-muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   Temas completos (app/utils/temas.py). Cada uno se monta sobre el modo
+   oscuro o claro (data-tema) y aquí solo cambia sus colores con
+   data-variante. Van al final para ganarle al acento elegido.
+   ============================================================ */
+/* --- Oscuros --- */
+:root[data-variante="medianoche"] {
+  --bg: #000000; --bg-alt: #06060a; --panel: #0d0d14; --panel-2: #12121b; --border: #1f1f2e;
+  --text: #ececf4; --text-muted: #8e8ea8; --hair: rgba(255, 255, 255, .06);
+  --primary: #8b5cf6; --primary-dark: #7c3aed; --primary-light: #a78bfa;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 8px 26px rgba(0, 0, 0, .5);
+}
+:root[data-variante="oceano"] {
+  --bg: #06182a; --bg-alt: #081f36; --panel: #0c2a47; --panel-2: #0f3253; --border: #17426a;
+  --text: #e2f3f8; --text-muted: #8fb3c9; --hair: rgba(148, 220, 255, .08);
+  --primary: #14b8a6; --primary-dark: #0d9488; --primary-light: #2dd4bf;
+}
+:root[data-variante="oceano"] body {
+  background: radial-gradient(circle at 85% 0%, rgba(20, 184, 166, .16), transparent 45%),
+              radial-gradient(circle at 0% 100%, rgba(56, 189, 248, .10), transparent 45%), var(--bg);
+}
+:root[data-variante="bosque"] {
+  --bg: #0b1510; --bg-alt: #0f1d16; --panel: #14261c; --panel-2: #183022; --border: #24402f;
+  --text: #e3f1e8; --text-muted: #93b3a0; --hair: rgba(167, 243, 208, .07);
+  --primary: #10b981; --primary-dark: #059669; --primary-light: #34d399;
+}
+:root[data-variante="neon"] {
+  --bg: #07060d; --bg-alt: #0c0a16; --panel: #120f20; --panel-2: #171329; --border: #2a2245;
+  --text: #f0eaff; --text-muted: #a59cc8; --hair: rgba(217, 70, 239, .10);
+  --primary: #d946ef; --primary-dark: #c026d3; --primary-light: #22ff88;
+  --shadow: 0 0 0 1px rgba(34, 255, 136, .10), 0 8px 28px rgba(0, 0, 0, .6), 0 0 26px rgba(217, 70, 239, .10);
+}
+:root[data-variante="neon"] body {
+  background: radial-gradient(circle at 100% 0%, rgba(217, 70, 239, .14), transparent 40%),
+              radial-gradient(circle at 0% 100%, rgba(34, 255, 136, .08), transparent 40%), var(--bg);
+}
+:root[data-variante="neon"] .btn-primary, :root[data-variante="neon"] .nav-nueva { box-shadow: 0 0 18px rgba(217, 70, 239, .45); }
+:root[data-variante="neon"] .m-title, :root[data-variante="neon"] .kpi-value { text-shadow: 0 0 14px rgba(34, 255, 136, .25); }
+
+/* --- Claros --- */
+:root[data-variante="arena"] {
+  --bg: #f4efe6; --bg-alt: #ebe3d5; --panel: #fbf8f2; --panel-2: #f3ece0; --border: #e0d5c3;
+  --text: #3b2f22; --text-muted: #7a6a55; --hair: rgba(59, 47, 34, .07);
+  --primary: #b45309; --primary-dark: #92400e; --primary-light: #d97706;
+  --shadow: 0 1px 2px rgba(59, 47, 34, .06), 0 6px 20px rgba(59, 47, 34, .06);
+}
+:root[data-variante="grafito"] {
+  --bg: #eef0f2; --bg-alt: #e2e5e9; --panel: #ffffff; --panel-2: #f4f5f7; --border: #d5d9df;
+  --text: #111418; --text-muted: #5b6470; --hair: rgba(17, 20, 24, .07);
+  --primary: #1f2937; --primary-dark: #111827; --primary-light: #4b5563;
+}
+:root[data-variante="atardecer"] {
+  --bg: #fff4ee; --bg-alt: #ffe9df; --panel: #ffffff; --panel-2: #fff6f1; --border: #fbd5c5;
+  --text: #3a1d26; --text-muted: #8a5a64; --hair: rgba(244, 63, 94, .08);
+  --primary: #f43f5e; --primary-dark: #e11d48; --primary-light: #fb7185;
+  --shadow: 0 1px 2px rgba(244, 63, 94, .06), 0 8px 24px rgba(251, 146, 60, .10);
+}
+:root[data-variante="atardecer"] body { background: linear-gradient(160deg, #fff1e6 0%, #ffe8ee 55%, #fff4ee 100%) fixed; }
+:root[data-variante="contraste"] {
+  --bg: #ffffff; --bg-alt: #ffffff; --panel: #ffffff; --panel-2: #f2f2f2; --border: #000000;
+  --text: #000000; --text-muted: #222222; --hair: rgba(0, 0, 0, .25);
+  --primary: #000000; --primary-dark: #000000; --primary-light: #333333;
+  --shadow: none;
+}
+:root[data-variante="contraste"] .card, :root[data-variante="contraste"] .kpi,
+:root[data-variante="contraste"] input, :root[data-variante="contraste"] select,
+:root[data-variante="contraste"] textarea, :root[data-variante="contraste"] .btn { border-width: 2px !important; }
+
+/* --- De temporada (los pone la fecha) --- */
+:root[data-variante="navidad"] {
+  --bg: #0d1a14; --bg-alt: #102219; --panel: #162c21; --panel-2: #1a3326; --border: #2a4a38;
+  --text: #f6efe3; --text-muted: #a9bfb1; --hair: rgba(250, 204, 21, .08);
+  --primary: #dc2626; --primary-dark: #b91c1c; --primary-light: #f87171;
+}
+:root[data-variante="navidad"] body {
+  background: radial-gradient(circle at 90% 0%, rgba(220, 38, 38, .14), transparent 40%),
+              radial-gradient(circle at 0% 100%, rgba(234, 179, 8, .08), transparent 40%), var(--bg);
+}
+:root[data-variante="navidad"] .topbar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; pointer-events: none;
+  background: repeating-linear-gradient(90deg, #dc2626 0 22px, #16a34a 22px 44px, #eab308 44px 66px);
+}
+:root[data-variante="sanvalentin"] {
+  --bg: #fff1f4; --bg-alt: #ffe4ea; --panel: #ffffff; --panel-2: #fff5f7; --border: #fbcfe0;
+  --text: #3b0f1c; --text-muted: #8a4b5c; --hair: rgba(225, 29, 72, .08);
+  --primary: #e11d48; --primary-dark: #be123c; --primary-light: #fb7185;
+}
+:root[data-variante="patrias"] {
+  --bg: #f1f8fc; --bg-alt: #e3f1f9; --panel: #ffffff; --panel-2: #f5fafd; --border: #cfe6f3;
+  --text: #0b2a3d; --text-muted: #4f6f84; --hair: rgba(0, 135, 200, .08);
+  --primary: #0087c8; --primary-dark: #006fa6; --primary-light: #18c3df;
+}
+:root[data-variante="patrias"] .topbar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 4px; pointer-events: none;
+  background: linear-gradient(180deg, #18c3df 0 33%, #ffffff 33% 66%, #18c3df 66% 100%);
+}
+:root[data-variante="halloween"] {
+  --bg: #110b14; --bg-alt: #170f1b; --panel: #1f1424; --panel-2: #26182c; --border: #3a2541;
+  --text: #f6ece2; --text-muted: #b39fb0; --hair: rgba(249, 115, 22, .08);
+  --primary: #f97316; --primary-dark: #ea580c; --primary-light: #fb923c;
+}
+:root[data-variante="halloween"] body {
+  background: radial-gradient(circle at 100% 0%, rgba(249, 115, 22, .14), transparent 40%),
+              radial-gradient(circle at 0% 100%, rgba(147, 51, 234, .12), transparent 40%), var(--bg);
+}
+
+/* Nieve de Navidad: suave, no se puede tocar y no sale al imprimir. */
+.tm-nieve { position: fixed; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+.tm-nieve i { position: absolute; top: -12px; left: var(--x); width: var(--s); height: var(--s); border-radius: 50%;
+  background: #fff; opacity: .55; filter: blur(.4px); animation: tmCae var(--d) linear infinite; animation-delay: var(--r); }
+@keyframes tmCae { to { transform: translate3d(28px, 105vh, 0); } }
+@media (prefers-reduced-motion: reduce) { .tm-nieve { display: none; } }
+@media print { .tm-nieve, .topbar::after { display: none !important; } }
+
+/* ---------- Pantalla de Apariencia: tarjetas con vista previa ---------- */
+.ap-grupo { margin: 4px 0 16px; }
+.ap-grupo-t { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+.ap-temas { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.ap-tema { position: relative; display: block; margin: 0 !important; cursor: pointer; }
+.ap-tema input { position: absolute; opacity: 0; pointer-events: none; }
+.ap-tema .ap-caja { display: block; border: 2px solid var(--border); border-radius: 14px; padding: 6px; background: var(--panel);
+  transition: border-color .15s, transform .15s, box-shadow .15s; }
+.ap-tema:hover .ap-caja { transform: translateY(-2px); box-shadow: var(--shadow); }
+.ap-tema input:checked + .ap-caja { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent); }
+.ap-tema input:focus-visible + .ap-caja { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ap-nombre { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 7px 4px 2px; font-size: 13.5px; font-weight: 600; }
+.ap-nombre .ap-ok { display: none; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 11px;
+  align-items: center; justify-content: center; }
+.ap-tema input:checked + .ap-caja .ap-ok { display: inline-flex; }
+.ap-prev { display: grid; grid-template-columns: 26% 1fr; height: 84px; border-radius: 9px; overflow: hidden; background: var(--p-bg);
+  border: 1px solid rgba(127, 127, 127, .25); }
+.ap-prev .ap-side { background: var(--p-side); display: flex; flex-direction: column; gap: 5px; padding: 8px 6px; }
+.ap-prev .ap-side i { display: block; height: 5px; border-radius: 3px; background: var(--p-text); opacity: .25; }
+.ap-prev .ap-side i:first-child { background: var(--p-pri); opacity: 1; height: 8px; }
+.ap-prev .ap-main { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ap-prev .ap-bar { height: 6px; width: 55%; border-radius: 3px; background: var(--p-text); opacity: .7; }
+.ap-prev .ap-card { flex: 1; border-radius: 6px; background: var(--p-panel); border: 1px solid rgba(127, 127, 127, .22); padding: 6px;
+  display: flex; flex-direction: column; gap: 4px; }
+.ap-prev .ap-card i { display: block; height: 4px; border-radius: 2px; background: var(--p-text); opacity: .3; }
+.ap-prev .ap-card i:last-child { width: 60%; }
+.ap-prev .ap-btn { align-self: flex-end; width: 34%; height: 9px; border-radius: 4px; background: var(--p-pri); }
+.ap-temporada { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+.ap-temporada .ap-mini { border: 1px solid var(--border); border-radius: 12px; padding: 6px; background: var(--panel-2); font-size: 12.5px; }
+.ap-temporada .ap-mini.is-hoy { border-color: var(--primary); }
+.ap-temporada .ap-mini .ap-prev { height: 56px; }
+.ap-temporada .ap-mini b { display: block; margin-top: 5px; }
+.ap-acentos { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ap-acento { position: relative; margin: 0 !important; cursor: pointer; }
+.ap-acento input { position: absolute; opacity: 0; pointer-events: none; }
+.ap-acento span { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--c); border: 3px solid var(--panel); box-shadow: 0 0 0 1px var(--border); transition: box-shadow .15s, transform .15s; }
+.ap-acento input:checked + span { box-shadow: 0 0 0 3px var(--text); transform: scale(1.06); }
+.ap-acento.is-custom span { background: conic-gradient(#ef4444, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444); }
+.ap-acentos.is-off { opacity: .45; pointer-events: none; }

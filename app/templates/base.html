@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" data-tema="{{ usuario.tema_modo if usuario and usuario.tema_modo else 'oscuro' }}" data-acento="{{ usuario.tema_acento if usuario and usuario.tema_acento else 'azul' }}" data-efecto-cierre="{{ usuario.efecto_cierre_ventana if usuario and usuario.efecto_cierre_ventana else 'escala' }}" data-animar-apertura="{{ '1' if usuario and usuario.animar_apertura_ventana else '0' }}" data-dock-magnificacion="{{ '1' if usuario and usuario.dock_magnificacion else '0' }}" data-liquid-glass="{{ '1' if usuario and usuario.liquid_glass else '0' }}"{% if usuario and usuario.tema_acento == 'personalizado' and usuario.tema_color_personalizado %} style="--custom-color: {{ usuario.tema_color_personalizado }};"{% endif %}>
+{% set _tema = tema_de(usuario if usuario is defined else none) %}<html lang="es" data-tema="{{ _tema.tema }}"{% if _tema.variante %} data-variante="{{ _tema.variante }}"{% endif %} data-acento="{{ usuario.tema_acento if usuario and usuario.tema_acento else 'azul' }}" data-efecto-cierre="{{ usuario.efecto_cierre_ventana if usuario and usuario.efecto_cierre_ventana else 'escala' }}" data-animar-apertura="{{ '1' if usuario and usuario.animar_apertura_ventana else '0' }}" data-dock-magnificacion="{{ '1' if usuario and usuario.dock_magnificacion else '0' }}" data-liquid-glass="{{ '1' if usuario and usuario.liquid_glass else '0' }}"{% if usuario and usuario.tema_acento == 'personalizado' and usuario.tema_color_personalizado %} style="--custom-color: {{ usuario.tema_color_personalizado }};"{% endif %}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +12,7 @@
 {% block head %}{% endblock %}
 </head>
 <body>
+{% if _tema.temporada == 'navidad' %}<div class="tm-nieve" aria-hidden="true">{% for i in range(18) %}<i style="--x:{{ (i * 37) % 100 }}%; --d:{{ 9 + (i * 7) % 9 }}s; --r:{{ -((i * 13) % 17) }}s; --s:{{ 4 + (i * 5) % 6 }}px;"></i>{% endfor %}</div>{% endif %}
 {% if usuario %}
 <div class="app-shell">
   <aside class="sidebar" id="sidebar">

@@ -154,14 +154,27 @@ def apariencia_form(request: Request, db: Session = Depends(get_db), usuario=Dep
     return templates.TemplateResponse("perfil/apariencia.html", {
         "request": request, "usuario": usuario, "u": u,
         "temas_modo": TEMAS_MODO, "temas_acento": TEMAS_ACENTO, "mascotas_disponibles": MASCOTAS_DISPONIBLES,
-        "efectos_cierre_ventana": EFECTOS_CIERRE_VENTANA,
+        "efectos_cierre_ventana": EFECTOS_CIERRE_VENTANA, **_contexto_temas(u),
     })
+
+
+def _contexto_temas(u) -> dict:
+    from app.utils import temas as T
+    from app.utils.turnos_caja import hoy_local
+    valor = u.tema_modo or "oscuro"
+    return {
+        "temas": T.TEMAS, "grupos": T.GRUPOS, "temporadas_info": T.TEMPORADAS, "fechas_temporadas": T.fechas_temporadas(),
+        "temporada_hoy": T.temporada_de(hoy_local()),
+        "tema_elegido": "temporada" if T.es_temporada(valor) else (valor if valor in T.TEMAS else "oscuro"),
+        "base_temporada": T.base_de_temporada(valor) if T.es_temporada(valor) else (valor if valor in T.TEMAS else "oscuro"),
+    }
 
 
 @router.post("/mi-perfil/apariencia")
 def apariencia_actualizar(
     request: Request,
     tema_modo: str = Form("oscuro"),
+    tema_base_temporada: str = Form(""),
     tema_acento: str = Form("azul"),
     tema_color_personalizado: str = Form(""),
     mascota: str = Form("panda"),
@@ -182,7 +195,8 @@ def apariencia_actualizar(
     valores_mascota = [m["valor"] for m in MASCOTAS_DISPONIBLES]
     valores_efecto_cierre = [e["valor"] for e in EFECTOS_CIERRE_VENTANA]
 
-    u.tema_modo = tema_modo if tema_modo in valores_modo else "oscuro"
+    from app.utils.temas import valor_guardado
+    u.tema_modo = valor_guardado(tema_modo, tema_base_temporada)
     u.tema_acento = tema_acento if tema_acento in valores_acento else "azul"
     u.mascota = mascota if mascota in valores_mascota else "panda"
 

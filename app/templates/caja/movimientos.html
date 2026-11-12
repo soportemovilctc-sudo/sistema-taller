@@ -2,7 +2,7 @@
 {% block title %}Movimientos del mes{% endblock %}
 {% block content %}
 {% set moneda = config_taller().moneda %}
-{% set qs = 'mes=' ~ mes_iso ~ (('&banco=' ~ inf.banco_id) if inf.banco_id else '') %}
+{% set qs = 'desde=' ~ inf.desde.isoformat() ~ '&hasta=' ~ inf.hasta.isoformat() ~ (('&banco=' ~ inf.banco_id) if inf.banco_id else '') %}
 <div class="pill-tabs">
   <a href="/caja/panel">Panel gerencial</a>
   <a href="/caja/conciliacion">Conciliación y egresos</a>
@@ -28,7 +28,8 @@
   </div>
 
   <form method="get" action="/caja/movimientos" class="mov-filtros">
-    <div class="field" style="margin:0;"><label for="movMes">Mes</label><input id="movMes" type="month" name="mes" value="{{ mes_iso }}" onchange="this.form.submit()"></div>
+    <div class="field" style="margin:0;"><label for="movDesde">Desde</label><input id="movDesde" type="date" name="desde" value="{{ inf.desde.isoformat() }}" required></div>
+    <div class="field" style="margin:0;"><label for="movHasta">Hasta</label><input id="movHasta" type="date" name="hasta" value="{{ inf.hasta.isoformat() }}" required></div>
     {% if bancos|length > 1 %}
     <div class="field" style="margin:0;"><label for="movBanco">Cuenta</label>
       <select id="movBanco" name="banco" onchange="this.form.submit()">
@@ -36,7 +37,7 @@
         {% for b in bancos %}<option value="{{ b.id }}" {{ 'selected' if inf.banco_id == b.id else '' }}>Solo {{ b.nombre }}</option>{% endfor %}
       </select></div>
     {% endif %}
-    <noscript><button type="submit" class="btn btn-outline btn-sm">Ver</button></noscript>
+    <button type="submit" class="btn btn-primary">Filtrar</button>
   </form>
 
   <section class="mov-kpis">

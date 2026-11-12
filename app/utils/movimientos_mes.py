@@ -42,6 +42,38 @@ def mes_desde_texto(texto: str) -> tuple[int, int]:
     return h.year, h.month
 
 
+def rango_desde_texto(desde: str, hasta: str, mes: str = "") -> tuple[date, date]:
+    """Desde/Hasta (AAAA-MM-DD) del filtro. Sin fechas: del 1 del mes hasta
+    hoy (o el mes que venga en `mes`, para enlaces viejos). Si vienen al
+    revés, se acomodan."""
+    def leer(t):
+        try:
+            return date.fromisoformat((t or "").strip()[:10])
+        except ValueError:
+            return None
+    d, h = leer(desde), leer(hasta)
+    if not d and not h and (mes or "").strip():
+        anio, m = mes_desde_texto(mes)
+        d = date(anio, m, 1)
+        h = (d + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    hoy = hoy_local()
+    if not d and not h:
+        d, h = hoy.replace(day=1), hoy
+    d, h = d or h, h or d
+    if d > h:
+        d, h = h, d
+    return d, h
+
+
+def titulo_rango(d: date, h: date) -> str:
+    fin_mes = (d + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    if d.day == 1 and h == fin_mes:
+        return f"{MESES[d.month]} {d.year}"
+    if d == h:
+        return f"{d:%d/%m/%Y}"
+    return f"del {d:%d/%m/%Y} al {h:%d/%m/%Y}"
+
+
 def forma_de(m: MovimientoFinanciero) -> str:
     if m.categoria == CATEGORIA_DEPOSITO_BANCO:
         return "deposito"
@@ -55,12 +87,12 @@ def forma_de(m: MovimientoFinanciero) -> str:
     return "transferencia"
 
 
-def informe(db: Session, anio: int, mes: int, banco_id: int | None = None) -> dict:
+def informe(db: Session, desde: date, hasta: date, banco_id: int | None = None) -> dict:
+    """Movimientos de `desde` a `hasta` (los dos días incluidos, hora de Honduras)."""
     from app.utils.estados_financieros import saldo_efectivo_a
     from app.utils.bancos import filtro_banco, nombre_banco, bancos_activos, saldo_banco_a
 
-    inicio_d = date(anio, mes, 1)
-    fin_d = (inicio_d + timedelta(days=32)).replace(day=1)
+    inicio_d, fin_d = desde, hasta + timedelta(days=1)
     inicio, fin = inicio_dia_local_en_utc(inicio_d), inicio_dia_local_en_utc(fin_d)
     consulta = db.query(MovimientoFinanciero).filter(
         MovimientoFinanciero.fecha >= inicio, MovimientoFinanciero.fecha < fin,
@@ -119,7 +151,7 @@ def informe(db: Session, anio: int, mes: int, banco_id: int | None = None) -> di
         saldos = {"caja_inicial": q(ini["caja_chica"]), "caja_final": q(fi["caja_chica"]),
                   "banco_inicial": q(ini["banco"]), "banco_final": q(fi["banco"])}
     return {
-        "anio": anio, "mes": mes, "titulo": f"{MESES[mes]} {anio}", "banco_id": banco_id,
+        "desde": desde, "hasta": hasta, "titulo": titulo_rango(desde, hasta), "banco_id": banco_id,
         "banco_nombre": nombre_banco(db, banco_id) if banco_id else "", "varios_bancos": len(bancos_activos(db)) > 1,
         "por_forma": por_forma, "total_ingresos": total_ingresos, "total_egresos": total_egresos,
         "neto": q(total_ingresos - total_egresos), "categorias": categorias, "filas": filas, "n": len(filas),
@@ -133,7 +165,7 @@ def _ahora():
 
 
 def nombre_archivo(inf: dict, ext: str) -> str:
-    return f"movimientos_{inf['anio']}_{inf['mes']:02d}{('_banco' + str(inf['banco_id'])) if inf['banco_id'] else ''}.{ext}"
+    return f"movimientos_{inf['desde']:%Y%m%d}_{inf['hasta']:%Y%m%d}{('_banco' + str(inf['banco_id'])) if inf['banco_id'] else ''}.{ext}"
 
 
 def excel(inf: dict, nombre_taller: str, moneda: str) -> bytes:

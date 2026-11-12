@@ -24,10 +24,10 @@
 
     <div class="field">
       <label for="pickerProducto">Agregar producto</label>
-      <select id="pickerProducto" class="js-buscar-select" data-placeholder="Escribe el código o nombre del producto...">
+      <select id="pickerProducto" class="js-buscar-select" data-tarjeta="producto" data-moneda="{{ moneda }}" data-placeholder="Escribe el código, nombre o categoría del producto...">
         <option value="">Selecciona un producto...</option>
         {% for p in productos %}
-        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-categoria="{{ p.categoria or '' }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" data-precio="{{ p.precio_venta or 0 }}" {{ 'selected' if p.id == preseleccion else '' }}>{% if p.categoria %}[{{ p.categoria }}] {% endif %}{{ p.codigo }} · {{ p.nombre }} (hay {{ p.existencia or 0 }})</option>
+        <option value="{{ p.id }}" data-codigo="{{ p.codigo }}" data-nombre="{{ p.nombre }}" data-categoria="{{ p.categoria or '' }}" data-existencia="{{ p.existencia or 0 }}" data-costo="{{ p.costo or 0 }}" data-precio="{{ p.precio_venta or 0 }}" {{ 'selected' if p.id == preseleccion else '' }}>{{ p.codigo }} · {{ p.nombre }}</option>
         {% endfor %}
       </select>
       <div class="help">¿Es un producto que todavía no existe? <a href="#" id="abrirNuevoProducto">Crearlo aquí mismo</a> (queda con 0 unidades hasta que llegue la compra).</div>
@@ -220,7 +220,7 @@
         if (!res.ok) { msg.textContent = res.mensaje || "No se pudo crear."; return; }
         var op = document.createElement("option");
         op.value = res.id; op.dataset.codigo = res.codigo; op.dataset.nombre = res.nombre; op.dataset.existencia = 0; op.dataset.categoria = document.getElementById("npCategoria").value; op.dataset.costo = res.costo || 0; op.dataset.precio = res.precio || 0;
-        op.textContent = res.codigo + " · " + res.nombre + " (hay 0)";
+        op.textContent = res.codigo + " · " + res.nombre;
         picker.appendChild(op);
         agregar(desdeOpcion(op));
         ["npCodigo", "npNombre", "npPrecio", "npCosto"].forEach(function (id) { document.getElementById(id).value = (id === "npPrecio" || id === "npCosto") ? "0" : ""; });

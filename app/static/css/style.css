@@ -2012,3 +2012,15 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
 .pago-mixto .pm-sub { margin: -2px 0 10px; padding-left: 12px; }
 .pago-mixto .pm-resumen { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 14px; line-height: 1.6; }
 @media (max-width: 520px) { .pago-mixto .pm-fila { grid-template-columns: 1fr 120px; } }
+
+/* Buscador de productos en tarjetas (data-tarjeta="producto") */
+.buscar-select-item.bs-prod { padding: 9px 12px; }
+.bs-prod .bs-l1 { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
+.bs-prod .bs-cod { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.bs-prod .bs-nom { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bs-prod .bs-l2 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; font-size: 12px; }
+.bs-prod .bs-cat { padding: 1px 8px; border-radius: 999px; font-weight: 600; letter-spacing: .02em;
+  color: var(--primary); background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.bs-prod .bs-hay { color: var(--text-muted); }
+.bs-prod .bs-hay.is-cero { color: var(--danger-text); font-weight: 600; }
+.bs-prod .bs-costo { color: var(--text-muted); margin-left: auto; font-variant-numeric: tabular-nums; }

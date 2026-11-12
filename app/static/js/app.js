@@ -156,10 +156,30 @@ function inicializarBuscadorSelect(select) {
       return;
     }
     lista.innerHTML = "";
-    items.slice(0, 30).forEach(function (op) {
+    // data-tarjeta="producto": cada producto en una tarjeta de 2 líneas
+    // (código y nombre; abajo la categoría, las unidades que hay y el costo).
+    var tarjeta = select.getAttribute("data-tarjeta") === "producto";
+    var mon = select.getAttribute("data-moneda") || "L";
+    function el(tag, clase, texto) { var x = document.createElement(tag); x.className = clase; x.textContent = texto; return x; }
+    items.slice(0, tarjeta ? 50 : 30).forEach(function (op) {
       var item = document.createElement("div");
       item.className = "buscar-select-item";
-      item.textContent = op.textContent;
+      if (tarjeta) {
+        item.classList.add("bs-prod");
+        var l1 = el("div", "bs-l1", "");
+        l1.appendChild(el("b", "bs-cod", op.dataset.codigo || ""));
+        l1.appendChild(el("span", "bs-nom", op.dataset.nombre || op.textContent));
+        var l2 = el("div", "bs-l2", "");
+        var cat = (op.dataset.categoria || "").trim();
+        if (cat) l2.appendChild(el("span", "bs-cat", cat));
+        var hay = parseInt(op.dataset.existencia || "0", 10) || 0;
+        l2.appendChild(el("span", "bs-hay" + (hay <= 0 ? " is-cero" : ""), "Hay " + hay));
+        var costo = parseFloat(op.dataset.costo || "0") || 0;
+        l2.appendChild(el("span", "bs-costo", "Costo " + mon + " " + costo.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })));
+        item.appendChild(l1); item.appendChild(l2);
+      } else {
+        item.textContent = op.textContent;
+      }
       item.addEventListener("mousedown", function (e) {
         e.preventDefault();
         select.value = op.value;
@@ -176,7 +196,7 @@ function inicializarBuscadorSelect(select) {
   function filtrar(q) {
     if (!q) return opciones();
     return opciones().filter(function (o) {
-      return normalizarTextoBusqueda(o.textContent).indexOf(q) !== -1;
+      return normalizarTextoBusqueda(o.textContent + " " + (o.dataset.categoria || "")).indexOf(q) !== -1;
     });
   }
 

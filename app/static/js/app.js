@@ -380,6 +380,10 @@ function inicializarPandaMascota() {
   }
 
   function dispararReaccionAleatoria() {
+    if (panda.classList.contains("mascota-3d")) {
+      if (window.mascotaFlotante) window.mascotaFlotante.reaccionar();
+      return;
+    }
     if (panda.dataset.mascota === "robot") {
       dispararReaccionRobot();
       return;

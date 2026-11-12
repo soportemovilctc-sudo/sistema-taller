@@ -69,12 +69,20 @@
     </div>
 
     <div class="field">
+      <label class="checkbox-chip" style="display:inline-flex;">
+        <input type="checkbox" name="mostrar_mascota" value="1" {{ 'checked' if mascota_activa else '' }}>
+        Mostrar mi mascota en pantalla
+      </label>
+      <div class="help" style="margin-top:4px;">Si la apagas, los avisos y consejos del sistema siguen saliendo igual.{% if u.rol == 'tecnico' %} Para los técnicos viene apagada.{% endif %}</div>
+    </div>
+
+    <div class="field">
       <label>Mascota</label>
       <div class="ap-temas ap-mascotas">
         {% for m in mascotas_disponibles %}
         <label class="ap-tema">
           <input type="radio" name="mascota" value="{{ m.valor }}" {{ 'checked' if u.mascota == m.valor else '' }}>
-          <span class="ap-caja"><span class="ap-masc"><img src="/mi-perfil/mascota/{{ m.valor }}.svg?{{ ropa_qs }}" alt="{{ m.nombre }}" loading="lazy" data-mascota="{{ m.valor }}"></span>
+          <span class="ap-caja"><span class="ap-masc" data-mascota="{{ m.valor }}"><img src="/mi-perfil/mascota/{{ m.valor }}.svg?{{ ropa_qs }}" alt="{{ m.nombre }}" loading="lazy" data-mascota="{{ m.valor }}"></span>
             <span class="ap-nombre">{{ m.nombre }}<span class="ap-ok">✓</span></span></span>
         </label>
         {% endfor %}
@@ -85,7 +93,7 @@
     <div class="field">
       <label>Ropero de tu mascota</label>
       <div class="ap-ropero">
-        <div class="ap-ropero-prev"><img id="previaRopa" src="/mi-perfil/mascota/{{ u.mascota or 'panda' }}.svg?{{ ropa_qs }}" alt="Vista previa de tu mascota"></div>
+        <div class="ap-ropero-prev" id="previaRopaCaja"><img id="previaRopa" src="/mi-perfil/mascota/{{ u.mascota or 'panda' }}.svg?{{ ropa_qs }}" alt="Vista previa de tu mascota"><span class="ap-girar">Arrástrala para girarla</span></div>
         <div class="ap-ropero-partes">
           {% for parte in ropero %}
           <div class="ap-parte">
@@ -119,6 +127,44 @@
 
 {% endblock %}
 {% block scripts %}
+<script type="application/json" id="trajesHoy">{{ trajes_hoy|tojson }}</script>
+{% if mascotas_3d() %}<script type="module">
+  // Vistas previas en 3D (panda, león, ratón). El robot sigue en imagen.
+  import "/static/js/mascota3d.js?v={{ version_estatico('js/mascota3d.js') }}";
+  const M = window.Mascota3D;
+  if (M) {
+    const trajes = JSON.parse(document.getElementById("trajesHoy").textContent || "{}");
+    const partes = ["cabeza", "ojos", "cuello", "mano"];
+    const ropaElegida = () => {
+      const r = {};
+      partes.forEach((p) => { const x = document.querySelector(`input[name="ropa_${p}"]:checked`); r[p] = x ? x.value : ""; });
+      const t = document.querySelector('input[name="ropa_temporada"]');
+      if (t && t.checked) Object.assign(r, trajes);
+      return r;
+    };
+    const vistas = [];
+    document.querySelectorAll(".ap-masc").forEach((caja) => {
+      const tipo = caja.dataset.mascota;
+      if (tipo === "robot") return;
+      const v = M.crear(caja, { tipo, ropa: ropaElegida(), interactiva: false, encuadre: "tarjeta" });
+      if (v) { caja.classList.add("m3d-lista"); vistas.push(v); }
+    });
+    const cajaPrev = document.getElementById("previaRopaCaja");
+    let grande = null;
+    const tipoActual = () => { const r = document.querySelector('input[name="mascota"]:checked'); return r ? r.value : "panda"; };
+    function armarGrande() {
+      const tipo = tipoActual();
+      if (tipo === "robot") { if (grande) { grande.destruir(); grande = null; } cajaPrev.classList.remove("m3d-lista"); return; }
+      if (!grande) { grande = M.crear(cajaPrev, { tipo, ropa: ropaElegida(), interactiva: true, orbitar: true, encuadre: "grande" }); if (grande) cajaPrev.classList.add("m3d-lista"); }
+      else { grande.cambiarTipo(tipo); grande.ponerRopa(ropaElegida()); }
+    }
+    armarGrande();
+    document.querySelectorAll('input[name^="ropa_"], input[name="mascota"]').forEach((el) => el.addEventListener("change", () => {
+      const r = ropaElegida(); vistas.forEach((v) => v.ponerRopa(r)); armarGrande(); if (grande) grande.ponerRopa(r);
+      if (grande) grande.reaccionar("saludo");
+    }));
+  }
+</script>{% endif %}
 <script>
   (function () {
     // Vista previa del tema: se aplica al momento en <html> (no se guarda

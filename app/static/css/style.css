@@ -2198,3 +2198,79 @@ svg.panda-mascota { overflow: visible; }
 .ap-parte-t { font-size: 12.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
 .ap-parte .pago-op span { min-height: 34px; padding: 0 12px; font-size: 13.5px; }
 @media (max-width: 640px) { .ap-ropero { grid-template-columns: 1fr; } .ap-ropero-prev { position: static; height: 200px; } }
+
+/* ============================================================
+   Profundidad y color: sombras suaves en capas, relieve al pasar el
+   mouse y color por tipo de dato. Funciona con todos los temas (usa sus
+   variables).
+   ============================================================ */
+:root {
+  --sombra-1: 0 1px 2px rgba(15, 23, 42, .06), 0 2px 6px rgba(15, 23, 42, .05), 0 10px 24px -12px rgba(15, 23, 42, .18);
+  --sombra-2: 0 2px 4px rgba(15, 23, 42, .08), 0 10px 20px -6px rgba(15, 23, 42, .16), 0 22px 40px -18px rgba(15, 23, 42, .28);
+  --kc-verde: #16a34a; --kc-azul: #2563eb; --kc-ambar: #d97706; --kc-morado: #7c3aed;
+}
+:root[data-tema="oscuro"], :root[data-tema="vidrio"] {
+  --sombra-1: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 22px -10px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .04);
+  --sombra-2: 0 2px 6px rgba(0, 0, 0, .4), 0 18px 40px -14px rgba(0, 0, 0, .7), inset 0 1px 0 rgba(255, 255, 255, .06);
+  --kc-verde: #34d399; --kc-azul: #60a5fa; --kc-ambar: #fbbf24; --kc-morado: #a78bfa;
+}
+body { background: radial-gradient(1100px 520px at 100% -8%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 62%),
+                   radial-gradient(900px 480px at -10% 110%, color-mix(in srgb, var(--primary) 6%, transparent), transparent 60%), var(--bg);
+       background-attachment: fixed; }
+.card, .d5-card, .d5-kpi { box-shadow: var(--sombra-1); border-color: color-mix(in srgb, var(--border) 70%, transparent); }
+.d5-kpi, .d5-flujo a, .ap-tema .ap-caja { transition: transform .18s ease, box-shadow .18s ease; }
+a.d5-kpi:hover, .d5-kpi:hover { transform: translateY(-3px); box-shadow: var(--sombra-2); text-decoration: none; }
+
+/* Tarjetas de dinero con su color */
+.d5-kpi { position: relative; overflow: hidden; --kc: var(--primary); padding-bottom: 18px; }
+.d5-kpi.kc-verde { --kc: var(--kc-verde); } .d5-kpi.kc-azul { --kc: var(--kc-azul); }
+.d5-kpi.kc-ambar { --kc: var(--kc-ambar); } .d5-kpi.kc-morado { --kc: var(--kc-morado); }
+.d5-kpi::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(180px 120px at 100% 0%, color-mix(in srgb, var(--kc) 16%, transparent), transparent 70%); }
+.d5-kpi .k { color: var(--text-muted); font-weight: 600; }
+.d5-kpi .k .ic { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px; flex: 0 0 auto;
+  color: var(--kc); background: color-mix(in srgb, var(--kc) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kc) 22%, transparent); }
+.d5-kpi .k .ic svg { width: 17px; height: 17px; stroke-width: 2; }
+.d5-kpi .v { font-size: 28px; margin-top: 12px; }
+.d5-kpi .spark { position: absolute; right: 14px; bottom: 14px; width: 42%; height: 34px; overflow: visible; }
+.d5-kpi .spark-l { fill: none; stroke: var(--kc); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.d5-kpi .spark-a { fill: color-mix(in srgb, var(--kc) 16%, transparent); stroke: none; }
+.d5-kpi .s { position: relative; }
+.d5-kpi:has(.spark) .s { max-width: 56%; }
+
+/* Órdenes por estado: tarjetas de color */
+.d5-flujo { background: transparent; border: 0; overflow: visible; gap: 12px; }
+.d5-flujo a { position: relative; border: 1px solid color-mix(in srgb, var(--c) 28%, var(--border)) !important; border-radius: var(--radius);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 12%, var(--panel)), var(--panel) 75%); box-shadow: var(--sombra-1); overflow: hidden; }
+.d5-flujo a::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--c); opacity: .85; }
+.d5-flujo a:hover { transform: translateY(-2px); box-shadow: var(--sombra-2); background: linear-gradient(180deg, color-mix(in srgb, var(--c) 18%, var(--panel)), var(--panel) 80%); }
+.d5-flujo .n { color: var(--c); font-size: 26px; }
+.d5-flujo a[style*="text-muted"] .n { color: var(--text); }
+
+/* Gráfica de 7 días con degradado */
+.d5-barras .b i { background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 45%, transparent), color-mix(in srgb, var(--primary) 18%, transparent)); }
+.d5-barras .b.hoy i { background: linear-gradient(180deg, var(--primary-light), var(--primary)); box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--primary) 70%, transparent); }
+.d5-barras .b:hover i { filter: brightness(1.12); }
+
+/* Filas de órdenes y saludo */
+.d5-orden { border-radius: 10px; transition: background .15s; }
+a.d5-orden:hover { background: color-mix(in srgb, var(--primary) 6%, transparent); text-decoration: none; }
+.d5-saludo { background: linear-gradient(90deg, var(--text) 40%, color-mix(in srgb, var(--primary) 75%, var(--text))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.nav-nueva { box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--primary) 70%, transparent); }
+@media (max-width: 900px) { .d5-flujo { grid-template-columns: repeat(2, minmax(0, 1fr)); } .d5-kpi .spark { width: 34%; } }
+@media (prefers-reduced-motion: reduce) { .d5-kpi, .d5-flujo a { transition: none; } a.d5-kpi:hover, .d5-kpi:hover, .d5-flujo a:hover { transform: none; } }
+/* Mascota apagada en Apariencia: no se ve ni se toca, pero los avisos
+   flotantes se siguen ubicando en su esquina. */
+.panda-mascota.mascota-oculta { visibility: hidden !important; pointer-events: none !important; }
+/* Mascota 3D flotante */
+.panda-mascota.mascota-3d { width: 88px; height: 100px; }
+@media (max-width: 900px) { .panda-mascota.mascota-3d { width: 70px; height: 80px; } }
+.mascota-3d .m3d-respaldo { width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
+.mascota-3d.m3d-lista .m3d-respaldo { display: none; }
+.mascota-3d .m3d-lienzo { display: block; width: 100%; height: 100%; pointer-events: none; }
+.ap-masc, .ap-ropero-prev { position: relative; }
+.ap-masc .m3d-lienzo, .ap-ropero-prev .m3d-lienzo { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ap-masc.m3d-lista img, .ap-ropero-prev.m3d-lista img { visibility: hidden; }
+.ap-ropero-prev { height: 300px; }
+.ap-ropero-prev .ap-girar { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 11.5px; color: var(--text-muted); pointer-events: none; }
+.ap-ropero-prev:not(.m3d-lista) .ap-girar { display: none; }

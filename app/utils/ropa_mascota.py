@@ -86,6 +86,7 @@ def leer(texto) -> dict:
     """De lo guardado a {cabeza, ojos, cuello, mano, temporada(bool)}."""
     r = {p: "" for p in PARTES}
     r["temporada"] = True
+    r["mostrar"] = None  # None = lo de siempre según el rol (ver mascota_visible)
     if not isinstance(texto, str) or not texto.strip():
         return r
     for par in texto.split(";"):
@@ -95,13 +96,28 @@ def leer(texto) -> dict:
             r[k] = v
         elif k == "temporada":
             r["temporada"] = v == "1"
+        elif k == "mostrar" and v in ("0", "1"):
+            r["mostrar"] = v == "1"
     return r
 
 
-def guardar(cabeza="", ojos="", cuello="", mano="", temporada=True) -> str:
+def guardar(cabeza="", ojos="", cuello="", mano="", temporada=True, mostrar=None) -> str:
     vals = {"cabeza": cabeza, "ojos": ojos, "cuello": cuello, "mano": mano}
     partes = [f"{k}={v if v in VALIDOS[k] else ''}" for k, v in vals.items()]
-    return ";".join(partes + [f"temporada={'1' if temporada else '0'}"])
+    partes.append(f"temporada={'1' if temporada else '0'}")
+    if mostrar is not None:
+        partes.append(f"mostrar={'1' if mostrar else '0'}")
+    return ";".join(partes)
+
+
+def mascota_visible(texto, rol: str) -> bool:
+    """Los técnicos no tienen mascota a menos que la enciendan en Apariencia;
+    los demás la tienen a menos que la apaguen. Los avisos y consejos
+    flotantes del sistema salen igual."""
+    mostrar = leer(texto)["mostrar"]
+    if mostrar is not None:
+        return mostrar
+    return (rol or "") != "tecnico"
 
 
 def puesta(texto, hoy: date | None = None) -> dict:

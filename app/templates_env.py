@@ -229,3 +229,22 @@ def svg_ropa_plantilla(mascota, piezas):
 
 templates.env.globals["ropa_de"] = ropa_de
 templates.env.globals["svg_ropa"] = svg_ropa_plantilla
+
+
+def mascota_visible_plantilla(usuario):
+    from app.utils.ropa_mascota import mascota_visible
+    try:
+        texto = usuario.get("mascota_ropa") if isinstance(usuario, dict) else getattr(usuario, "mascota_ropa", None)
+        rol = usuario.get("rol") if isinstance(usuario, dict) else getattr(usuario, "rol", "")
+    except Exception:  # noqa: BLE001
+        return True
+    return mascota_visible(texto if isinstance(texto, str) else None, rol if isinstance(rol, str) else "")
+
+
+templates.env.globals["mascota_visible"] = mascota_visible_plantilla
+
+
+# Mascotas 3D (static/js/mascota3d.js): se encienden cuando Ricardo apruebe
+# cómo quedaron; mientras tanto se usan las de dibujo (SVG).
+MASCOTAS_3D = False
+templates.env.globals["mascotas_3d"] = lambda: MASCOTAS_3D

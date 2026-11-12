@@ -170,7 +170,7 @@
        cambia de neutral a sonriente mientras dura cualquier reacción (ver
        ".reaccionando" en style.css, que activa la capa "feliz" encima de
        la neutral). -->
-  <div id="pandaCajaMascota" class="panda-mascota mascota-robot" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" title="Arrástrame a donde quieras. Tócame para una sorpresa.">
+  <div id="pandaCajaMascota" class="panda-mascota mascota-robot{{ '' if mascota_visible(usuario) else ' mascota-oculta' }}" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" title="Arrástrame a donde quieras. Tócame para una sorpresa.">
     <div class="robot-img">
       <img class="robot-capa robot-capa-cuerpo robot-capa-neutral" src="{{ url_for('static', path='img/mascota-robot-cuerpo.png') }}" alt="Robot" draggable="false">
       <img class="robot-capa robot-capa-cuerpo robot-capa-feliz" src="{{ url_for('static', path='img/mascota-robot-cuerpo-feliz.png') }}" alt="" draggable="false">
@@ -214,10 +214,21 @@
     <span class="robot-pieza robot-brillo" aria-hidden="true">✨</span>
   </div>
   {% else %}
-  <svg id="pandaCajaMascota" class="panda-mascota" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
+  {% if mascotas_3d() %}
+  {% set _ropa = ropa_de(usuario) %}{% set _visible = mascota_visible(usuario) %}
+  <!-- Mascota en 3D (static/js/mascota3d.js): un muñeco articulado con su
+       ropa. Mientras carga, o si el navegador no tiene 3D, se ve el dibujo
+       de siempre (la imagen de respaldo). -->
+  <div id="pandaCajaMascota" class="panda-mascota mascota-3d{{ '' if _visible else ' mascota-oculta' }}" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" data-ropa="{{ _ropa|tojson|forceescape }}" title="Arrástrame a donde quieras. Tócame para una sorpresa.">
+    <img class="m3d-respaldo" src="/mi-perfil/mascota/{{ _mascota }}.svg?{% for k, v in _ropa.items() %}{{ k }}={{ v }}&amp;{% endfor %}temporada=0" alt="" draggable="false">
+  </div>
+  {% if _visible %}<script type="module" src="/static/js/mascota3d.js?v={{ version_estatico('js/mascota3d.js') }}"></script>{% endif %}
+  {% else %}
+  <svg id="pandaCajaMascota" class="panda-mascota{{ '' if mascota_visible(usuario) else ' mascota-oculta' }}" data-pagina="{{ request.url.path }}" data-mascota="{{ _mascota }}" data-usuario="{{ usuario.nombre_completo }}" xmlns="http://www.w3.org/2000/svg" viewBox="-25 -45 290 330">
     <title>Arrástrame a donde quieras. Tócame para una sorpresa.</title>
     {% set _ropa_svg = svg_ropa(_mascota, ropa_de(usuario)) %}{% include "partials/mascota_dibujo.html" %}
   </svg>
+  {% endif %}
   {% endif %}
   {% endif %}
 </div>

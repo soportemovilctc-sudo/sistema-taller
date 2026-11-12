@@ -21,23 +21,29 @@
 
   <section class="d5-kpis" aria-label="Dinero">
     {% set cob = cobrado_hoy|moneda(moneda) %}
-    <div class="d5-kpi">
-      <div class="k"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><circle cx="12" cy="12" r="2.5"/></svg>Cobrado hoy</div>
+    {% set _vals = serie_ingresos|map(attribute='total')|list %}{% set _mx = (_vals + [1])|max %}
+    <div class="d5-kpi kc-verde">
+      <div class="k"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><circle cx="12" cy="12" r="2.5"/></svg></span>Cobrado hoy</div>
       <div class="v">{{ cob[:-3] }}<small>{{ cob[-3:] }}</small></div>
       <div class="s">7 días: {{ (serie_ingresos|sum(attribute='total'))|moneda(moneda) }}</div>
+      {% if _vals|length > 1 %}<svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">
+        {% set _pts = [] %}{% for v in _vals %}{% set _ = _pts.append(((loop.index0 * 120 / (_vals|length - 1))|round(1)|string) ~ ',' ~ ((30 - v / _mx * 26)|round(1)|string)) %}{% endfor %}
+        <polygon points="0,34 {{ _pts|join(' ') }} 120,34" class="spark-a"/>
+        <polyline points="{{ _pts|join(' ') }}" class="spark-l"/>
+      </svg>{% endif %}
     </div>
-    <a class="d5-kpi" href="/caja">
-      <div class="k"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 11h18M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"/></svg>Efectivo en caja</div>
+    <a class="d5-kpi kc-azul" href="/caja">
+      <div class="k"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 11h18M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"/></svg></span>Efectivo en caja</div>
       <div class="v">{{ efectivo_caja|moneda(moneda) if efectivo_caja is not none else '—' }}</div>
       <div class="s">Egresos de hoy: {{ gastos_dia|moneda(moneda) }}</div>
     </a>
-    <a class="d5-kpi" href="/cuentas-por-cobrar">
-      <div class="k"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Por cobrar</div>
+    <a class="d5-kpi kc-ambar" href="/cuentas-por-cobrar">
+      <div class="k"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>Por cobrar</div>
       <div class="v">{{ saldos_pendientes|moneda(moneda) }}</div>
       <div class="s">Saldo pendiente en órdenes</div>
     </a>
-    <div class="d5-kpi">
-      <div class="k"><svg viewBox="0 0 24 24"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg>Ingresos del mes</div>
+    <div class="d5-kpi kc-morado">
+      <div class="k"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg></span>Ingresos del mes</div>
       <div class="v">{{ ingresos_mes|moneda(moneda) }}</div>
       <div class="s">{{ meses[hoy.month - 1]|capitalize }} {{ hoy.year }}</div>
     </div>

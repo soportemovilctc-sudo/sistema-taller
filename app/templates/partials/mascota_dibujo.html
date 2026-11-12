@@ -4,27 +4,19 @@
     _mascota y _ropa_svg (la ropa, ver app/utils/ropa_mascota.py). -#}
     {% if _mascota == 'leon' %}
     <defs>
-      <linearGradient id="furDark" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#b45309"/>
-        <stop offset="1" stop-color="#78350f"/>
-      </linearGradient>
-      <linearGradient id="furWhite" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#fcd34d"/>
-        <stop offset="1" stop-color="#f59e0b"/>
-      </linearGradient>
-      <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#ffcfdc"/>
-        <stop offset="1" stop-color="#ff9db3"/>
-      </linearGradient>
-      <linearGradient id="tanGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#ffe6c9"/>
-        <stop offset="1" stop-color="#eeb989"/>
-      </linearGradient>
+      <radialGradient id="furDark" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#ce8f5f"/><stop offset="0.38" stop-color="#b45309"/><stop offset="0.82" stop-color="#78350f"/><stop offset="1" stop-color="#5e290c"/></radialGradient>
+      <radialGradient id="furWhite" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#fde28b"/><stop offset="0.38" stop-color="#fcd34d"/><stop offset="0.82" stop-color="#f59e0b"/><stop offset="1" stop-color="#bf7b09"/></radialGradient>
+      <radialGradient id="pinkGrad" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#ffe0e8"/><stop offset="0.38" stop-color="#ffcfdc"/><stop offset="0.82" stop-color="#ff9db3"/><stop offset="1" stop-color="#c77a8c"/></radialGradient>
+      <radialGradient id="tanGrad" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#ffefdc"/><stop offset="0.38" stop-color="#ffe6c9"/><stop offset="0.82" stop-color="#eeb989"/><stop offset="1" stop-color="#ba906b"/></radialGradient>
       <radialGradient id="pupilGrad" cx="0.35" cy="0.3" r="0.75">
         <stop offset="0" stop-color="#5b5b5b"/>
         <stop offset="0.55" stop-color="#211f1f"/>
         <stop offset="1" stop-color="#0a0a0a"/>
       </radialGradient>
+      <!-- Volumen «3D»: brillo difuso, sombra en los bordes y textura de pelo. -->
+      <filter id="difuso3d" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5"/></filter>
+      <radialGradient id="sombra3d" cx="0.38" cy="0.32" r="0.78"><stop offset="0.5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.26"/></radialGradient>
+      <filter id="pelaje" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="4" result="ruido"/><feColorMatrix in="ruido" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1.5 0 0 0 -0.62" result="motas"/><feComposite in="motas" in2="SourceGraphic" operator="in"/></filter>
     </defs>
 
     <!-- Envuelve TODO el dibujo: aquí pivotean las reacciones de "salto" y
@@ -56,10 +48,10 @@
           values="1,0,0,1,0,0; 1.22,0,0,.82,-26.4,38.34; .82,0,0,1.18,21.6,-38.34; .86,0,0,1.14,16.8,-29.82; 1.18,0,0,.86,-21.6,29.82; 1,0,0,1,0,0"
           keyTimes="0;.12;.42;.58;.82;1" dur="0.72s" begin="indefinite"/>
 
-      <g stroke="#1a1a1a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+      <g stroke="#2b211d" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round">
 
         <!-- sombra de piso -->
-        <ellipse cx="120" cy="247" rx="72" ry="11" fill="#000" opacity=".14" stroke="none"/>
+        <ellipse cx="120" cy="247" rx="72" ry="11" fill="#000" opacity=".26" stroke="none" filter="url(#difuso3d)"/>
 
         <!-- melena: mechones alrededor de la cabeza -->
         <g fill="url(#furDark)">
@@ -95,6 +87,9 @@
 
         <!-- cuerpo -->
         <ellipse cx="120" cy="182" rx="74" ry="62" fill="url(#furWhite)"/>
+        <ellipse cx="120" cy="182" rx="74" ry="62" fill="#000" opacity=".16" filter="url(#pelaje)" stroke="none"/>
+        <ellipse cx="120" cy="182" rx="74" ry="62" fill="url(#sombra3d)" stroke="none"/>
+        <ellipse cx="95" cy="154" rx="31" ry="15" transform="rotate(-24 95 154)" fill="#fff" opacity=".42" stroke="none" filter="url(#difuso3d)"/>
 
         <!-- brazo izquierdo levantado, saludando (animado en bucle: pivotea en el hombro) -->
         <g transform="translate(82,156)">
@@ -125,6 +120,9 @@
 
         <!-- cabeza -->
         <circle cx="120" cy="112" r="82" fill="url(#furWhite)"/>
+        <circle cx="120" cy="112" r="82" fill="#000" opacity=".16" filter="url(#pelaje)" stroke="none"/>
+        <circle cx="120" cy="112" r="82" fill="url(#sombra3d)" stroke="none"/>
+        <ellipse cx="92" cy="75" rx="34" ry="20" transform="rotate(-24 92 75)" fill="#fff" opacity=".42" stroke="none" filter="url(#difuso3d)"/>
 
         <!-- cachetes -->
         <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none">
@@ -319,27 +317,19 @@
     </g>
     {% elif _mascota == 'raton' %}
     <defs>
-      <linearGradient id="furDark" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#6b7280"/>
-        <stop offset="1" stop-color="#374151"/>
-      </linearGradient>
-      <linearGradient id="furWhite" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#f1f5f9"/>
-        <stop offset="1" stop-color="#cbd5e1"/>
-      </linearGradient>
-      <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#ffcfdc"/>
-        <stop offset="1" stop-color="#ff9db3"/>
-      </linearGradient>
-      <linearGradient id="tanGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#ffd9e6"/>
-        <stop offset="1" stop-color="#ffb3c6"/>
-      </linearGradient>
+      <radialGradient id="furDark" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#9fa3ac"/><stop offset="0.38" stop-color="#6b7280"/><stop offset="0.82" stop-color="#374151"/><stop offset="1" stop-color="#2b333f"/></radialGradient>
+      <radialGradient id="furWhite" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#f6f8fb"/><stop offset="0.38" stop-color="#f1f5f9"/><stop offset="0.82" stop-color="#cbd5e1"/><stop offset="1" stop-color="#9ea6b0"/></radialGradient>
+      <radialGradient id="pinkGrad" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#ffe0e8"/><stop offset="0.38" stop-color="#ffcfdc"/><stop offset="0.82" stop-color="#ff9db3"/><stop offset="1" stop-color="#c77a8c"/></radialGradient>
+      <radialGradient id="tanGrad" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#ffe6ef"/><stop offset="0.38" stop-color="#ffd9e6"/><stop offset="0.82" stop-color="#ffb3c6"/><stop offset="1" stop-color="#c78c9a"/></radialGradient>
       <radialGradient id="pupilGrad" cx="0.35" cy="0.3" r="0.75">
         <stop offset="0" stop-color="#5b5b5b"/>
         <stop offset="0.55" stop-color="#211f1f"/>
         <stop offset="1" stop-color="#0a0a0a"/>
       </radialGradient>
+      <!-- Volumen «3D»: brillo difuso, sombra en los bordes y textura de pelo. -->
+      <filter id="difuso3d" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5"/></filter>
+      <radialGradient id="sombra3d" cx="0.38" cy="0.32" r="0.78"><stop offset="0.5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.26"/></radialGradient>
+      <filter id="pelaje" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="4" result="ruido"/><feColorMatrix in="ruido" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1.5 0 0 0 -0.62" result="motas"/><feComposite in="motas" in2="SourceGraphic" operator="in"/></filter>
     </defs>
 
     <!-- Envuelve TODO el dibujo: aquí pivotean las reacciones de "salto" y
@@ -371,10 +361,10 @@
           values="1,0,0,1,0,0; 1.22,0,0,.82,-26.4,38.34; .82,0,0,1.18,21.6,-38.34; .86,0,0,1.14,16.8,-29.82; 1.18,0,0,.86,-21.6,29.82; 1,0,0,1,0,0"
           keyTimes="0;.12;.42;.58;.82;1" dur="0.72s" begin="indefinite"/>
 
-      <g stroke="#1a1a1a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+      <g stroke="#2b211d" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round">
 
         <!-- sombra de piso -->
-        <ellipse cx="120" cy="247" rx="72" ry="11" fill="#000" opacity=".14" stroke="none"/>
+        <ellipse cx="120" cy="247" rx="72" ry="11" fill="#000" opacity=".26" stroke="none" filter="url(#difuso3d)"/>
 
         <!-- cola -->
         <path d="M188 205 Q 233 208 244 166 Q 249 148 237 141" fill="none" stroke="url(#furDark)" stroke-width="9" stroke-linecap="round"/>
@@ -399,6 +389,9 @@
 
         <!-- cuerpo -->
         <ellipse cx="120" cy="182" rx="74" ry="62" fill="url(#furWhite)"/>
+        <ellipse cx="120" cy="182" rx="74" ry="62" fill="#000" opacity=".16" filter="url(#pelaje)" stroke="none"/>
+        <ellipse cx="120" cy="182" rx="74" ry="62" fill="url(#sombra3d)" stroke="none"/>
+        <ellipse cx="95" cy="154" rx="31" ry="15" transform="rotate(-24 95 154)" fill="#fff" opacity=".42" stroke="none" filter="url(#difuso3d)"/>
 
         <!-- brazo izquierdo levantado, saludando (animado en bucle: pivotea en el hombro) -->
         <g transform="translate(82,156)">
@@ -429,6 +422,9 @@
 
         <!-- cabeza -->
         <circle cx="120" cy="112" r="82" fill="url(#furWhite)"/>
+        <circle cx="120" cy="112" r="82" fill="#000" opacity=".16" filter="url(#pelaje)" stroke="none"/>
+        <circle cx="120" cy="112" r="82" fill="url(#sombra3d)" stroke="none"/>
+        <ellipse cx="92" cy="75" rx="34" ry="20" transform="rotate(-24 92 75)" fill="#fff" opacity=".42" stroke="none" filter="url(#difuso3d)"/>
 
         <!-- cachetes -->
         <ellipse cx="74" cy="144" rx="15" ry="9.5" fill="url(#pinkGrad)" opacity=".9" stroke="none">
@@ -632,27 +628,19 @@
     </g>
     {% else %}
     <defs>
-      <linearGradient id="furDark" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#4b4b4e"/>
-        <stop offset="1" stop-color="#1b1b1d"/>
-      </linearGradient>
-      <linearGradient id="furWhite" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#ffffff"/>
-        <stop offset="1" stop-color="#ece9e0"/>
-      </linearGradient>
-      <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#ffcfdc"/>
-        <stop offset="1" stop-color="#ff9db3"/>
-      </linearGradient>
-      <linearGradient id="tanGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#ffe6c9"/>
-        <stop offset="1" stop-color="#eeb989"/>
-      </linearGradient>
+      <radialGradient id="furDark" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#8a8a8c"/><stop offset="0.38" stop-color="#4b4b4e"/><stop offset="0.82" stop-color="#1b1b1d"/><stop offset="1" stop-color="#151517"/></radialGradient>
+      <radialGradient id="furWhite" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#ffffff"/><stop offset="0.38" stop-color="#ffffff"/><stop offset="0.82" stop-color="#ece9e0"/><stop offset="1" stop-color="#b8b6af"/></radialGradient>
+      <radialGradient id="pinkGrad" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#ffe0e8"/><stop offset="0.38" stop-color="#ffcfdc"/><stop offset="0.82" stop-color="#ff9db3"/><stop offset="1" stop-color="#c77a8c"/></radialGradient>
+      <radialGradient id="tanGrad" cx="0.36" cy="0.3" r="0.82" fx="0.32" fy="0.24"><stop offset="0" stop-color="#ffefdc"/><stop offset="0.38" stop-color="#ffe6c9"/><stop offset="0.82" stop-color="#eeb989"/><stop offset="1" stop-color="#ba906b"/></radialGradient>
       <radialGradient id="pupilGrad" cx="0.35" cy="0.3" r="0.75">
         <stop offset="0" stop-color="#5b5b5b"/>
         <stop offset="0.55" stop-color="#211f1f"/>
         <stop offset="1" stop-color="#0a0a0a"/>
       </radialGradient>
+      <!-- Volumen «3D»: brillo difuso, sombra en los bordes y textura de pelo. -->
+      <filter id="difuso3d" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5"/></filter>
+      <radialGradient id="sombra3d" cx="0.38" cy="0.32" r="0.78"><stop offset="0.5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.26"/></radialGradient>
+      <filter id="pelaje" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="4" result="ruido"/><feColorMatrix in="ruido" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1.5 0 0 0 -0.62" result="motas"/><feComposite in="motas" in2="SourceGraphic" operator="in"/></filter>
     </defs>
 
     <!-- Envuelve TODO el dibujo: aquí pivotean las reacciones de "salto" y
@@ -684,10 +672,10 @@
           values="1,0,0,1,0,0; 1.22,0,0,.82,-26.4,38.34; .82,0,0,1.18,21.6,-38.34; .86,0,0,1.14,16.8,-29.82; 1.18,0,0,.86,-21.6,29.82; 1,0,0,1,0,0"
           keyTimes="0;.12;.42;.58;.82;1" dur="0.72s" begin="indefinite"/>
 
-      <g stroke="#1a1a1a" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+      <g stroke="#2b211d" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round">
 
         <!-- sombra de piso -->
-        <ellipse cx="120" cy="247" rx="72" ry="11" fill="#000" opacity=".14" stroke="none"/>
+        <ellipse cx="120" cy="247" rx="72" ry="11" fill="#000" opacity=".26" stroke="none" filter="url(#difuso3d)"/>
 
         <!-- piernas -->
         <ellipse cx="66" cy="213" rx="33" ry="27" fill="url(#furDark)"/>
@@ -709,6 +697,9 @@
 
         <!-- cuerpo (blanco/crema, sin anillo negro) -->
         <ellipse cx="120" cy="182" rx="74" ry="62" fill="url(#furWhite)"/>
+        <ellipse cx="120" cy="182" rx="74" ry="62" fill="#000" opacity=".16" filter="url(#pelaje)" stroke="none"/>
+        <ellipse cx="120" cy="182" rx="74" ry="62" fill="url(#sombra3d)" stroke="none"/>
+        <ellipse cx="95" cy="154" rx="31" ry="15" transform="rotate(-24 95 154)" fill="#fff" opacity=".42" stroke="none" filter="url(#difuso3d)"/>
 
         <!-- brazo izquierdo levantado, saludando (animado en bucle: pivotea en el hombro) -->
         <g transform="translate(82,156)">
@@ -739,6 +730,9 @@
 
         <!-- cabeza -->
         <circle cx="120" cy="112" r="82" fill="url(#furWhite)"/>
+        <circle cx="120" cy="112" r="82" fill="#000" opacity=".16" filter="url(#pelaje)" stroke="none"/>
+        <circle cx="120" cy="112" r="82" fill="url(#sombra3d)" stroke="none"/>
+        <ellipse cx="92" cy="75" rx="34" ry="20" transform="rotate(-24 92 75)" fill="#fff" opacity=".42" stroke="none" filter="url(#difuso3d)"/>
 
         <!-- manchas de los ojos -->
         <ellipse cx="80" cy="108" rx="31" ry="40" fill="url(#furDark)" transform="rotate(-14 80 108)"/>

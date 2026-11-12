@@ -209,3 +209,23 @@ def tema_de(usuario):
 
 
 templates.env.globals["tema_de"] = tema_de
+
+
+def ropa_de(usuario):
+    """Lo que la mascota lleva puesto hoy (app/utils/ropa_mascota.py)."""
+    from app.utils.ropa_mascota import puesta
+    try:
+        valor = usuario.get("mascota_ropa") if isinstance(usuario, dict) else getattr(usuario, "mascota_ropa", None)
+    except Exception:  # noqa: BLE001
+        valor = None
+    return puesta(valor if isinstance(valor, str) else None)
+
+
+def svg_ropa_plantilla(mascota, piezas):
+    from markupsafe import Markup
+    from app.utils.ropa_mascota import svg_ropa
+    return Markup(svg_ropa(mascota, piezas or {}))
+
+
+templates.env.globals["ropa_de"] = ropa_de
+templates.env.globals["svg_ropa"] = svg_ropa_plantilla

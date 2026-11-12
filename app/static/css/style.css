@@ -2179,3 +2179,22 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
 .ap-acento input:checked + span { box-shadow: 0 0 0 3px var(--text); transform: scale(1.06); }
 .ap-acento.is-custom span { background: conic-gradient(#ef4444, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444); }
 .ap-acentos.is-off { opacity: .45; pointer-events: none; }
+
+/* Ropa de la mascota (app/utils/ropa_mascota.py): el sombrero puede salir
+   un poco por encima del dibujo. */
+svg.panda-mascota { overflow: visible; }
+.robot-ropa { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+/* Apariencia: mascotas y ropero con vista previa */
+.ap-mascotas { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.ap-masc { display: flex; align-items: center; justify-content: center; height: 120px; border-radius: 9px;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--primary) 16%, var(--panel-2)), var(--panel-2)); }
+.ap-masc img { max-height: 112px; max-width: 100%; }
+.ap-ropero { display: grid; grid-template-columns: 220px 1fr; gap: 18px; align-items: start; }
+.ap-ropero-prev { position: sticky; top: calc(var(--topbar-h) + 12px); display: flex; align-items: center; justify-content: center; height: 250px;
+  border: 1px solid var(--border); border-radius: 14px;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--primary) 20%, var(--panel-2)), var(--panel-2)); }
+.ap-ropero-prev img { max-height: 230px; max-width: 200px; }
+.ap-parte { margin-bottom: 12px; }
+.ap-parte-t { font-size: 12.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+.ap-parte .pago-op span { min-height: 34px; padding: 0 12px; font-size: 13.5px; }
+@media (max-width: 640px) { .ap-ropero { grid-template-columns: 1fr; } .ap-ropero-prev { position: static; height: 200px; } }

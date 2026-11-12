@@ -1,0 +1,7 @@
+{#- Vista previa de una mascota con su ropa, como imagen SVG suelta
+    (/mi-perfil/mascota/<m>.svg). -#}
+{% if _mascota == 'robot' -%}
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-30 -90 480 680"><image href="{{ robot_img }}" xlink:href="{{ robot_img }}" x="0" y="0" width="420" height="514"/>{{ _ropa_svg }}</svg>
+{%- else -%}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-35 -72 310 362">{% include "partials/mascota_dibujo.html" %}</svg>
+{%- endif %}

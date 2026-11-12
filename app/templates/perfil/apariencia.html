@@ -70,46 +70,39 @@
 
     <div class="field">
       <label>Mascota</label>
-      <div class="checkbox-grid">
+      <div class="ap-temas ap-mascotas">
         {% for m in mascotas_disponibles %}
-        <label class="checkbox-chip">
+        <label class="ap-tema">
           <input type="radio" name="mascota" value="{{ m.valor }}" {{ 'checked' if u.mascota == m.valor else '' }}>
-          {{ {'panda': '🐼', 'leon': '🦁', 'raton': '🐭', 'robot': '🤖'}.get(m.valor, '') }} {{ m.nombre }}
+          <span class="ap-caja"><span class="ap-masc"><img src="/mi-perfil/mascota/{{ m.valor }}.svg?{{ ropa_qs }}" alt="{{ m.nombre }}" loading="lazy" data-mascota="{{ m.valor }}"></span>
+            <span class="ap-nombre">{{ m.nombre }}<span class="ap-ok">✓</span></span></span>
         </label>
         {% endfor %}
       </div>
-      <div class="help">Tu mascota te da consejos, te avisa de órdenes vencidas y otras cosas útiles mientras trabajas (solo la ves tú).</div>
+      <div class="help" style="margin-top:6px;">Tu mascota te da consejos, te avisa de órdenes vencidas y otras cosas útiles mientras trabajas (solo la ves tú).</div>
     </div>
 
     <div class="field">
-      <label>Efecto al cerrar ventanas</label>
-      <div class="checkbox-grid" id="gridEfectoCierre">
-        {% for e in efectos_cierre_ventana %}
-        <label class="checkbox-chip">
-          <input type="radio" name="efecto_cierre_ventana" value="{{ e.valor }}" {{ 'checked' if u.efecto_cierre_ventana == e.valor else '' }}>
-          {{ e.nombre }}
-        </label>
-        {% endfor %}
+      <label>Ropero de tu mascota</label>
+      <div class="ap-ropero">
+        <div class="ap-ropero-prev"><img id="previaRopa" src="/mi-perfil/mascota/{{ u.mascota or 'panda' }}.svg?{{ ropa_qs }}" alt="Vista previa de tu mascota"></div>
+        <div class="ap-ropero-partes">
+          {% for parte in ropero %}
+          <div class="ap-parte">
+            <div class="ap-parte-t">{{ parte.nombre }}</div>
+            <div class="pago-opciones">
+              <label class="pago-op"><input type="radio" name="ropa_{{ parte.parte }}" value="" {{ 'checked' if not ropa[parte.parte] else '' }}><span>Nada</span></label>
+              {% for p in parte.piezas %}<label class="pago-op"><input type="radio" name="ropa_{{ parte.parte }}" value="{{ p.valor }}" {{ 'checked' if ropa[parte.parte] == p.valor else '' }}><span>{{ p.nombre }}</span></label>{% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+          <label class="checkbox-chip" style="display:inline-flex; margin-top:4px;">
+            <input type="checkbox" name="ropa_temporada" value="1" {{ 'checked' if ropa.temporada else '' }}>
+            Vestir según la temporada{% if temporada_hoy %} (ahora: {{ temporadas_info[temporada_hoy].nombre }}){% endif %}
+          </label>
+          <div class="help">En Navidad, Halloween, San Valentín y Fiestas Patrias se pone sola su ropa de temporada; lo demás queda como lo elijas.</div>
+        </div>
       </div>
-      <div class="help" style="margin-top:6px;">
-        Así se anima cualquier ventana emergente del sistema (por ejemplo "Nuevo cliente rápido" en Órdenes) al cerrarse.
-        <button type="button" class="btn btn-outline btn-sm" id="btnProbarVentana" style="margin-left:6px;">Probar</button>
-      </div>
-    </div>
-
-    <div class="field">
-      <label class="checkbox-chip" style="display:inline-flex;">
-        <input type="checkbox" name="animar_apertura_ventana" value="1" {{ 'checked' if u.animar_apertura_ventana else '' }}>
-        Animar apertura de ventanas (rebote al aparecer)
-      </label>
-    </div>
-
-    <div class="field">
-      <label class="checkbox-chip" style="display:inline-flex;">
-        <input type="checkbox" id="chkDockMagnificacion" name="dock_magnificacion" value="1" {{ 'checked' if u.dock_magnificacion else '' }}>
-        Magnificación estilo Dock en la mascota flotante
-      </label>
-      <div class="help" style="margin-top:4px;">Pasa el mouse sobre tu mascota (abajo a la derecha) para sentir la diferencia ahora mismo.</div>
     </div>
 
     <div class="field">
@@ -117,22 +110,13 @@
         <input type="checkbox" id="chkLiquidGlass" name="liquid_glass" value="1" {{ 'checked' if u.liquid_glass else '' }}>
         Liquid Glass (vidrio esmerilado en tarjetas y ventanas, sin importar el modo)
       </label>
-      <div class="help" style="margin-top:4px;">Pruébalo marcando la casilla: esta misma tarjeta cambia al instante. Se puede combinar con Oscuro, Claro o Vidrio.</div>
+      <div class="help" style="margin-top:4px;">Pruébalo marcando la casilla: esta misma tarjeta cambia al instante. Se puede combinar con cualquier tema.</div>
     </div>
 
     <button type="submit" class="btn btn-primary">Guardar apariencia</button>
   </form>
 </div>
 
-<!-- Ventana de ejemplo para el botón "Probar" de arriba: no guarda nada,
-     solo muestra cómo se ve el efecto de cierre elegido. -->
-<div class="modal-overlay" id="overlayPruebaVentana" style="display:none;">
-  <div class="card modal-box" style="max-width:380px;">
-    <div class="card-title">Ventana de ejemplo</div>
-    <p class="help">Así se abre y se cierra una ventana con el efecto que elegiste arriba.</p>
-    <button type="button" class="btn btn-primary" id="btnCerrarPruebaVentana">Cerrar</button>
-  </div>
-</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -174,12 +158,6 @@
     // se puede probar antes de decidir. Si el usuario no guarda, el
     // cambio no queda (data-* se vuelve a armar desde la BD en la
     // próxima carga de página).
-    var chkDock = document.getElementById('chkDockMagnificacion');
-    if (chkDock) {
-      chkDock.addEventListener('change', function () {
-        document.documentElement.setAttribute('data-dock-magnificacion', chkDock.checked ? '1' : '0');
-      });
-    }
     var chkGlass = document.getElementById('chkLiquidGlass');
     if (chkGlass) {
       chkGlass.addEventListener('change', function () {
@@ -187,35 +165,29 @@
       });
     }
 
-    // Botón "Probar": abre una ventana de ejemplo usando el efecto de
-    // cierre y la opción de apertura seleccionados en este momento en el
-    // formulario (aunque todavía no se hayan guardado), para verlos antes
-    // de decidir. Al cerrarla se restauran los valores reales del
-    // usuario en <html>.
-    var btnProbar = document.getElementById('btnProbarVentana');
-    var overlayPrueba = document.getElementById('overlayPruebaVentana');
-    if (btnProbar && overlayPrueba) {
-      btnProbar.addEventListener('click', function () {
-        var efectoElegido = document.querySelector('input[name="efecto_cierre_ventana"]:checked');
-        var apertura = document.querySelector('input[name="animar_apertura_ventana"]');
-        var htmlEl = document.documentElement;
-        var efectoOriginal = htmlEl.getAttribute('data-efecto-cierre');
-        var aperturaOriginal = htmlEl.getAttribute('data-animar-apertura');
-        htmlEl.setAttribute('data-efecto-cierre', efectoElegido ? efectoElegido.value : 'escala');
-        htmlEl.setAttribute('data-animar-apertura', (apertura && apertura.checked) ? '1' : '0');
-        overlayPrueba.style.display = 'flex';
-
-        function cerrarPrueba() {
-          cerrarModalConEfecto(overlayPrueba);
-          setTimeout(function () {
-            htmlEl.setAttribute('data-efecto-cierre', efectoOriginal || 'escala');
-            htmlEl.setAttribute('data-animar-apertura', aperturaOriginal || '0');
-          }, 500);
-        }
-        document.getElementById('btnCerrarPruebaVentana').onclick = cerrarPrueba;
-        overlayPrueba.onclick = function (e) { if (e.target === overlayPrueba) cerrarPrueba(); };
+    // Ropero: la vista previa se vuelve a dibujar con lo elegido.
+    var previa = document.getElementById('previaRopa');
+    function qsRopa() {
+      var q = [];
+      ['cabeza', 'ojos', 'cuello', 'mano'].forEach(function (p) {
+        var r = document.querySelector('input[name="ropa_' + p + '"]:checked');
+        q.push(p + '=' + encodeURIComponent(r ? r.value : ''));
+      });
+      var t = document.querySelector('input[name="ropa_temporada"]');
+      q.push('temporada=' + (t && t.checked ? '1' : '0'));
+      return q.join('&');
+    }
+    function actualizarRopa() {
+      var m = document.querySelector('input[name="mascota"]:checked');
+      var qs = qsRopa();
+      if (previa) previa.src = '/mi-perfil/mascota/' + (m ? m.value : 'panda') + '.svg?' + qs;
+      document.querySelectorAll('.ap-masc img').forEach(function (img) {
+        img.src = '/mi-perfil/mascota/' + img.getAttribute('data-mascota') + '.svg?' + qs;
       });
     }
+    document.querySelectorAll('input[name^="ropa_"], input[name="mascota"]').forEach(function (el) {
+      el.addEventListener('change', actualizarRopa);
+    });
   })();
 </script>
 {% endblock %}

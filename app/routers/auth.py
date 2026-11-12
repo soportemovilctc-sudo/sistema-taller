@@ -28,6 +28,7 @@ def _sesion_desde_usuario(u: Usuario) -> dict:
         "animar_apertura_ventana": u.animar_apertura_ventana,
         "dock_magnificacion": u.dock_magnificacion,
         "liquid_glass": u.liquid_glass,
+        "mascota_ropa": u.mascota_ropa,
     }
 
 
@@ -162,12 +163,51 @@ def _contexto_temas(u) -> dict:
     from app.utils import temas as T
     from app.utils.turnos_caja import hoy_local
     valor = u.tema_modo or "oscuro"
+    from app.utils import ropa_mascota as R
+    from urllib.parse import urlencode
+    ropa = R.leer(u.mascota_ropa)
     return {
+        "ropero": R.catalogo(), "ropa": ropa,
+        "ropa_qs": urlencode({**{p: ropa[p] for p in R.PARTES}, "temporada": "1" if ropa["temporada"] else "0"}),
         "temas": T.TEMAS, "grupos": T.GRUPOS, "temporadas_info": T.TEMPORADAS, "fechas_temporadas": T.fechas_temporadas(),
         "temporada_hoy": T.temporada_de(hoy_local()),
         "tema_elegido": "temporada" if T.es_temporada(valor) else (valor if valor in T.TEMAS else "oscuro"),
         "base_temporada": T.base_de_temporada(valor) if T.es_temporada(valor) else (valor if valor in T.TEMAS else "oscuro"),
     }
+
+
+_ROBOT_PREVIA = None
+
+
+def _robot_previa() -> str:
+    """El robot en pequeño (data URI) para su vista previa: una imagen SVG
+    suelta no puede cargar otras imágenes por dirección."""
+    global _ROBOT_PREVIA
+    if _ROBOT_PREVIA is None:
+        import base64
+        import io
+        from PIL import Image
+        im = Image.open("app/static/img/mascota-robot-cuerpo.png").convert("RGBA")
+        im.thumbnail((210, 257))
+        buf = io.BytesIO()
+        im.save(buf, format="PNG", optimize=True)
+        _ROBOT_PREVIA = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+    return _ROBOT_PREVIA
+
+
+@router.get("/mi-perfil/mascota/{mascota}.svg")
+def mascota_previa(mascota: str, request: Request, cabeza: str = "", ojos: str = "", cuello: str = "", mano: str = "",
+                   temporada: str = "1", usuario=Depends(login_required)):
+    from fastapi.responses import Response
+    from markupsafe import Markup
+    from app.utils.ropa_mascota import guardar, puesta, svg_ropa
+    if mascota not in [m["valor"] for m in MASCOTAS_DISPONIBLES]:
+        mascota = "panda"
+    piezas = puesta(guardar(cabeza, ojos, cuello, mano, temporada == "1"))
+    contexto = {"request": request, "_mascota": mascota, "_ropa_svg": Markup(svg_ropa(mascota, piezas)),
+                "robot_img": _robot_previa() if mascota == "robot" else ""}
+    svg = templates.get_template("partials/mascota_previa.html").render(contexto)
+    return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "private, max-age=600"})
 
 
 @router.post("/mi-perfil/apariencia")
@@ -182,6 +222,8 @@ def apariencia_actualizar(
     animar_apertura_ventana: bool = Form(False),
     dock_magnificacion: bool = Form(False),
     liquid_glass: bool = Form(False),
+    ropa_cabeza: str = Form(""), ropa_ojos: str = Form(""), ropa_cuello: str = Form(""), ropa_mano: str = Form(""),
+    ropa_temporada: str = Form(""),
     db: Session = Depends(get_db),
     usuario=Depends(login_required),
 ):
@@ -208,6 +250,8 @@ def apariencia_actualizar(
     u.animar_apertura_ventana = animar_apertura_ventana
     u.dock_magnificacion = dock_magnificacion
     u.liquid_glass = liquid_glass
+    from app.utils.ropa_mascota import guardar as guardar_ropa
+    u.mascota_ropa = guardar_ropa(ropa_cabeza, ropa_ojos, ropa_cuello, ropa_mano, ropa_temporada == "1")
 
     color = tema_color_personalizado.strip()
     if u.tema_acento == "personalizado" and color:

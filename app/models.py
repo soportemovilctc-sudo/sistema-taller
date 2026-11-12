@@ -191,6 +191,7 @@ class Usuario(Base):
     animar_apertura_ventana = Column(Boolean, nullable=False, default=True)
     dock_magnificacion = Column(Boolean, nullable=False, default=True)
     liquid_glass = Column(Boolean, nullable=False, default=False)
+    mascota_ropa = Column(String(120), nullable=True)  # ver app/utils/ropa_mascota.py
 
 
 class Tecnico(Base):

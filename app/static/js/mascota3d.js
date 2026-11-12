@@ -27,7 +27,9 @@ function liso(color, rugosidad = 0.45, extra = {}) {
   return new THREE.MeshPhysicalMaterial(Object.assign({ color, roughness: rugosidad, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.4 }, extra));
 }
 function metal(color, rugosidad = 0.25) {
-  return new THREE.MeshStandardMaterial({ color, metalness: 1, roughness: rugosidad });
+  // Sin mapa de entorno, el metal puro sale negro: brillo de metal "pintado".
+  return new THREE.MeshPhysicalMaterial({ color, metalness: 0.35, roughness: rugosidad, clearcoat: 1, clearcoatRoughness: 0.1,
+    emissive: new THREE.Color(color).multiplyScalar(0.12) });
 }
 function vidrio(color, opacidad = 0.85) {
   return new THREE.MeshPhysicalMaterial({ color, roughness: 0.05, metalness: 0.2, clearcoat: 1, transparent: true, opacity: opacidad });
@@ -86,7 +88,8 @@ function formaCorazon(t = 0.5) {
   return s;
 }
 function corazon(color, t = 0.5, prof = 0.12) {
-  const geo = new THREE.ExtrudeGeometry(formaCorazon(t), { depth: prof, bevelEnabled: true, bevelSize: prof * 0.5, bevelThickness: prof * 0.5, bevelSegments: 4, curveSegments: 18 });
+  const geo = new THREE.ExtrudeGeometry(formaCorazon(t), { depth: prof, bevelEnabled: true, bevelSize: prof * 0.55, bevelThickness: prof * 0.6, bevelSegments: 12, curveSegments: 48 });
+  geo.computeVertexNormals();
   geo.center();
   return new THREE.Mesh(geo, liso(color, 0.3, { clearcoat: 0.8 }));
 }
@@ -101,8 +104,8 @@ const PALETAS = {
 // Dónde va la ropa en cada mascota (sobre su articulación) y a qué escala.
 const AJUSTE_ROPA = {
   panda: { cabeza: [0, 0, 0, 1.0], ojos: [0, 0, 0, 1.0], cuello: [0, 0, 0, 1.0], mano: [0, 0, 0, 1.0] },
-  leon: { cabeza: [0, 0.06, 0, 1.08], ojos: [0, 0, 0.02, 1.0], cuello: [0, -0.1, 0.02, 1.04], mano: [0, 0, 0, 1.0] },
-  raton: { cabeza: [0, -0.02, 0, 0.96], ojos: [0, 0, 0, 1.0], cuello: [0, 0, 0, 0.98], mano: [0, 0, 0, 1.0] },
+  leon: { cabeza: [0, 0.06, 0, 1.08], ojos: [0, 0, 0.02, 1.0], cuello: [0, -0.1, 0.02, 1.0], mano: [0, 0, 0, 1.0] },
+  raton: { cabeza: [0, 0, 0, 1.0], ojos: [0, 0, 0, 1.0], cuello: [0, 0, 0.03, 1.0], mano: [0, 0, 0, 1.0] },
 };
 
 function crearPersonaje(tipo) {
@@ -196,11 +199,9 @@ function crearPersonaje(tipo) {
   }
 
   // Manchas del panda
+  const cara = grupo([0, 0, 0]); cara.scale.set(1, 0.93, 0.92); cabeza.add(cara);
   if (tipo === "panda") {
-    [-1, 1].forEach((lado) => {
-      const m = malla(G.esfera, mOscuro, [0.34 * lado, 0.04, 0.74], [0.25, 0.32, 0.16], [0, 0, 0.45 * lado]);
-      cabeza.add(m);
-    });
+    [-1, 1].forEach((lado) => cabeza.add(malla(G.esfera, mOscuro, [0.34 * lado, 0.04, 0.74], [0.25, 0.32, 0.16], [0, 0, 0.45 * lado])));
   }
 
   // Hocico, nariz, boca
@@ -229,36 +230,33 @@ function crearPersonaje(tipo) {
   [-1, 1].forEach((lado) => cabeza.add(malla(G.esferaB, new THREE.MeshPhysicalMaterial({ color: P.rosa, roughness: 0.8, transparent: true, opacity: 0.55 }),
     [0.52 * lado, -0.24, 0.7], [0.15, 0.09, 0.05], [0, 0.5 * lado, 0])));
 
-  // Ojos grandes estilo «kawaii»: iris de color con degradado, pupila
-  // brillante y dos destellos grandes; párpado para parpadear.
-  const IRIS = { panda: ["#5b3a26", "#1c120c"], leon: ["#b06a1c", "#3a1f08"], raton: ["#5a4a7a", "#1d1530"] }[tipo] || ["#4a3324", "#140d08"];
-  const mIris = liso(IRIS[0], 0.2, { clearcoat: 1, clearcoatRoughness: 0.03 });
-  const mIrisOsc = liso(IRIS[1], 0.2, { clearcoat: 1, clearcoatRoughness: 0.03 });
+  // Ojos negros brillantes (como al principio). Con las expresiones:
+  // feliz = se cierran en arco, amor = pupilas de corazón, sorpresa = se
+  // agrandan, mareo = las pupilas dan vueltas; y parpadean.
   const ojos = [], parpados = [];
   [-1, 1].forEach((lado) => {
-    const ojo = grupo([0.32 * lado, 0.04, 0.8]);
-    ojo.rotation.y = 0.18 * lado;
-    ojo.add(malla(G.esfera, mBlanco, [0, 0, 0], [0.2, 0.24, 0.12]));
-    const pupila = grupo([0, -0.015, 0.075]);
-    pupila.add(malla(G.esfera, mIrisOsc, [0, 0, 0], [0.168, 0.2, 0.06]));         // borde oscuro del iris
-    pupila.add(malla(G.esfera, mIris, [0, -0.012, 0.012], [0.145, 0.172, 0.055]));   // iris de color
-    pupila.add(malla(G.esfera, mPupila, [0, 0.0, 0.026], [0.09, 0.11, 0.045]));      // pupila
-    pupila.add(malla(G.esferaB, mBrillo, [-0.055, 0.07, 0.068], [0.056, 0.064, 0.012]));  // destello grande
-    pupila.add(malla(G.esferaB, mBrillo, [0.058, -0.068, 0.062], [0.03, 0.03, 0.01]));    // destello chico
-    pupila.add(malla(G.esferaB, mBrillo, [-0.09, -0.03, 0.052], [0.013, 0.013, 0.008])); // chispita
+    const ojo = grupo([0.33 * lado, 0.06, 0.8]);
+    ojo.add(malla(G.esfera, mBlanco, [0, 0, 0], [0.17, 0.2, 0.12]));
+    const pupila = grupo([0, -0.01, 0.09]);
+    pupila.add(malla(G.esfera, mPupila, [0, 0, 0], [0.11, 0.13, 0.06]));
+    pupila.add(malla(G.esferaB, mBrillo, [-0.035, 0.05, 0.05], 0.032));
+    pupila.add(malla(G.esferaB, mBrillo, [0.03, -0.04, 0.05], 0.014));
     ojo.add(pupila);
-    // pestañitas
-    const mPest = liso("#1d1a1a", 0.5);
-    [0, 1].forEach((i) => {
-      const pe = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.07, 4, 8), mPest);
-      pe.position.set((0.17 + i * 0.035) * lado, 0.15 - i * 0.05, 0.03); pe.rotation.z = (-0.9 - i * 0.35) * lado;
-      ojo.add(pe);
-    });
-    const parpado = malla(new THREE.SphereGeometry(1, 32, 16, 0, TAU, 0, Math.PI / 2), tipo === "panda" ? mOscuro : mPelo, [0, 0.0, 0.005], [0.212, 0.252, 0.135]);
+    const corazonOjo = corazon("#e11d48", 0.12, 0.05); corazonOjo.position.set(0, 0, 0.11); corazonOjo.visible = false;
+    ojo.add(corazonOjo);
+    const parpado = malla(new THREE.SphereGeometry(1, 32, 16, 0, TAU, 0, Math.PI / 2), tipo === "panda" ? mOscuro : mPelo, [0, 0.0, 0.005], [0.185, 0.215, 0.135]);
     parpado.rotation.x = -Math.PI / 2;
     parpado.scale.y = 0.0001;
     ojo.add(parpado);
-    ojo.userData.pupila = pupila;
+    // Ojo cerrado feliz (arco), dibujado aparte y escondido hasta que se ría
+    const lienzo = document.createElement("canvas"); lienzo.width = lienzo.height = 256;
+    const tex = new THREE.CanvasTexture(lienzo); tex.colorSpace = THREE.SRGBColorSpace;
+    const feliz = { lado, lienzo, tex, clave: "", colores: { linea: "#1b1b22", cerrado: tipo === "panda" ? "#f4f1ea" : "#2b211d" } };
+    feliz.malla = calcomania(tex, 1.075, 0.33 * lado, 0.07, 0.5, 0.5, 6);
+    feliz.malla.visible = false;
+    dibujarOjo(feliz, { estado: "feliz", cierre: 0, mx: 0, my: 0 });
+    cara.add(feliz.malla);
+    ojo.userData = { pupila, corazon: corazonOjo, feliz: feliz.malla };
     cabeza.add(ojo); ojos.push(ojo); parpados.push(parpado);
   });
 
@@ -279,15 +277,130 @@ function crearPersonaje(tipo) {
   const aj = AJUSTE_ROPA[tipo] || AJUSTE_ROPA.panda;
   const anclas = {
     cabeza: grupo([aj.cabeza[0], aj.cabeza[1], aj.cabeza[2]]),
-    ojos: grupo([aj.ojos[0], aj.ojos[1] + 0.06, 0.88 + aj.ojos[2]]),
-    cuello: grupo([aj.cuello[0], -0.06 + aj.cuello[1], aj.cuello[2]]),
-    mano: grupo([0, -0.05, 0.12]),
+    ojos: grupo([aj.ojos[0], aj.ojos[1] + 0.06, 0.97 + aj.ojos[2]]),  // delante de los ojos: los lentes nunca quedan detrás
+    cuello: grupo([aj.cuello[0], -0.17 + aj.cuello[1], aj.cuello[2]]),
+    mano: grupo([0.16, -0.05, 0.22]),  // un poco afuera y adelante: lo que sostiene no se mete en el cuerpo
   };
   ["cabeza", "ojos", "cuello", "mano"].forEach((k) => anclas[k].scale.setScalar(aj[k][3]));
   cabeza.add(anclas.cabeza); cabeza.add(anclas.ojos); cuello.add(anclas.cuello);
   brazos[1].userData.mano.add(anclas.mano);
 
-  return { raiz, cadera, torso, cuello, cabeza, brazos, piernas, orejas, ojos, parpados, boca, bocaAbierta, sonrisa, cola, anclas, tipo };
+  const flotante = grupo([0, 0, 0]); cadera.add(flotante);
+  return { raiz, cadera, torso, cuello, cabeza, brazos, piernas, orejas, ojos, parpados, boca, bocaAbierta, sonrisa, cola, anclas, tipo, flotante };
+}
+
+// Pedazo curvo de la misma esfera de la cara, centrado en (x, y) de la
+// cara, con una textura encima (ojos, manchas). ancho/alto en unidades.
+function calcomania(tex, radio, x, y, ancho, alto, orden) {
+  const theta = Math.acos(THREE.MathUtils.clamp(y, -0.99, 0.99));
+  const phi = Math.acos(THREE.MathUtils.clamp(-x / Math.sin(theta), -1, 1));
+  const dPhi = ancho / Math.sin(theta), dTheta = alto;
+  const geo = new THREE.SphereGeometry(radio, 24, 24, phi - dPhi / 2, dPhi, theta - dTheta / 2, dTheta);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false,
+    polygonOffset: true, polygonOffsetFactor: -orden, polygonOffsetUnits: -orden });
+  const m = new THREE.Mesh(geo, mat); m.renderOrder = orden;
+  return m;
+}
+
+function texturaMancha(lado) {
+  const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d");
+  g.translate(128, 132); g.rotate(-0.42 * lado);
+  const r = g.createRadialGradient(0, 0, 60, 0, 0, 118);
+  r.addColorStop(0, "rgba(38,38,44,1)"); r.addColorStop(0.86, "rgba(38,38,44,1)"); r.addColorStop(1, "rgba(38,38,44,0)");
+  g.fillStyle = r; g.beginPath(); g.ellipse(0, 0, 100, 122, 0, 0, TAU); g.fill();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+// Dibuja un ojo estilo anime: borde oscuro grueso arriba, blanco con
+// sombra rosada, iris grande con media luna clara abajo, pupila grande y
+// destellos. Cambia de forma según la expresión.
+function dibujarOjo(ojo, e) {
+  const clave = [e.estado, Math.round(e.cierre * 10), Math.round(e.mx * 8), Math.round(e.my * 8)].join("|");
+  if (clave === ojo.clave) return;
+  ojo.clave = clave;
+  const g = ojo.lienzo.getContext("2d"), C = ojo.colores, L = ojo.lado;
+  g.clearRect(0, 0, 256, 256);
+  g.save();
+  g.translate(128, 132);
+  if (L < 0) g.scale(-1, 1); // el lado de afuera queda hacia afuera
+  const RX = 92, RY = 104;
+
+  if (e.estado === "feliz" || e.cierre > 0.92) {
+    // Ojo cerrado: feliz = arco hacia arriba; parpadeo = línea curva hacia abajo
+    g.lineCap = "round"; g.strokeStyle = C.cerrado || C.linea; g.lineWidth = 16;
+    g.beginPath();
+    if (e.estado === "feliz") { g.moveTo(-70, 30); g.quadraticCurveTo(0, -62, 70, 30); }
+    else { g.moveTo(-74, 6); g.quadraticCurveTo(0, 46, 74, 6); }
+    g.stroke();
+    g.lineWidth = 7; g.beginPath(); g.moveTo(68, e.estado === "feliz" ? 24 : 8); g.lineTo(94, e.estado === "feliz" ? 6 : -10); g.stroke();
+    g.restore(); ojo.tex.needsUpdate = true; return;
+  }
+  const esc = e.estado === "sorpresa" ? 1.07 : 1;
+  g.scale(esc, esc);
+
+  // Contorno y blanco con sombra rosada
+  g.fillStyle = C.linea; g.beginPath(); g.ellipse(0, 0, RX + 7, RY + 7, 0, 0, TAU); g.fill();
+  const bl = g.createRadialGradient(0, 18, RX * 0.55, 0, 0, RX * 1.05);
+  bl.addColorStop(0, "#ffffff"); bl.addColorStop(0.78, "#fff6f4"); bl.addColorStop(1, "#efc9cb");
+  g.fillStyle = bl; g.beginPath(); g.ellipse(0, 0, RX, RY, 0, 0, TAU); g.fill();
+
+  g.save(); g.beginPath(); g.ellipse(0, 0, RX, RY, 0, 0, TAU); g.clip();
+  if (e.estado === "mareo") {
+    g.strokeStyle = C.linea; g.lineWidth = 9; g.lineCap = "round"; g.beginPath();
+    for (let t = 0; t < 5.2 * Math.PI; t += 0.1) { const r = 6 + t * 4.4; const x = Math.cos(t) * r, y = Math.sin(t) * r * 1.05 + 10; t === 0 ? g.moveTo(x, y) : g.lineTo(x, y); }
+    g.stroke();
+  } else {
+    const ix = e.mx * 16, iy = 14 + e.my * 12;
+    const rIris = e.estado === "sorpresa" ? 56 : 72;
+    if (e.estado === "amor") {
+      g.fillStyle = "#e11d48"; g.save(); g.translate(ix, iy - 4); g.scale(4.6, 4.6);
+      g.beginPath(); g.moveTo(0, 12); g.bezierCurveTo(-16, 0, -12, -14, 0, -6); g.bezierCurveTo(12, -14, 16, 0, 0, 12); g.fill(); g.restore();
+      g.fillStyle = "#fff"; g.beginPath(); g.ellipse(ix - 26, iy - 30, 16, 11, -0.4, 0, TAU); g.fill();
+    } else {
+      // Iris con degradado y media luna clara abajo
+      const ir = g.createRadialGradient(ix, iy - 20, 10, ix, iy, rIris);
+      ir.addColorStop(0, C.iris); ir.addColorStop(1, C.linea);
+      g.fillStyle = ir; g.beginPath(); g.arc(ix, iy, rIris, 0, TAU); g.fill();
+      g.save(); g.beginPath(); g.arc(ix, iy, rIris - 4, 0, TAU); g.clip();
+      const cl = g.createLinearGradient(0, iy, 0, iy + rIris);
+      cl.addColorStop(0, "rgba(255,255,255,0)"); cl.addColorStop(0.35, C.claro); cl.addColorStop(1, C.claro);
+      g.fillStyle = cl; g.globalAlpha = 0.95; g.beginPath(); g.ellipse(ix, iy + rIris * 0.62, rIris * 0.92, rIris * 0.62, 0, 0, TAU); g.fill();
+      g.globalAlpha = 0.35; g.strokeStyle = "#ffffff"; g.lineWidth = 2;
+      for (let i = -3; i <= 3; i++) { g.beginPath(); g.moveTo(ix + i * 12, iy + rIris * 0.55); g.lineTo(ix + i * 14, iy + rIris * 0.85); g.stroke(); }
+      g.restore(); g.globalAlpha = 1;
+      // Pupila con aro
+      const rp = e.estado === "sorpresa" ? 20 : 40;
+      g.fillStyle = "#0e0818"; g.beginPath(); g.arc(ix, iy - 2, rp, 0, TAU); g.fill();
+      g.strokeStyle = "rgba(255,255,255,.18)"; g.lineWidth = 3; g.beginPath(); g.arc(ix, iy - 2, rp + 4, 0, TAU); g.stroke();
+      g.strokeStyle = C.linea; g.lineWidth = 4; g.beginPath(); g.arc(ix, iy, rIris, 0, TAU); g.stroke();
+      // Destellos
+      g.fillStyle = "#ffffff";
+      g.beginPath(); g.ellipse(ix - 22, iy - 34, 24, 16, -0.25, 0, TAU); g.fill();
+      [[-46, -2, 7], [32, -34, 5], [-30, 10, 3.5], [44, 2, 3]].forEach(([dx, dy, r]) => { g.beginPath(); g.arc(ix + dx, iy + dy, r, 0, TAU); g.fill(); });
+      g.fillStyle = "#b9a6e0";
+      [[12, 18, 7], [-8, 30, 5], [18, 30, 3]].forEach(([dx, dy, r]) => { g.beginPath(); g.arc(ix + dx, iy + dy, r, 0, TAU); g.fill(); });
+    }
+  }
+  // Párpado que baja al parpadear
+  if (e.cierre > 0.02) {
+    const y = -RY + e.cierre * RY * 2.1;
+    g.fillStyle = C.parpado; g.beginPath(); g.moveTo(-RX - 10, -RY - 10); g.lineTo(RX + 10, -RY - 10); g.lineTo(RX + 10, y - 10);
+    g.quadraticCurveTo(0, y + 26, -RX - 10, y - 10); g.closePath(); g.fill();
+    g.strokeStyle = C.linea; g.lineWidth = 6; g.beginPath(); g.moveTo(-RX, y - 6); g.quadraticCurveTo(0, y + 24, RX, y - 6); g.stroke();
+  }
+  g.restore(); // fin del recorte
+
+  // Borde grueso de arriba (párpado) con su banda rosada
+  g.lineCap = "round";
+  g.strokeStyle = "#e9c3c6"; g.lineWidth = 10; g.beginPath(); g.ellipse(0, 4, RX - 8, RY - 6, 0, Math.PI * 1.08, Math.PI * 1.92); g.stroke();
+  g.strokeStyle = C.linea; g.lineWidth = 20; g.beginPath(); g.ellipse(0, 0, RX + 2, RY + 2, 0, Math.PI * 1.02, Math.PI * 1.98); g.stroke();
+  // Pestañas en la esquina de afuera (arriba y abajo)
+  g.lineWidth = 6;
+  [[RX * 0.86, -RY * 0.5, 30, -22], [RX * 0.97, -RY * 0.18, 30, -6]].forEach(([x, y, dx, dy]) => { g.beginPath(); g.moveTo(x, y); g.lineTo(x + dx, y + dy); g.stroke(); });
+  g.lineWidth = 5;
+  [[RX * 0.62, RY * 0.78, 14, 22], [RX * 0.8, RY * 0.6, 22, 14]].forEach(([x, y, dx, dy]) => { g.beginPath(); g.moveTo(x, y); g.lineTo(x + dx, y + dy); g.stroke(); });
+  g.restore();
+  ojo.tex.needsUpdate = true;
 }
 
 // ---------- Ropa 3D (las claves son las de ropa_mascota.py) ----------
@@ -295,125 +408,185 @@ const ROPA = {
   // Cabeza (el ancla es el centro de la cabeza; radio de la cabeza ≈ 1)
   gorra() {
     const g = new THREE.Group(), m = tela("#2563eb");
-    g.add(malla(new THREE.SphereGeometry(1.03, 48, 24, 0, TAU, 0, 1.05), m, [0, 0.02, 0]));
-    const visera = malla(new THREE.CylinderGeometry(0.62, 0.62, 0.05, 40, 1, false, -Math.PI / 2, Math.PI), liso("#1d4ed8", 0.5), [0, 0.5, 0.62], null, [0.25, 0, 0]);
+    g.add(gorroCabeza(m, 1.0, 1.05));
+    const borde = bordeGorro(liso("#1d4ed8", 0.5), 1.0, 1.05, 0.05); g.add(borde);
+    const r = 1.05 * Math.sin(1.0);
+    const visera = malla(new THREE.CylinderGeometry(0.6, 0.6, 0.05, 40, 1, false, -Math.PI / 2, Math.PI), liso("#1d4ed8", 0.5),
+      [0, 0.93 * 1.05 * Math.cos(1.0) - 0.02, 0.92 * r - 0.1], [1, 1, 0.9], [0.18, 0, 0]);
     g.add(visera);
-    g.add(malla(G.esferaB, liso("#1e40af", 0.5), [0, 1.04, 0], 0.08));
+    g.add(malla(G.esferaB, liso("#1e40af", 0.5), [0, 0.93 * 1.05 + 0.02, 0], 0.08));
+    g.userData.tapaOrejas = true;
     return g;
   },
   lana() {
     const g = new THREE.Group();
-    g.add(malla(new THREE.SphereGeometry(1.06, 48, 24, 0, TAU, 0, 1.12), tela("#0ea5e9"), [0, 0, 0]));
-    const borde = new THREE.Mesh(new THREE.TorusGeometry(0.96, 0.12, 16, 64), tela("#0369a1"));
-    borde.position.y = 0.46; borde.rotation.x = Math.PI / 2; g.add(borde);
-    g.add(malla(G.esfera, tela("#e0f2fe"), [0, 1.18, 0], 0.22));
+    g.add(gorroCabeza(tela("#0ea5e9"), 1.12, 1.06));
+    g.add(bordeGorro(tela("#0369a1"), 1.12, 1.06, 0.13));
+    g.add(malla(G.esfera, tela("#e0f2fe"), [0, 0.93 * 1.06 + 0.14, 0], 0.22));
+    g.userData.tapaOrejas = true;
     return g;
   },
   casco() {
-    const g = new THREE.Group(), m = liso("#facc15", 0.3, { clearcoat: 1 });
-    g.add(malla(new THREE.SphereGeometry(1.08, 48, 24, 0, TAU, 0, 1.08), m, [0, 0, 0]));
-    const ala = new THREE.Mesh(new THREE.TorusGeometry(0.98, 0.07, 12, 64), liso("#eab308", 0.35));
-    ala.position.y = 0.5; ala.rotation.x = Math.PI / 2; g.add(ala);
-    g.add(malla(new THREE.BoxGeometry(0.16, 0.1, 1.5), liso("#fde047", 0.3), [0, 1.04, 0], null, [0, 0, 0]));
+    // Casco de obra: copa alta con su nervio al centro, visera al frente,
+    // aro de ajuste y calcomanía con una llave.
+    const g = new THREE.Group(), amarillo = liso("#facc15", 0.28, { clearcoat: 1, clearcoatRoughness: 0.15 });
+    const copa = gorroCabeza(amarillo, 1.12, 1.1); copa.scale.y *= 1.12; g.add(copa);
+    // Nervio central de adelante hacia atrás, siguiendo la copa (sin salirse del borde)
+    const a0 = Math.PI / 2 - 1.12;
+    const nervio = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.06, 14, 64, Math.PI - 2 * a0), amarillo);
+    nervio.rotation.z = a0;
+    const ejeNervio = new THREE.Group(); ejeNervio.add(nervio); ejeNervio.rotation.y = Math.PI / 2;
+    ejeNervio.scale.set(1.11 * 0.92, 0.93 * 1.1 * 1.12 * 1.01, 1.11);
+    g.add(ejeNervio);
+    const yBorde = 0.93 * 1.1 * Math.cos(1.12);
+    const aro = new THREE.Mesh(new THREE.TorusGeometry(Math.sin(1.12) * 1.1, 0.06, 14, 72), liso("#eab308", 0.3, { clearcoat: 0.8 }));
+    aro.rotation.x = Math.PI / 2; aro.position.y = yBorde; aro.scale.set(1, 0.92, 1); g.add(aro);
+    // visera: media luna al frente, inclinada hacia abajo
+    const s2 = new THREE.Shape(); s2.absellipse(0, 0, 0.88, 0.5, 0, Math.PI, false);
+    const visera = new THREE.Mesh(new THREE.ExtrudeGeometry(s2, { depth: 0.04, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 3, curveSegments: 32 }), amarillo);
+    visera.rotation.x = Math.PI / 2 + 0.2; visera.position.set(0, yBorde + 0.03, 0.66); g.add(visera);
+    g.userData.tapaOrejas = true;
     return g;
   },
   vaquero() {
-    const g = new THREE.Group(), cafe = tela("#a16207");
-    const perfil = [[0, 0], [0.62, 0], [0.66, 0.3], [0.6, 0.62], [0.3, 0.7], [0.1, 0.62], [0, 0.66]].map((p) => new THREE.Vector2(p[0], p[1]));
-    const copa = new THREE.Mesh(new THREE.LatheGeometry(perfil, 48), tela("#ca8a04"));
-    copa.position.y = 0.72; g.add(copa);
-    const ala = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.05, 64), cafe);
-    ala.position.y = 0.76; ala.scale.z = 0.85; g.add(ala);
-    [-1, 1].forEach((l) => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.06, 8, 32, Math.PI), cafe); r.position.set(1.2 * l, 0.9, 0); r.rotation.set(0, Math.PI / 2, l > 0 ? 0 : Math.PI); g.add(r); });
-    const banda = new THREE.Mesh(new THREE.CylinderGeometry(0.665, 0.665, 0.12, 48, 1, true), tela("#78350f"));
-    banda.position.y = 0.86; g.add(banda);
-    g.rotation.z = -0.08;
+    // Ala de una pieza que se levanta a los lados + copa suave con su cinta.
+    const g = new THREE.Group(), cafe = tela("#a16207"), copaM = tela("#ca8a04");
+    const ala = new THREE.LatheGeometry([[0.7, -0.025], [1.42, -0.025], [1.44, 0], [1.42, 0.025], [0.7, 0.025]].map((q) => new THREE.Vector2(q[0], q[1])), 128);
+    const pa = ala.attributes.position;
+    for (let i = 0; i < pa.count; i++) {
+      const x = pa.getX(i), z = pa.getZ(i), r = Math.hypot(x, z);
+      const lados = Math.max(0, Math.abs(x) - 0.75) / 0.67;          // 0 cerca de la copa, 1 en la orilla
+      pa.setY(i, pa.getY(i) + 0.32 * lados * lados - 0.03 * Math.max(0, r - 0.7));
+    }
+    ala.computeVertexNormals();
+    const alaM = new THREE.Mesh(ala, cafe); alaM.material.side = THREE.DoubleSide; alaM.scale.z = 0.86; alaM.position.y = 0.7; g.add(alaM);
+    const perfil = [[0, 0.62], [0.2, 0.6], [0.42, 0.66], [0.56, 0.6], [0.66, 0.3], [0.68, 0.02], [0.7, -0.02]]
+      .reverse().map((p) => new THREE.Vector2(p[0], p[1]));
+    const copa = new THREE.Mesh(new THREE.LatheGeometry(new THREE.SplineCurve(perfil).getPoints(40), 96), copaM);
+    copa.position.y = 0.72; copa.scale.z = 0.86; g.add(copa);
+    const cinta = new THREE.Mesh(new THREE.CylinderGeometry(0.685, 0.695, 0.13, 96, 1, true), tela("#78350f"));
+    cinta.position.y = 0.8; cinta.scale.z = 0.86; g.add(cinta);
+    g.rotation.z = -0.06;
     return g;
   },
   corona() {
     const g = new THREE.Group(), oro = metal("#f5c542", 0.2);
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.52, 0.28, 48, 1, true), oro);
-    base.material.side = THREE.DoubleSide; base.position.y = 0.98; g.add(base);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.6, 0.3, 48, 1, true), oro);
+    base.material.side = THREE.DoubleSide; base.position.y = 0.8; g.add(base);
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * TAU;
-      const pico = malla(new THREE.ConeGeometry(0.11, 0.32, 16), oro, [Math.sin(a) * 0.54, 1.27, Math.cos(a) * 0.54]);
+      const pico = malla(new THREE.ConeGeometry(0.11, 0.32, 16), oro, [Math.sin(a) * 0.64, 1.13, Math.cos(a) * 0.64]);
       g.add(pico);
-      g.add(malla(G.esferaB, oro, [Math.sin(a) * 0.54, 1.45, Math.cos(a) * 0.54], 0.05));
+      g.add(malla(G.esferaB, oro, [Math.sin(a) * 0.64, 1.31, Math.cos(a) * 0.64], 0.05));
     }
-    [["#dc2626", 0], ["#2563eb", 1.2], ["#16a34a", -1.2]].forEach(([c, a]) => g.add(malla(G.esferaB, liso(c, 0.1, { clearcoat: 1 }), [Math.sin(a) * 0.57, 0.98, Math.cos(a) * 0.57], 0.075)));
+    [["#dc2626", 0], ["#2563eb", 1.2], ["#16a34a", -1.2]].forEach(([c, a]) => g.add(malla(G.esferaB, liso(c, 0.1, { clearcoat: 1 }), [Math.sin(a) * 0.67, 0.84, Math.cos(a) * 0.67], 0.075)));
     g.rotation.z = 0.08;
     return g;
   },
   mono() {
-    const g = new THREE.Group(), m = tela("#ec4899");
-    const lazo = grupo([0.62, 0.78, 0.25]);
-    [-1, 1].forEach((l) => lazo.add(malla(new THREE.ConeGeometry(0.2, 0.36, 24), m, [0.18 * l, 0, 0], null, [0, 0, -Math.PI / 2 * l])));
-    lazo.add(malla(G.esferaB, tela("#db2777"), [0, 0, 0], 0.1));
-    lazo.rotation.set(0.2, 0.4, 0.5);
+    // Lazo de dos pétalos, nudo y colitas, apoyado sobre la cabeza.
+    const g = new THREE.Group(), m = tela("#ec4899"), m2 = tela("#db2777");
+    const lazo = grupo([0.57, 0.8, 0.26]);
+    [-1, 1].forEach((l) => {
+      const petalo = malla(G.esfera, m, [0.17 * l, 0.02, 0], [0.19, 0.13, 0.09], [0, 0, 0.35 * l]);
+      lazo.add(petalo);
+      lazo.add(malla(G.esferaB, m2, [0.17 * l, 0.02, 0.05], [0.09, 0.05, 0.04], [0, 0, 0.35 * l]));
+      lazo.add(malla(G.capsula, m, [0.06 * l, -0.14, 0], [0.035, 0.07, 0.03], [0, 0, 0.35 * l]));
+    });
+    lazo.add(malla(G.esfera, m2, [0, 0, 0.02], [0.08, 0.08, 0.07]));
+    lazo.lookAt(new THREE.Vector3(0.57, 0.8, 0.26).multiplyScalar(3)); // de frente hacia afuera de la cabeza
+    lazo.rotateZ(0.3);
     g.add(lazo);
     return g;
   },
   santa() {
+    // UNA sola pieza de tela: sale del borde, cubre la cabeza siguiendo su
+    // forma y sigue hasta la punta caída. Sin uniones ni piezas encimadas.
     const g = new THREE.Group(), rojo = tela("#dc2626"), blanco = tela("#ffffff");
-    const borde = new THREE.Mesh(new THREE.TorusGeometry(0.74, 0.13, 16, 64), blanco);
-    borde.position.set(0, 0.6, 0.06); borde.rotation.x = Math.PI / 2 - 0.22; borde.scale.set(1.08, 1.08, 1); g.add(borde);
-    const base = malla(new THREE.SphereGeometry(1.0, 40, 20, 0, TAU, 0, 0.95), rojo, [0, 0.04, 0], [1, 1.02, 1]);
-    g.add(base);
-    const cono = new THREE.Mesh(new THREE.ConeGeometry(0.52, 1.0, 40, 8), rojo);
-    cono.position.set(0.2, 1.3, -0.08); cono.rotation.z = -0.85; g.add(cono);
-    g.add(malla(G.esfera, blanco, [0.62, 1.52, -0.08], 0.16));
+    const curva = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0.36, 0), new THREE.Vector3(0, 0.72, 0), new THREE.Vector3(0.04, 1.06, -0.02),
+      new THREE.Vector3(0.28, 1.4, -0.06), new THREE.Vector3(0.6, 1.5, -0.07), new THREE.Vector3(0.88, 1.28, -0.05),
+    ], false, "centripetal");
+    const radio = (k) => {
+      const p = curva.getPointAt(k);
+      const cabeza = p.y < 0.98 ? Math.sqrt(Math.max(0, 1 - Math.pow(p.y / 0.93, 2))) + 0.07 : 0;
+      return Math.max(cabeza, 0.62 * Math.pow(1 - k, 1.2) + 0.035);
+    };
+    const gorro = new THREE.Mesh(tuboAfinado(curva, radio, 72, 48), rojo);
+    gorro.scale.z = 0.94; g.add(gorro);
+    const aro = new THREE.Mesh(new THREE.TorusGeometry(0.98, 0.15, 18, 72), blanco);
+    aro.rotation.x = Math.PI / 2; aro.position.y = 0.38; aro.scale.set(1, 1, 0.94); g.add(aro);
+    const fin = curva.getPointAt(1);
+    g.add(malla(G.esfera, blanco, [fin.x + 0.04, fin.y - 0.06, fin.z * 0.94], 0.15));
+    g.userData.tapaOrejas = true;
     return g;
   },
   bruja() {
     const g = new THREE.Group(), m = tela("#3b0764");
-    const ala = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.55, 0.05, 64), tela("#2e1065"));
-    ala.position.y = 0.72; g.add(ala);
-    const cono = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.6, 40, 6), m);
-    cono.position.set(0, 1.5, 0); cono.rotation.z = 0.12; g.add(cono);
-    const banda = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.7, 0.18, 40, 1, true), tela("#f97316"));
-    banda.position.y = 0.86; g.add(banda);
-    g.add(malla(new THREE.BoxGeometry(0.2, 0.16, 0.04), metal("#facc15"), [0, 0.86, 0.69]));
+    const ala = new THREE.Mesh(new THREE.LatheGeometry([[0.76, -0.025], [1.5, -0.025], [1.52, 0], [1.5, 0.025], [0.76, 0.025]].map((q) => new THREE.Vector2(q[0], q[1])), 96), tela("#24093f"));
+    ala.material.side = THREE.DoubleSide;
+    ala.position.y = 0.66; ala.scale.z = 0.88; g.add(ala);
+    const cono = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.6, 64, 8, true), m); cono.material.side = THREE.DoubleSide;
+    cono.position.set(0, 1.46, 0); g.add(cono);
+    // La cinta y la hebilla van pegadas al cono (misma inclinación que él).
+    const r = (y) => 0.72 * (0.8 - y) / 1.6 + 0.012;            // radio del cono a la altura y (local)
+    const cinta = new THREE.Mesh(new THREE.CylinderGeometry(r(-0.56), r(-0.74), 0.18, 64, 1, true), tela("#f97316"));
+    cinta.position.y = -0.65; cono.add(cinta);
+    const hebilla = malla(new THREE.BoxGeometry(0.18, 0.14, 0.03), metal("#facc15"), [0, -0.65, r(-0.65) + 0.01]);
+    hebilla.rotation.x = -Math.atan(0.72 / 1.6); cono.add(hebilla);
+    const punta = cono; punta.rotation.z = 0.1;
     return g;
   },
   diadema_corazones() {
     const g = new THREE.Group();
-    const arco = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.04, 8, 48, Math.PI), liso("#e11d48", 0.4));
-    arco.position.set(0, 0.05, -0.1); arco.rotation.y = Math.PI / 2 - 0.0; arco.rotation.x = 0.0; arco.rotation.order = "YXZ";
-    arco.rotation.set(-0.25, Math.PI / 2, 0);
-    g.add(arco);
-    [-1, 1].forEach((l) => { const c = corazon("#f43f5e", 0.32, 0.08); c.position.set(0.38 * l, 1.12, 0.05); c.rotation.z = -0.2 * l; g.add(c); });
+    const arco = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.045, 10, 64, Math.PI), liso("#e11d48", 0.4));
+    arco.scale.set(1.05, 1.03, 1); arco.rotation.x = -0.16; g.add(arco);
+    [-1, 1].forEach((l) => {
+      const tallo = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.3, 8), liso("#e11d48", 0.4));
+      tallo.position.set(0.3 * l, 1.08, -0.12); tallo.rotation.z = -0.25 * l; g.add(tallo);
+      const c = corazon("#f43f5e", 0.3, 0.08); c.position.set(0.36 * l, 1.28, -0.14); c.rotation.z = -0.2 * l; g.add(c);
+    });
     return g;
   },
   // Ojos (ancla en la cara, a la altura de los ojos)
   sol() {
+    // Cada lente sigue la curva de la cara (la de afuera va un poco hacia atrás).
     const g = new THREE.Group(), marco = liso("#111827", 0.3, { clearcoat: 1 });
     [-1, 1].forEach((l) => {
-      const lente = malla(G.esfera, vidrio("#0b1220", 0.93), [0.33 * l, 0, 0.06], [0.24, 0.19, 0.06]);
-      g.add(lente);
+      const lado = grupo([0.33 * l, 0, 0.02]); lado.rotation.y = 0.22 * l;
+      lado.add(malla(G.esfera, vidrio("#0b1220", 0.93), [0, 0, 0.0], [0.24, 0.19, 0.06]));
       const aro = new THREE.Mesh(new THREE.TorusGeometry(1, 0.12, 8, 40), marco);
-      aro.scale.set(0.24, 0.19, 0.24); aro.position.set(0.33 * l, 0, 0.07); g.add(aro);
-      const patilla = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.8, 8), marco);
-      patilla.position.set(0.6 * l, 0.03, -0.32); patilla.rotation.set(Math.PI / 2, 0, 0.5 * l); g.add(patilla);
+      aro.scale.set(0.24, 0.19, 0.24); aro.position.z = 0.01; lado.add(aro);
+      g.add(lado);
+      const patilla = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.62, 8), marco); patilla.name = "patilla";
+      patilla.position.set(0.6 * l, 0.03, -0.3); patilla.rotation.set(Math.PI / 2, 0, 0.42 * l); g.add(patilla);
     });
-    g.add(malla(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 8), marco, [0, 0.05, 0.1], null, [0, 0, Math.PI / 2]));
+    g.add(malla(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 8), marco, [0, 0.05, 0.06], null, [0, 0, Math.PI / 2]));
     return g;
   },
   nerd() {
     const g = new THREE.Group(), marco = liso("#1a1a1a", 0.35);
     [-1, 1].forEach((l) => {
-      const aro = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 12, 40), marco); aro.position.set(0.33 * l, 0, 0.08); g.add(aro);
-      g.add(malla(new THREE.CircleGeometry(0.21, 32), vidrio("#dbeafe", 0.18), [0.33 * l, 0, 0.075]));
-      const patilla = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8), marco);
-      patilla.position.set(0.58 * l, 0.02, -0.3); patilla.rotation.set(Math.PI / 2, 0, 0.5 * l); g.add(patilla);
+      const lado = grupo([0.33 * l, 0, 0.02]); lado.rotation.y = 0.22 * l;
+      lado.add(new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 12, 40), marco));
+      lado.add(malla(new THREE.CircleGeometry(0.21, 32), vidrio("#dbeafe", 0.18), [0, 0, -0.005]));
+      g.add(lado);
+      const patilla = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.62, 8), marco); patilla.name = "patilla";
+      patilla.position.set(0.58 * l, 0.02, -0.3); patilla.rotation.set(Math.PI / 2, 0, 0.42 * l); g.add(patilla);
     });
-    g.add(malla(new THREE.TorusGeometry(0.06, 0.025, 8, 16, Math.PI), marco, [0, 0.02, 0.1]));
+    g.add(malla(new THREE.TorusGeometry(0.06, 0.025, 8, 16, Math.PI), marco, [0, 0.02, 0.05]));
     return g;
   },
   lentes3d() {
     const g = new THREE.Group();
-    g.add(malla(new THREE.BoxGeometry(1.0, 0.36, 0.05), liso("#ffffff", 0.5), [0, 0, 0.06]));
-    g.add(malla(new THREE.PlaneGeometry(0.36, 0.24), vidrio("#ef4444", 0.85), [-0.25, 0, 0.09]));
-    g.add(malla(new THREE.PlaneGeometry(0.36, 0.24), vidrio("#06b6d4", 0.85), [0.25, 0, 0.09]));
+    [-1, 1].forEach((l) => {
+      const mitad = grupo([0.27 * l, 0, 0.05 - 0.02]); mitad.rotation.y = 0.32 * l;
+      mitad.add(malla(new THREE.BoxGeometry(0.5, 0.34, 0.04), liso("#ffffff", 0.5), [0.0, 0, 0]));
+      mitad.add(malla(new THREE.PlaneGeometry(0.34, 0.22), vidrio(l < 0 ? "#ef4444" : "#06b6d4", 0.85), [0.02 * l, 0, 0.021]));
+      const patilla = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.04, 0.7), liso("#ffffff", 0.5)); patilla.name = "patilla";
+      patilla.position.set(0.25 * l, 0.04, -0.33); mitad.add(patilla);
+      g.add(mitad);
+    });
     return g;
   },
   monoculo() {
@@ -436,12 +609,12 @@ const ROPA = {
     const t = texturaRayas(["#18c3df", "#ffffff", "#18c3df"], 32, true);
     const m = new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.85, sheen: 0.6 });
     const g = new THREE.Group();
-    const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.64, 0.12, 16, 64), m); anillo.rotation.x = Math.PI / 2; anillo.scale.set(1, 1, 0.9); g.add(anillo);
-    g.add(malla(new THREE.SphereGeometry(0.06, 12, 8), liso("#18c3df", 0.4), [0, -0.02, 0.66]));
+    const anillo = anilloCuello(m, 0.11); g.add(anillo);
+    g.add(malla(new THREE.SphereGeometry(0.06, 12, 8), liso("#18c3df", 0.4), [0, -0.02, 0.64]));
     return g;
   },
   corbatin() {
-    const g = grupo([0, -0.02, 0.62]), m = liso("#111827", 0.4, { clearcoat: 0.6 });
+    const g = grupo([0, -0.06, 0.7]), m = liso("#111827", 0.4, { clearcoat: 0.6 });
     [-1, 1].forEach((l) => g.add(malla(new THREE.ConeGeometry(0.13, 0.26, 24), m, [0.13 * l, 0, 0], [1, 1, 0.5], [0, 0, Math.PI / 2 * l])));
     g.add(malla(G.esferaB, liso("#374151", 0.4), [0, 0, 0.02], 0.06));
     const r = new THREE.Group(); r.add(g); return r;
@@ -450,38 +623,43 @@ const ROPA = {
     const g = new THREE.Group(), m = liso("#2563eb", 0.45, { clearcoat: 0.4 });
     const s = new THREE.Shape(); s.moveTo(-0.05, 0); s.lineTo(0.05, 0); s.lineTo(0.12, -0.5); s.lineTo(0, -0.64); s.lineTo(-0.12, -0.5); s.closePath();
     const geo = new THREE.ExtrudeGeometry(s, { depth: 0.03, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.012, bevelSegments: 2 });
-    const tie = new THREE.Mesh(geo, m); tie.position.set(0, -0.06, 0.62); tie.rotation.x = -0.32; g.add(tie);
-    g.add(malla(G.esferaB, liso("#1d4ed8", 0.45), [0, -0.04, 0.64], [0.07, 0.06, 0.05]));
+    const tie = new THREE.Mesh(geo, m); tie.position.set(0, -0.08, 0.68); tie.rotation.x = -0.18; g.add(tie);
+    g.add(malla(G.esferaB, liso("#1d4ed8", 0.45), [0, -0.06, 0.71], [0.07, 0.06, 0.05]));
     return g;
   },
   medalla() {
     const g = new THREE.Group(), cinta = tela("#2563eb");
-    [-1, 1].forEach((l) => { const c = malla(new THREE.BoxGeometry(0.08, 0.5, 0.02), cinta, [0.13 * l, -0.18, 0.62], null, [-0.3, 0, 0.45 * l]); g.add(c); });
-    const disco = malla(new THREE.CylinderGeometry(0.14, 0.14, 0.04, 40), metal("#f5c542", 0.2), [0, -0.46, 0.66], null, [Math.PI / 2 - 0.3, 0, 0]);
+    [-1, 1].forEach((l) => { const c = malla(new THREE.BoxGeometry(0.08, 0.42, 0.02), cinta, [0.11 * l, -0.16, 0.7], null, [-0.15, 0, 0.42 * l]); g.add(c); });
+    const disco = malla(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 40), metal("#f5c542", 0.2), [0, -0.4, 0.72], null, [Math.PI / 2 - 0.15, 0, 0]);
     g.add(disco);
     return g;
   },
   panuelo() {
-    const g = new THREE.Group();
-    const geo = new THREE.ConeGeometry(0.45, 0.6, 3, 1); const m = tela("#ef4444");
-    const t = malla(geo, m, [0, -0.2, 0.55], [1, 1, 0.35], [Math.PI, 0, 0]); t.rotation.x = Math.PI - 0.3; g.add(t);
-    const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.06, 10, 48), m); anillo.rotation.x = Math.PI / 2; g.add(anillo);
+    // Pañuelo: triángulo de tela al frente con bolitas, y su tira alrededor del cuello.
+    const g = new THREE.Group(), m = tela("#ef4444");
+    const t = new THREE.Shape(); t.moveTo(-0.42, 0); t.quadraticCurveTo(0, 0.05, 0.42, 0); t.lineTo(0, -0.46); t.closePath();
+    const tri = new THREE.Mesh(new THREE.ExtrudeGeometry(t, { depth: 0.03, bevelEnabled: true, bevelSize: 0.015, bevelThickness: 0.015, bevelSegments: 3, curveSegments: 16 }), m);
+    tri.position.set(0, 0.02, 0.66); tri.rotation.x = -0.28; g.add(tri);
+    [[-0.18, -0.1], [0.18, -0.1], [0, -0.2], [0, -0.06], [-0.08, -0.32], [0.08, -0.32]].forEach(([x, y]) => {
+      const d = malla(G.esferaB, tela("#ffffff"), [x, y, 0.05], [0.028, 0.028, 0.01]); tri.add(d);
+    });
+    const tira = anilloCuello(m, 0.05); g.add(tira);
     return g;
   },
   cuello_capa() {
     const g = new THREE.Group(), m = tela("#3b0764");
-    [-1, 1].forEach((l) => g.add(malla(new THREE.ConeGeometry(0.28, 0.5, 3), m, [0.32 * l, -0.05, 0.45], [1, 1, 0.3], [Math.PI / 2 + 0.6, 0, 0.9 * l])));
-    g.add(malla(G.esferaB, liso("#f97316", 0.3, { clearcoat: 1 }), [0, -0.02, 0.62], 0.07));
+    [-1, 1].forEach((l) => g.add(malla(new THREE.ConeGeometry(0.26, 0.46, 3), m, [0.34 * l, -0.02, 0.6], [1, 1, 0.3], [Math.PI / 2 + 0.6, 0, 0.9 * l])));
+    g.add(malla(G.esferaB, liso("#f97316", 0.3, { clearcoat: 1 }), [0, -0.04, 0.72], 0.07));
     // Capa: media falda detrás del cuerpo (solo la espalda), sin tapar el frente.
     const mCapa = tela("#2e1065"); mCapa.side = THREE.DoubleSide;
-    const capa = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.98, 1.05, 40, 1, true, Math.PI / 2 + 0.25, Math.PI - 0.5), mCapa);
-    capa.position.set(0, -0.5, -0.04); g.add(capa);
+    const capa = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 1.0, 0.85, 40, 1, true, Math.PI / 2 + 0.25, Math.PI - 0.5), mCapa);
+    capa.position.set(0, -0.38, -0.06); g.add(capa);
     return g;
   },
   collar_corazon() {
     const g = new THREE.Group();
-    const cadena = new THREE.Mesh(new THREE.TorusGeometry(0.64, 0.015, 8, 64), metal("#fbcfe8", 0.3)); cadena.rotation.x = Math.PI / 2 - 0.25; g.add(cadena);
-    const c = corazon("#e11d48", 0.17, 0.06); c.position.set(0, -0.2, 0.64); g.add(c);
+    const cadena = anilloCuello(metal("#fbcfe8", 0.3), 0.018); cadena.rotation.x -= 0.12; g.add(cadena);
+    const c = corazon("#e11d48", 0.17, 0.06); c.position.set(0, -0.16, 0.74); g.add(c);
     return g;
   },
   // En la mano (ancla en la palma derecha)
@@ -533,11 +711,18 @@ const ROPA = {
     return g;
   },
   globo_corazon() {
+    // Globo de corazón: flota al lado de la mascota (lejos de la cabeza y del
+    // gorro) amarrado a su mano. Se coloca respecto al cuerpo, no a la mano,
+    // para que al mover los brazos nunca se le meta en la cara.
     const g = new THREE.Group();
-    const hilo = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(-0.05, 0.3, 0), new THREE.Vector3(0.02, 0.6, 0)]), 16, 0.006, 6), liso("#64748b", 0.6));
-    g.add(hilo);
-    const c = corazon("#f43f5e", 0.3, 0.12); c.position.y = 0.82; g.add(c);
-    g.userData.globo = c;
+    const mano = new THREE.Vector3(0.88, 0.34, 0.14), nudo = new THREE.Vector3(1.4, 1.74, 0.3);
+    const hilo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([mano, new THREE.Vector3(1.08, 0.85, 0.22), new THREE.Vector3(1.32, 1.35, 0.28), nudo]), 40, 0.008, 6);
+    g.add(new THREE.Mesh(hilo, liso("#e5e7eb", 0.6)));
+    const globo = corazon("#f43f5e", 0.4, 0.24); globo.position.copy(nudo).add(new THREE.Vector3(0.02, 0.4, 0)); globo.rotation.z = -0.12;
+    globo.material = liso("#f43f5e", 0.12, { clearcoat: 1, clearcoatRoughness: 0.04 });
+    g.add(globo);
+    g.add(malla(new THREE.ConeGeometry(0.05, 0.08, 16), liso("#e11d48", 0.3), [nudo.x, nudo.y + 0.03, nudo.z], null, [Math.PI, 0, 0]));
+    g.userData.globo = globo; g.userData.flotante = true;
     return g;
   },
   bandera() {
@@ -554,11 +739,60 @@ const ROPA = {
     return g;
   },
 };
+// Gorro con la misma forma de la cabeza (esfera 1 × 0.93 × 0.92), un poco
+// más grande para que la cubra sin atravesarse; corte = hasta qué ángulo baja.
+function gorroCabeza(mat, corte, holgura) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32, 0, TAU, 0, corte), mat);
+  m.scale.set(holgura, 0.93 * holgura, 0.92 * holgura);
+  return m;
+}
+// Borde (aro) justo donde termina el gorro, tapando la orilla.
+function bordeGorro(mat, corte, holgura, grosor) {
+  const aro = new THREE.Mesh(new THREE.TorusGeometry(Math.sin(corte) + grosor * 0.6 / holgura, grosor / holgura, 16, 72), mat);
+  aro.rotation.x = Math.PI / 2;
+  const g = new THREE.Group(); g.add(aro);
+  g.position.y = 0.93 * holgura * Math.cos(corte);
+  g.scale.set(holgura, holgura, 0.92 / 1 * holgura);
+  return g;
+}
+
+// Tubo que se va afinando a lo largo de una curva (radio(k), k de 0 a 1).
+function tuboAfinado(curva, radio, tramos = 40, lados = 32) {
+  const marcos = curva.computeFrenetFrames(tramos, false);
+  const pos = [], uv = [], idx = [];
+  for (let i = 0; i <= tramos; i++) {
+    const k = i / tramos, p = curva.getPointAt(k), r = radio(k);
+    for (let j = 0; j <= lados; j++) {
+      const a = (j / lados) * TAU;
+      const n = marcos.normals[i].clone().multiplyScalar(Math.cos(a)).add(marcos.binormals[i].clone().multiplyScalar(Math.sin(a)));
+      pos.push(p.x + n.x * r, p.y + n.y * r, p.z + n.z * r); uv.push(j / lados, k);
+    }
+  }
+  for (let i = 0; i < tramos; i++) for (let j = 0; j < lados; j++) {
+    const a = i * (lados + 1) + j, b = a + lados + 1;
+    idx.push(a, a + 1, b, b, a + 1, b + 1);  // caras hacia afuera
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  return geo;
+}
+
+// Aro alrededor del cuello que descansa SOBRE el cuerpo (elíptico como el
+// torso a esa altura: 0.77 de ancho y 0.67 de fondo), sin hundirse en él.
+function anilloCuello(mat, grosor) {
+  const aro = new THREE.Mesh(new THREE.TorusGeometry(1, grosor / 0.84, 16, 72), mat);
+  aro.rotation.x = Math.PI / 2;
+  aro.scale.set(0.77 + grosor * 0.95, 0.67 + grosor * 0.95, 0.84);
+  return aro;
+}
+
 function bufanda(m1, m2) {
   const g = new THREE.Group();
-  const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.64, 0.16, 16, 64), m1);
-  anillo.rotation.x = Math.PI / 2 - 0.1; anillo.scale.set(1, 1, 0.85); g.add(anillo);
-  const cola = malla(new THREE.BoxGeometry(0.22, 0.55, 0.08), m2, [0.32, -0.32, 0.56], null, [-0.25, 0.1, 0.15]);
+  const anillo = anilloCuello(m1, 0.14);
+  g.add(anillo);
+  const cola = malla(new THREE.BoxGeometry(0.22, 0.55, 0.08), m2, [0.32, -0.3, 0.8], null, [-0.32, 0.1, 0.15]);
   g.add(cola);
   return g;
 }
@@ -618,8 +852,26 @@ function crear(contenedor, opciones) {
     ["cabeza", "ojos", "cuello", "mano"].forEach((parte) => {
       const ancla = pj.anclas[parte];
       while (ancla.children.length) ancla.remove(ancla.children[0]);
+      if (parte === "mano") { while (pj.flotante.children.length) pj.flotante.remove(pj.flotante.children[0]); }
       const clave = ropaActual[parte];
-      if (clave && ROPA[clave]) ancla.add(ROPA[clave]());
+      if (clave && ROPA[clave]) {
+        const pieza = ROPA[clave]();
+        // Corbatas, medallas y collares van un poco más abajo que las bufandas.
+        if (parte === "cuello" && !/^(bufanda|bufanda_navidad|banda_patria)$/.test(clave)) pieza.position.y -= 0.07;
+        (pieza.userData.flotante ? pj.flotante : ancla).add(pieza);
+      }
+      if (parte === "cabeza") {
+        // Con gorro o casco las orejas salen por fuera (como por dos agujeros):
+        // se empujan un poco hacia afuera para que se vean completas.
+        const tapa = !!(ancla.children[0] && ancla.children[0].userData.tapaOrejas);
+        pj.orejas.forEach((o) => {
+          if (!o.userData.base) o.userData.base = { p: o.position.clone(), s: o.scale.clone() };
+          const b = o.userData.base;
+          o.visible = true;
+          o.position.copy(b.p); o.scale.copy(b.s);
+          if (tapa) { o.position.multiplyScalar(1.13); o.position.y += 0.06; o.scale.multiplyScalar(1.08); }
+        });
+      }
     });
   }
   ponerRopa(op.ropa);
@@ -688,20 +940,20 @@ function crear(contenedor, opciones) {
     }
     mirar.x += (objetivoX - mirar.x) * 0.08; mirar.y += (objetivoY - mirar.y) * 0.08;
     pj.cabeza.rotation.set(mirar.y, mirar.x, -mirar.x * 0.15);
-    pj.ojos.forEach((o) => { o.userData.pupila.position.x = mirar.x * 0.06; o.userData.pupila.position.y = -0.01 - mirar.y * 0.05; });
+    let estadoOjos = "normal";
+    pj.ojos.forEach((o) => { o.scale.set(1, 1, 1); o.userData.pupila.position.set(mirar.x * 0.06, -0.01 - mirar.y * 0.05, 0.09); });
 
     // Parpadeo
     if (ahora > proxParpadeo) { parpadeo0 = ahora; proxParpadeo = ahora + 2500 + Math.random() * 3500; }
     const fp = (ahora - parpadeo0) / 160;
     const cierre = fp >= 0 && fp <= 1 ? Math.sin(fp * Math.PI) : 0;
-    pj.parpados.forEach((p) => { p.scale.y = Math.max(0.0001, cierre * 0.22); });
+    let cierreOjos = cierre;
 
     // Saludo de vez en cuando
     if (!reaccion && ahora > proxSaludo) { reaccion = { nombre: "saludo", t0: t, suave: true }; proxSaludo = ahora + 9000 + Math.random() * 7000; }
 
     // Boca normal
-    pj.bocaAbierta.scale.y = 0.0001; pj.sonrisa.visible = true;
-    pj.ojos.forEach((o) => o.scale.set(1, 1, 1));
+    pj.bocaAbierta.scale.set(0.11, 0.0001, 0.04); pj.sonrisa.visible = true;
 
     // Reacciones
     if (reaccion) {
@@ -716,48 +968,66 @@ function crear(contenedor, opciones) {
             pj.raiz.position.y = Math.max(salto, -0.08);
             const sq = k < 0.15 ? 1 - 0.18 * Math.sin(k / 0.15 * Math.PI) : 1 + 0.08 * Math.sin((k - 0.15) / 0.85 * Math.PI);
             pj.cadera.scale.set(2 - sq, sq, 2 - sq);
-            pj.brazos.forEach((b) => { b.rotation.z = (0.45 + e * 1.6) * b.userData.lado; });
+            pj.brazos.forEach((b) => { b.rotation.z = (0.45 + e * 1.3) * b.userData.lado; });
+            if (k > 0.2 && k < 0.85) estadoOjos = "feliz";
             break;
           }
           case "giro": pj.raiz.rotation.y = THREE.MathUtils.smootherstep(k, 0, 1) * TAU; pj.raiz.position.y = e * 0.25; break;
           case "baile":
             pj.raiz.rotation.z = Math.sin(k * TAU * 3) * 0.18; pj.raiz.position.y = Math.abs(Math.sin(k * TAU * 3)) * 0.15;
-            pj.brazos.forEach((b) => { b.rotation.z = (1.2 + Math.sin(k * TAU * 3 + b.userData.lado) * 0.8) * b.userData.lado; });
+            pj.brazos.forEach((b) => { b.rotation.z = (1.0 + Math.sin(k * TAU * 3 + b.userData.lado) * 0.6) * b.userData.lado; });
             pj.cuello.rotation.z = Math.sin(k * TAU * 3) * 0.2; break;
           case "saludo": {
             const b = pj.brazos[0];
-            b.rotation.z = -(2.5 + Math.sin(k * TAU * 3) * 0.35) * (reaccion.suave ? THREE.MathUtils.smoothstep(e, 0, 0.35) : 1);
+            b.rotation.z = -(0.45 + (1.3 + Math.sin(k * TAU * 3) * 0.2) * (reaccion.suave ? THREE.MathUtils.smoothstep(e, 0, 0.35) : 1));
             b.rotation.x = -0.2;
             break;
           }
           case "sorpresa":
-            pj.ojos.forEach((o) => o.scale.setScalar(1 + e * 0.45)); pj.raiz.position.y = e * 0.15;
-            pj.bocaAbierta.scale.set(0.8, 0.9 * e, 1); pj.sonrisa.visible = false;
+            estadoOjos = "sorpresa"; pj.raiz.position.y = e * 0.15;
+            pj.bocaAbierta.scale.set(0.09, 0.1 * e + 0.0001, 0.04); pj.sonrisa.visible = false;
             pj.brazos.forEach((b) => { b.rotation.z = (0.45 + e * 1.0) * b.userData.lado; }); break;
           case "risa":
             pj.raiz.rotation.z = Math.sin(k * TAU * 7) * 0.08 * e; pj.cuello.rotation.x = -0.2 * e;
-            pj.bocaAbierta.scale.set(1, 1.1 * e, 1); pj.sonrisa.visible = false;
-            pj.parpados.forEach((p) => { p.scale.y = 0.14 * e; }); break;
+            pj.bocaAbierta.scale.set(0.12, 0.11 * e + 0.0001, 0.045); pj.sonrisa.visible = false;
+            estadoOjos = "feliz"; break;
           case "mareo":
             pj.cabeza.rotation.z += Math.sin(k * TAU * 2.5) * 0.35 * e; pj.cabeza.rotation.x += Math.cos(k * TAU * 2.5) * 0.15 * e;
             pj.raiz.rotation.z = Math.sin(k * TAU * 1.5) * 0.12 * e;
-            pj.ojos.forEach((o) => { o.userData.pupila.position.x = Math.cos(k * TAU * 4) * 0.05; o.userData.pupila.position.y = Math.sin(k * TAU * 4) * 0.05; }); break;
+            estadoOjos = "mareo"; break;
           case "corazones":
-            pj.parpados.forEach((p) => { p.scale.y = 0.12 * e; }); pj.cuello.rotation.z = Math.sin(k * TAU) * 0.15;
-            pj.brazos.forEach((b) => { b.rotation.z = (0.45 + e * 0.5) * b.userData.lado; b.rotation.x = -0.9 * e; }); break;
+            estadoOjos = "amor"; pj.cuello.rotation.z = Math.sin(k * TAU) * 0.15;
+            pj.brazos.forEach((b) => { b.rotation.z = (0.45 + e * 0.35) * b.userData.lado; b.rotation.x = -0.45 * e; }); break;
           case "confeti":
           case "celebrar":
             pj.raiz.position.y = Math.abs(Math.sin(k * TAU * 2)) * 0.35;
-            pj.brazos.forEach((b) => { b.rotation.z = (0.45 + e * 2.3) * b.userData.lado; });
-            pj.bocaAbierta.scale.set(0.9, 0.8 * e, 1); pj.sonrisa.visible = false; break;
+            pj.brazos.forEach((b) => { b.rotation.z = (0.45 + e * 1.5) * b.userData.lado; }); estadoOjos = "feliz";
+            pj.bocaAbierta.scale.set(0.11, 0.09 * e + 0.0001, 0.04); pj.sonrisa.visible = false; break;
         }
       }
     }
 
+    pj.ojos.forEach((o) => {
+      const feliz = estadoOjos === "feliz";
+      o.children.forEach((h) => { if (h !== o.userData.corazon) h.visible = !feliz; });
+      o.userData.feliz.visible = feliz;
+      o.userData.corazon.visible = estadoOjos === "amor";
+      o.userData.pupila.visible = !feliz && estadoOjos !== "amor";
+      if (estadoOjos === "sorpresa") o.scale.setScalar(pj.anclas.ojos.children.length ? 1.06 : 1.3);
+      if (estadoOjos === "mareo") { const a = t * 14; o.userData.pupila.position.x = Math.cos(a) * 0.05; o.userData.pupila.position.y = Math.sin(a) * 0.05; }
+      if (estadoOjos === "amor") o.userData.corazon.scale.setScalar(1 + Math.sin(t * 12) * 0.12);
+    });
+    pj.parpados.forEach((p) => { p.scale.y = Math.max(0.0001, (estadoOjos === "normal" ? cierreOjos : 0) * 0.22); });
+
+    // Lo que sostiene en la mano se queda derecho aunque mueva el brazo.
+    const brazoDer = pj.brazos[1];
+    pj.anclas.mano.rotation.set(-brazoDer.rotation.x, -brazoDer.rotation.y, -brazoDer.rotation.z);
+
     // Bandera y globo se mueven con el aire
     const mano = pj.anclas.mano.children[0];
     if (mano && mano.userData.bandera) mano.userData.bandera.rotation.y = Math.sin(t * 3) * 0.25;
-    if (mano && mano.userData.globo) mano.userData.globo.rotation.z = Math.sin(t * 1.5) * 0.15;
+    const flot = pj.flotante.children[0];
+    if (flot && flot.userData.globo) { flot.userData.globo.rotation.z = -0.12 + Math.sin(t * 1.5) * 0.08; flot.userData.globo.position.y = 2.12 + Math.sin(t * 1.2) * 0.03; }
 
     // Partículas
     for (let i = particulas.length - 1; i >= 0; i--) {
@@ -788,6 +1058,9 @@ function crear(contenedor, opciones) {
 
   const vista = {
     reaccionar, ponerRopa,
+    girar(a) { angulo = a; },
+    get personaje() { return pj; },
+    get escena() { return escena; },
     cambiarTipo(tipo) { escena.remove(pj.raiz); pj = crearPersonaje(tipo); escena.add(pj.raiz); ponerRopa(ropaActual); },
     destruir() { vistas.delete(vista); ro.disconnect(); renderer.dispose(); renderer.domElement.remove(); },
   };

@@ -246,5 +246,5 @@ templates.env.globals["mascota_visible"] = mascota_visible_plantilla
 
 # Mascotas 3D (static/js/mascota3d.js): se encienden cuando Ricardo apruebe
 # cómo quedaron; mientras tanto se usan las de dibujo (SVG).
-MASCOTAS_3D = False
+MASCOTAS_3D = True
 templates.env.globals["mascotas_3d"] = lambda: MASCOTAS_3D

@@ -14,6 +14,15 @@ class ItemCarritoIn(BaseModel):
     precio_unitario: Optional[Decimal] = Field(default=None, ge=0)
 
 
+class PagoParteIn(BaseModel):
+    """Una parte de un pago mixto del POS (Tarjeta o Transferencia; el
+    efectivo es lo que falta para el total)."""
+    forma: str
+    monto: Decimal = Decimal("0")
+    banco_id: Optional[int] = None
+    referencia: str = ""
+
+
 class VentaIn(BaseModel):
     items: list[ItemCarritoIn]
     descuento: Decimal = Decimal("0")
@@ -24,6 +33,7 @@ class VentaIn(BaseModel):
     tipo_documento: str = "interno"  # "interno" (comprobante) o "fiscal" (factura con CAI)
     banco_id: Optional[int] = None    # transferencia/tarjeta: a qué banco entró
     cliente_rtn: str = ""
+    pagos: list[PagoParteIn] = []     # pago mixto (forma_pago="Mixto")
 
 
 class VentaOut(BaseModel):

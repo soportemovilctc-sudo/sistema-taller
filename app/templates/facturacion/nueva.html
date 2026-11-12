@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_bancos.html" import selector_banco %}
+{% from "_pago_mixto.html" import pago_mixto %}
 {% block title %}Generar factura - Orden {{ orden.numero_orden }}{% endblock %}
 {% block content %}
 {% set moneda = config_taller().moneda %}
@@ -83,8 +84,10 @@
       <div class="m-sec-t" style="margin-top:0;">Cobrar ahora el saldo: {{ orden.saldo|moneda(moneda) }}</div>
       <div class="pago-opciones" role="radiogroup" aria-label="Cómo paga el saldo">
         {% for fp in formas_pago %}<label class="pago-op"><input type="radio" name="forma_pago" value="{{ fp }}" required {{ 'checked' if fp == 'Efectivo' else '' }}><span>{{ fp }}</span></label>{% endfor %}
+        <label class="pago-op"><input type="radio" name="forma_pago" value="Mixto" required><span>Mixto</span></label>
       </div>
       {{ selector_banco(segun='forma_pago', etiqueta='¿A qué banco entró?') }}
+      {{ pago_mixto(segun='forma_pago', total=orden.saldo) }}
       <div class="field campo-banco" data-segun="forma_pago" style="margin-top:8px;"><label for="refSaldo">N.º de referencia <span class="m-muted">(obligatorio en transferencia)</span></label><input id="refSaldo" type="text" name="referencia_saldo" maxlength="60"></div>
       <div class="help">El cobro, la factura y la entrega se registran juntos.</div>
     </div>

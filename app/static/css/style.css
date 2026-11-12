@@ -1984,3 +1984,31 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-width: 0; flex: 0
 @media (prefers-reduced-motion: reduce) { .nav-sec[open] > .nav-link { animation: none; } }
 .fac-cobro { margin: 6px 0 16px; border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); border-radius: 12px; padding: 14px; }
 .fac-cobro .campo-banco { margin-top: 12px; }
+
+/* ---------- Movimientos del mes ---------- */
+.mov-filtros { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 18px; }
+.mov-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.mov-kpi { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--panel); }
+.mov-kpi span { display: block; font-size: 12.5px; color: var(--text-muted); }
+.mov-kpi b { font-size: 19px; font-variant-numeric: tabular-nums; }
+.mov-kpi small { display: block; font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+.mov-tabla td.num, .mov-tabla th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mov-tabla tfoot th { border-top: 2px solid var(--border); }
+.mov-tabla tr.is-traslado td { color: var(--text-muted); }
+.mov-concepto { max-width: 380px; }
+.mov-det-cab { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 26px 0 10px; }
+.mov-det-cab input[type=search] { margin-left: auto; min-width: 240px; }
+@media (max-width: 600px) { .mov-det-cab input[type=search] { margin-left: 0; width: 100%; min-width: 0; } }
+@media print {
+  .sidebar, .topbar, .pill-tabs, .m-acciones, .mov-filtros, .mov-det-cab .m-chips, .mov-det-cab input, .panda-mascota { display: none !important; }
+  .main { margin: 0 !important; padding: 0 !important; }
+}
+
+/* Pago mixto (templates/_pago_mixto.html) */
+.pago-mixto { margin-top: 10px; border-left: 3px solid var(--primary); }
+.pago-mixto .pm-t { font-weight: 700; margin-bottom: 8px; }
+.pago-mixto .pm-fila { display: grid; grid-template-columns: 1fr 150px; gap: 10px; align-items: center; margin-bottom: 8px; }
+.pago-mixto .pm-fila label { margin: 0; }
+.pago-mixto .pm-sub { margin: -2px 0 10px; padding-left: 12px; }
+.pago-mixto .pm-resumen { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 14px; line-height: 1.6; }
+@media (max-width: 520px) { .pago-mixto .pm-fila { grid-template-columns: 1fr 120px; } }

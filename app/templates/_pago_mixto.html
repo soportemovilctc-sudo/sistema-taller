@@ -1,0 +1,27 @@
+{# Pago mixto (app/utils/pago_mixto.py): el cliente paga una parte en
+   efectivo y otra con tarjeta y/o transferencia. Se muestra cuando en
+   `segun` se elige «Mixto». `total`: lo que deben sumar las partes (si no se
+   da, se usa el campo `monto_campo`, que pasa a llenarse solo con la suma). #}
+{% from "_bancos.html" import selector_banco %}
+{% macro pago_mixto(segun='forma_pago', total=None, monto_campo='', forma_tarjeta='Tarjeta') %}
+<div class="m-box pago-mixto" data-segun="{{ segun }}" {% if total is not none %}data-total="{{ total }}"{% endif %} {% if monto_campo %}data-monto="{{ monto_campo }}"{% endif %} style="display:none;">
+  <div class="pm-t">Pago mixto: escribe cuánto pagó de cada forma</div>
+  <div class="pm-fila">
+    <label for="mxEf_{{ segun }}">Efectivo <span class="m-muted">(entra a la caja)</span></label>
+    <input id="mxEf_{{ segun }}" type="number" name="mx_efectivo" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+  </div>
+  <div class="pm-fila">
+    <label for="mxTa_{{ segun }}">{{ forma_tarjeta }} <span class="m-muted">(entra al banco)</span></label>
+    <input id="mxTa_{{ segun }}" type="number" name="mx_tarjeta" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+  </div>
+  {{ selector_banco(nombre='mx_banco_tarjeta', segun='monto:mx_tarjeta', etiqueta='¿A qué banco entró la tarjeta?', clase='field pm-sub') }}
+  <div class="pm-fila">
+    <label for="mxTr_{{ segun }}">Transferencia <span class="m-muted">(entra al banco)</span></label>
+    <input id="mxTr_{{ segun }}" type="number" name="mx_transferencia" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+  </div>
+  {{ selector_banco(nombre='mx_banco_transferencia', segun='monto:mx_transferencia', etiqueta='¿A qué banco entró la transferencia?', clase='field pm-sub') }}
+  <div class="field campo-banco pm-sub" data-segun="monto:mx_transferencia"><label for="mxRef_{{ segun }}">N.º de referencia de la transferencia *</label>
+    <input id="mxRef_{{ segun }}" type="text" name="mx_ref_transferencia" maxlength="60"></div>
+  <div class="pm-resumen" aria-live="polite"></div>
+</div>
+{% endmacro %}

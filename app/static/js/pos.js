@@ -66,10 +66,14 @@ document.addEventListener("DOMContentLoaded", function () {
   var finalizarBtn = document.getElementById("posFinalizar");
   if (finalizarBtn) finalizarBtn.addEventListener("click", finalizarVenta);
 
+  ["posMxTarjeta", "posMxTransf", "posMxRef"].forEach(function (id) {
+    var el = document.getElementById(id); if (el) el.addEventListener("input", actualizarTotales);
+  });
+
   var exacto = document.getElementById("posExacto");
   if (exacto) exacto.addEventListener("click", function () {
     var m = document.getElementById("posMontoRecibido");
-    if (m) { m.value = totalesVenta().total.toFixed(2); actualizarTotales(); }
+    if (m) { m.value = (esMixtoPos() ? pagoMixto(totalesVenta().total).efectivo : totalesVenta().total).toFixed(2); actualizarTotales(); }
   });
 
   // Documento: comprobante interno o factura fiscal (con RTN opcional).
@@ -189,12 +193,49 @@ function totalesVenta() {
   return { subtotal: subtotal, totalNeto: totalNeto, total: total, isv: r2(total - totalNeto) };
 }
 
+function esMixtoPos() { return ((document.getElementById("posFormaPago") || {}).value || "") === "Mixto"; }
+
+// Pago mixto: tarjeta + transferencia van al banco; lo que falta para el
+// total es efectivo (lo único que entra a la caja de la cajera).
+function pagoMixto(total) {
+  var ta = r2(parseFloat((document.getElementById("posMxTarjeta") || {}).value) || 0);
+  var tr = r2(parseFloat((document.getElementById("posMxTransf") || {}).value) || 0);
+  var ref = ((document.getElementById("posMxRef") || {}).value || "").trim();
+  var efectivo = r2(total - ta - tr);
+  var error = "";
+  if (ta < 0 || tr < 0) error = "Los montos no pueden ser negativos.";
+  else if (ta + tr <= 0) error = "Escribe cuánto pagó con tarjeta y/o transferencia.";
+  else if (efectivo < 0) error = "Tarjeta + transferencia es más que el total.";
+  else if (efectivo === 0 && (ta === 0 || tr === 0)) error = "Todo se pagó de una sola forma: elige esa forma en vez de «Mixto».";
+  else if (tr > 0 && !ref) error = "Escribe el número de referencia de la transferencia.";
+  return { tarjeta: ta, transferencia: tr, efectivo: efectivo, referencia: ref, error: error };
+}
+
+function bancoDe(nombre) {
+  return parseInt(((document.querySelector('[name="' + nombre + '"]') || {}).value) || "", 10) || null;
+}
+
+function L2(v) { return "L " + v.toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
 function actualizarTotales() {
   var t = totalesVenta();
   var subtotal = t.subtotal, isv = t.isv, total = t.total;
-  var esEfectivoPos = ((document.getElementById("posFormaPago") || {}).value || "Efectivo") === "Efectivo";
+  var mixto = esMixtoPos();
+  var esEfectivoPos = mixto || ((document.getElementById("posFormaPago") || {}).value || "Efectivo") === "Efectivo";
   var recibido = esEfectivoPos ? r2(parseFloat((document.getElementById("posMontoRecibido") || {}).value) || 0) : total;
-  var cambio = r2(recibido - total);
+  var aCobrar = total, errorMixto = "";
+  if (mixto) {
+    var pm = pagoMixto(total);
+    aCobrar = pm.efectivo > 0 ? pm.efectivo : 0;
+    if (aCobrar === 0) recibido = 0;
+    errorMixto = carrito.length ? pm.error : "";
+    var res = document.getElementById("posMxResumen");
+    if (res) res.innerHTML = "Efectivo a cobrar (entra a la caja): <b>" + L2(Math.max(pm.efectivo, 0)) + "</b><br>" +
+      "Al banco: <b>" + L2(r2(pm.tarjeta + pm.transferencia)) + "</b>" +
+      (pm.tarjeta ? " (tarjeta " + L2(pm.tarjeta) + ")" : "") + (pm.transferencia ? " (transferencia " + L2(pm.transferencia) + ")" : "") +
+      (errorMixto ? '<br><span class="m-bad">' + errorMixto + "</span>" : "");
+  }
+  var cambio = r2(recibido - aCobrar);
 
   setTexto("posSubtotal", subtotal.toFixed(2));
   setTexto("posIsv", isv.toFixed(2));
@@ -202,9 +243,9 @@ function actualizarTotales() {
   setTexto("posCambio", (cambio > 0 ? cambio : 0).toFixed(2));
 
   var finalizarBtn = document.getElementById("posFinalizar");
-  if (finalizarBtn) finalizarBtn.disabled = carrito.length === 0 || recibido < total;
+  if (finalizarBtn) finalizarBtn.disabled = carrito.length === 0 || recibido < aCobrar || !!errorMixto;
   var falta = document.getElementById("posFalta");
-  if (falta) falta.textContent = (esEfectivoPos && carrito.length && recibido < total) ? "Escribe cuánto entregó el cliente (o toca «Exacto»)." : "";
+  if (falta) falta.textContent = (esEfectivoPos && carrito.length && recibido < aCobrar) ? "Escribe cuánto entregó el cliente en efectivo (o toca «Exacto»)." : "";
 }
 
 function tipoDocumento() {
@@ -228,7 +269,14 @@ function finalizarVenta() {
     tipo_documento: tipoDocumento(),
     banco_id: parseInt(((document.querySelector('[name="banco_id"]') || {}).value) || "", 10) || null,
     cliente_rtn: tipoDocumento() === "fiscal" ? ((document.getElementById("posRtn") || {}).value || "") : "",
+    pagos: [],
   };
+  if (esMixtoPos()) {
+    var pm = pagoMixto(totalesVenta().total);
+    if (pm.tarjeta > 0) payload.pagos.push({ forma: "Tarjeta", monto: pm.tarjeta, banco_id: bancoDe("pos_mx_banco_tarjeta") });
+    if (pm.transferencia > 0) payload.pagos.push({ forma: "Transferencia", monto: pm.transferencia, banco_id: bancoDe("pos_mx_banco_transferencia"), referencia: pm.referencia });
+    if (pm.efectivo <= 0) payload.monto_recibido = 0;
+  }
   var btnFin = document.getElementById("posFinalizar");
   if (btnFin) { if (btnFin.dataset.enviando) return; btnFin.dataset.enviando = "1"; btnFin.disabled = true; }
   var mensajeEl = document.getElementById("posMensaje");
@@ -259,6 +307,7 @@ function finalizarVenta() {
             acciones.innerHTML =
               '<a href="/facturas/' + res.data.factura_id + '/pdf/tirilla" target="_blank" class="btn btn-success btn-sm">Imprimir ' + (esFiscal ? "factura" : "comprobante") + ' (tirilla)</a>' +
               '<a href="/facturas/' + res.data.factura_id + '/pdf" target="_blank" class="btn btn-outline btn-sm">Ver ' + (esFiscal ? "factura" : "comprobante") + ' (PDF carta)</a>' +
+              '<a href="/facturas/' + res.data.factura_id + '/pdf/tirilla?pantalla=1" target="_blank" class="btn btn-outline btn-sm">Ver en pantalla</a>' +
               '<button type="button" class="btn btn-primary btn-sm" id="posNuevaVenta">Nueva venta</button>';
             mensajeEl.appendChild(acciones);
             var btnNueva = document.getElementById("posNuevaVenta");
@@ -272,8 +321,9 @@ function finalizarVenta() {
         carrito = [];
         COTIZACION_ID = null;
         renderCarrito();
-        var recibidoInput = document.getElementById("posMontoRecibido");
-        if (recibidoInput) recibidoInput.value = "";
+        ["posMontoRecibido", "posMxTarjeta", "posMxTransf", "posMxRef"].forEach(function (id) {
+          var el = document.getElementById(id); if (el) el.value = "";
+        });
       } else {
         actualizarTotales();
         if (mensajeEl) {

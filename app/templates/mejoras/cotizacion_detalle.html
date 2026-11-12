@@ -10,6 +10,7 @@
       <div style="font-size:15px; margin-top:4px;"><b>{{ cot.cliente_nombre }}</b> <span class="m-muted">· {{ cot.fecha|hn('%d/%m/%Y %I:%M %p') }} · por {{ cot.usuario_nombre }} · válida hasta el {{ cot.vence|hn('%d/%m/%Y') }}</span></div>
     </div>
     <div class="m-acciones">
+      <a href="{{ ('/cotizaciones/' ~ cot.id ~ '/pdf')|pantalla }}" class="btn btn-success btn-sm">Ver en pantalla</a>
       <a href="/cotizaciones/{{ cot.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF</a>
       <a href="/cotizaciones/{{ cot.id }}/pdf?descargar=1" class="btn btn-outline btn-sm">Descargar PDF</a>
       {% if whatsapp %}<a href="{{ whatsapp }}" target="_blank" rel="noopener" class="btn btn-success btn-sm">Enviar por WhatsApp</a>{% endif %}

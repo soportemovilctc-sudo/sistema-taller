@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_bancos.html" import selector_banco %}
+{% from "_pago_mixto.html" import pago_mixto %}
 {% block title %}{{ c.numero }} · CxC{% endblock %}
 {% block content %}
 {% set moneda = config_taller().moneda %}
@@ -64,12 +65,14 @@
           <div class="field"><label>¿Cómo pagó?</label>
             <div class="pago-opciones" role="radiogroup">
               {% for f in formas %}<label class="pago-op"><input type="radio" name="forma_pago" value="{{ f }}" {{ 'checked' if f == 'Efectivo' else '' }}><span>{{ f }}</span></label>{% endfor %}
+              <label class="pago-op"><input type="radio" name="forma_pago" value="Mixto"><span>Mixto</span></label>
             </div>
           </div>
           {{ selector_banco(segun='forma_pago', etiqueta='¿A qué banco entró?') }}
+          {{ pago_mixto(segun='forma_pago', monto_campo='monto') }}
           <div class="field campo-banco" data-segun="forma_pago"><label for="pagoRef">N.º de referencia <span class="m-muted">(obligatorio en transferencia)</span></label><input id="pagoRef" type="text" name="referencia" maxlength="60"></div>
           <button type="submit" class="btn btn-primary" style="width:100%;">Registrar pago</button>
-          <div class="help" style="margin-top:8px;">Efectivo entra a la caja abierta; transferencia y tarjeta, al banco elegido.</div>
+          <div class="help" style="margin-top:8px;">Efectivo entra a la caja abierta; transferencia y tarjeta, al banco elegido. En pago mixto cada parte va a su lugar.</div>
         </form>
       </div>
       {% endif %}

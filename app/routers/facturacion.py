@@ -364,8 +364,12 @@ async def factura_crear(
     servicio_cantidad: str = Form("1"), servicio_precio: str = Form(""), servicio_costo: str = Form(""),
     cliente_rtn: str = Form(""), forma_pago: str = Form("Efectivo"),
     entregar: str = Form(""), cobrar_saldo: str = Form(""), banco_id: str = Form(""), referencia_saldo: str = Form(""),
+    mx_efectivo: str = Form(""), mx_tarjeta: str = Form(""), mx_banco_tarjeta: str = Form(""),
+    mx_transferencia: str = Form(""), mx_banco_transferencia: str = Form(""), mx_ref_transferencia: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
+    from app.utils.pago_mixto import FORMA_MIXTO, leer_partes, exigir_total, texto as texto_partes
+    es_mixto = forma_pago == FORMA_MIXTO
     if forma_pago not in FORMAS_PAGO:
         forma_pago = "Efectivo"
     # La orden se bloquea (SELECT ... FOR UPDATE en Postgres) hasta terminar:
@@ -483,15 +487,30 @@ async def factura_crear(
     # Entregar: el saldo que falta se cobra aquí mismo, junto con la factura.
     cobro_entrega = None
     if entregar == "1" and cobrar_saldo == "1" and to_decimal(orden.total or 0) > 0 and to_decimal(orden.saldo or 0) > 0:
-        if forma_pago == "Transferencia" and not referencia_saldo.strip():
+        if not es_mixto and forma_pago == "Transferencia" and not referencia_saldo.strip():
             db.rollback()
             flash(request, "Escribe el número de referencia de la transferencia.", "error")
             return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva?entregar=1", status_code=303)
-        from app.routers.ordenes import _aplicar_abono
+        from app.routers.ordenes import _aplicar_abono, aplicar_partes_abono
         from app.utils.bancos import banco_si_aplica
-        obs = "Cobrado al entregar y facturar" + (f" · Ref. {referencia_saldo.strip()}" if referencia_saldo.strip() else "")
-        cobro_entrega = _aplicar_abono(db, orden, orden.saldo, forma_pago, obs, usuario["nombre_completo"],
-                                       banco_si_aplica(db, forma_pago, banco_id))
+        if es_mixto:
+            # Pago mixto: un abono por forma, cada uno a su lugar.
+            try:
+                partes = leer_partes(efectivo=mx_efectivo, tarjeta=mx_tarjeta, banco_tarjeta=mx_banco_tarjeta,
+                                     transferencia=mx_transferencia, banco_transferencia=mx_banco_transferencia,
+                                     ref_transferencia=mx_ref_transferencia)
+                exigir_total(partes, orden.saldo)
+            except ValueError as e:
+                db.rollback()
+                flash(request, "No se generó la factura. " + str(e), "error")
+                return RedirectResponse(f"/ordenes/{orden_id}/factura/nueva?entregar=1", status_code=303)
+            cobro_entrega = to_decimal(orden.saldo)
+            aplicar_partes_abono(db, orden, partes, "Cobrado al entregar y facturar", usuario["nombre_completo"])
+            forma_pago = "mixto (" + texto_partes(partes) + ")"
+        else:
+            obs = "Cobrado al entregar y facturar" + (f" · Ref. {referencia_saldo.strip()}" if referencia_saldo.strip() else "")
+            cobro_entrega = _aplicar_abono(db, orden, orden.saldo, forma_pago, obs, usuario["nombre_completo"],
+                                           banco_si_aplica(db, forma_pago, banco_id))
         db.flush()
         db.expire(orden, ["pagos"])
         recalcular_orden(orden)
@@ -568,7 +587,7 @@ async def factura_crear(
     # cuenta real (Caja Chica o Banco) -- ver _crear_ingresos_factura.
     _crear_ingresos_factura(
         db, factura, orden, usuario["nombre_completo"],
-        monto_neto_total=(total - isv_monto), isv_monto_total=isv_monto, forma_saldo=forma_pago,
+        monto_neto_total=(total - isv_monto), isv_monto_total=isv_monto, forma_saldo=forma_pago if forma_pago in FORMAS_PAGO else "Efectivo",
     )
 
     entregada = False

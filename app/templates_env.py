@@ -193,3 +193,6 @@ def fmt_tipo_mov(valor):
 
 
 templates.env.filters["tipo_mov"] = fmt_tipo_mov
+
+from app.utils.pantalla_pdf import url_pantalla  # noqa: E402
+templates.env.filters["pantalla"] = url_pantalla

@@ -11,9 +11,11 @@
       <div style="font-size:15px; margin-top:4px;"><b>{{ factura.cliente_nombre }}</b> <span class="m-muted">· {{ 'Factura fiscal' if factura.tipo == 'fiscal' else 'Comprobante interno' }} · {{ factura.fecha_emision|fecha('%d/%m/%Y %I:%M %p') }}</span></div>
     </div>
     <div class="m-acciones">
+      <a href="{{ ('/facturas/' ~ factura.id ~ '/pdf')|pantalla }}" class="btn btn-success btn-sm" title="Ver la factura aquí mismo, sin abrir el PDF">Ver en pantalla</a>
       <a href="/facturas/{{ factura.id }}/pdf" target="_blank" class="btn btn-outline btn-sm">Ver PDF</a>
       <a href="/facturas/{{ factura.id }}/pdf/descargar" class="btn btn-outline btn-sm">Descargar PDF</a>
       <a href="/facturas/{{ factura.id }}/pdf/tirilla" target="_blank" class="btn btn-primary btn-sm">Tirilla 80mm</a>
+      <a href="{{ ('/facturas/' ~ factura.id ~ '/pdf/tirilla')|pantalla }}" class="btn btn-outline btn-sm">Tirilla en pantalla</a>
       <a href="/facturas/{{ factura.id }}/pdf/tirilla/descargar" class="btn btn-outline btn-sm">Descargar tirilla</a>
     </div>
   </div>

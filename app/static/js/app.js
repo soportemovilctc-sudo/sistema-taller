@@ -1255,7 +1255,7 @@ document.addEventListener("DOMContentLoaded", function () {
 // forma de pago o la cuenta elegida NO es Efectivo / Caja Chica.
 // ---------------------------------------------------------------------------
 (function () {
-  function esEfectivo(v) { return !v || v === "Efectivo" || v === "caja_chica" || v === "Crédito"; }
+  function esEfectivo(v) { return !v || v === "Efectivo" || v === "caja_chica" || v === "Crédito" || v === "Mixto"; }
   function valorDe(form, nombre) {
     var els = form ? form.querySelectorAll('[name="' + nombre + '"]') : [];
     for (var i = 0; i < els.length; i++) {
@@ -1281,4 +1281,57 @@ document.addEventListener("DOMContentLoaded", function () {
   document.addEventListener("input", function (e) { if (e.target && e.target.type === "number") actualizar(); });
   document.addEventListener("DOMContentLoaded", actualizar);
   window.actualizarSelectorBanco = actualizar;
+})();
+
+// ---------------------------------------------------------------------------
+// Pago mixto (templates/_pago_mixto.html): se muestra al elegir «Mixto»,
+// suma las partes y dice cuánto efectivo recibe la cajera.
+// ---------------------------------------------------------------------------
+(function () {
+  function n(v) { var x = parseFloat(v); return isNaN(x) ? 0 : Math.round(x * 100) / 100; }
+  function L(v) { return "L " + v.toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function elegido(form, nombre) {
+    var r = form.querySelector('[name="' + nombre + '"]:checked') || form.querySelector('select[name="' + nombre + '"]');
+    return r ? r.value : "";
+  }
+  function actualizar() {
+    document.querySelectorAll(".pago-mixto[data-segun]").forEach(function (box) {
+      var form = box.closest("form"); if (!form) return;
+      var activo = elegido(form, box.getAttribute("data-segun")) === "Mixto";
+      box.style.display = activo ? "" : "none";
+      box.querySelectorAll("input,select").forEach(function (i) { i.disabled = !activo; });
+      var campo = box.getAttribute("data-monto") ? form.querySelector('[name="' + box.getAttribute("data-monto") + '"]') : null;
+      if (campo) { campo.readOnly = activo; }
+      if (!activo) return;
+      var ef = n(box.querySelector('[name="mx_efectivo"]').value), ta = n(box.querySelector('[name="mx_tarjeta"]').value),
+          tr = n(box.querySelector('[name="mx_transferencia"]').value), suma = Math.round((ef + ta + tr) * 100) / 100;
+      var ref = box.querySelector('[name="mx_ref_transferencia"]'); if (ref) ref.required = tr > 0;
+      if (campo) campo.value = suma ? suma.toFixed(2) : "";
+      var total = box.hasAttribute("data-total") ? n(box.getAttribute("data-total")) : null;
+      var html = "Suma: <b>" + L(suma) + "</b>";
+      if (total !== null) {
+        var dif = Math.round((total - suma) * 100) / 100;
+        html += dif === 0 ? ' <span class="m-ok">✓ completo</span>'
+          : (dif > 0 ? ' <span class="m-bad">faltan ' + L(dif) + "</span>" : ' <span class="m-bad">sobran ' + L(-dif) + "</span>");
+      }
+      html += '<br>La cajera recibe en efectivo: <b>' + L(ef) + "</b>";
+      if (ta + tr > 0) html += ' · Al banco: <b>' + L(Math.round((ta + tr) * 100) / 100) + "</b>";
+      box.querySelector(".pm-resumen").innerHTML = html;
+    });
+  }
+  document.addEventListener("change", actualizar);
+  document.addEventListener("input", actualizar);
+  document.addEventListener("DOMContentLoaded", actualizar);
+  // No se manda un pago mixto que no cuadra con el total.
+  document.addEventListener("submit", function (e) {
+    var box = e.target.querySelector && e.target.querySelector(".pago-mixto[data-total]");
+    if (!box || box.style.display === "none") return;
+    var suma = 0;
+    ["mx_efectivo", "mx_tarjeta", "mx_transferencia"].forEach(function (k) { suma += n(box.querySelector('[name="' + k + '"]').value); });
+    var total = n(box.getAttribute("data-total"));
+    if (Math.round(suma * 100) !== Math.round(total * 100)) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      alert("Las partes del pago mixto deben sumar " + L(total) + " (ahora suman " + L(Math.round(suma * 100) / 100) + ").");
+    }
+  }, true);
 })();

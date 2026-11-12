@@ -1294,3 +1294,50 @@ def caja_libro_diario_excel(
         buffer, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Informe «Movimientos del mes» (pantalla, PDF y Excel)
+# ---------------------------------------------------------------------------
+def _datos_movimientos(db: Session, mes: str, banco: str):
+    from app.utils.movimientos_mes import informe, mes_desde_texto
+    from app.models import Banco
+    anio, m = mes_desde_texto(mes)
+    banco_id = None
+    if (banco or "").strip().isdigit() and db.get(Banco, int(banco)):
+        banco_id = int(banco)
+    return informe(db, anio, m, banco_id)
+
+
+@router.get("/caja/movimientos")
+def caja_movimientos(request: Request, mes: str = "", banco: str = "", db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    from app.utils.bancos import bancos_activos
+    inf = _datos_movimientos(db, mes, banco)
+    return templates.TemplateResponse("caja/movimientos.html", {
+        "request": request, "usuario": usuario, "inf": inf, "mes_iso": f"{inf['anio']}-{inf['mes']:02d}",
+        "bancos": bancos_activos(db),
+    })
+
+
+@router.get("/caja/movimientos/excel")
+def caja_movimientos_excel(mes: str = "", banco: str = "", db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    from fastapi.responses import Response
+    from app.templates_env import obtener_config_actual
+    from app.utils.movimientos_mes import excel, nombre_archivo
+    inf = _datos_movimientos(db, mes, banco)
+    cfg = obtener_config_actual()
+    return Response(excel(inf, cfg.get("nombre_taller", "Mi Taller"), cfg.get("moneda", "L")),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre_archivo(inf, "xlsx")}"'})
+
+
+@router.get("/caja/movimientos/pdf")
+def caja_movimientos_pdf(mes: str = "", banco: str = "", descargar: int = 0, db: Session = Depends(get_db), usuario=Depends(roles_required("admin"))):
+    from fastapi.responses import Response
+    from app.templates_env import obtener_config_actual
+    from app.utils.movimientos_mes import pdf, nombre_archivo
+    inf = _datos_movimientos(db, mes, banco)
+    cfg = obtener_config_actual()
+    modo = "attachment" if descargar else "inline"
+    return Response(pdf(inf, cfg.get("nombre_taller", "Mi Taller"), cfg.get("moneda", "L")), media_type="application/pdf",
+                    headers={"Content-Disposition": f'{modo}; filename="{nombre_archivo(inf, "pdf")}"'})

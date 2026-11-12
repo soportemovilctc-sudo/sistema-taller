@@ -72,6 +72,34 @@ def pos_index(request: Request, cotizacion: int = 0, db: Session = Depends(get_d
     })
 
 
+def _partes_mixto(db: Session, venta_in: VentaIn, total: Decimal):
+    """Pago mixto del POS: lo que vino con tarjeta y/o transferencia, y el
+    resto en efectivo. Devuelve ([(forma, monto, banco_id, referencia)], efectivo)."""
+    partes, no_efectivo = [], Decimal("0.00")
+    for p in venta_in.pagos:
+        forma = "Tarjeta" if "tarjeta" in (p.forma or "").lower() else "Transferencia" if p.forma == "Transferencia" else None
+        monto = to_decimal(p.monto or 0).quantize(Decimal("0.01"))
+        if not forma or monto <= 0:
+            continue
+        if monto < 0:
+            raise ValueError("Los montos del pago mixto no pueden ser negativos.")
+        ref = (p.referencia or "").strip()[:60]
+        if forma == "Transferencia" and not ref:
+            raise ValueError("Escribe el número de referencia de la transferencia.")
+        partes.append((forma, monto, p.banco_id, ref))
+        no_efectivo += monto
+    if not partes:
+        raise ValueError("En pago mixto escribe cuánto pagó con tarjeta y/o transferencia.")
+    if no_efectivo > total:
+        raise ValueError(f"Tarjeta + transferencia (L {no_efectivo:,.2f}) es más que el total (L {total:,.2f}).")
+    efectivo = (total - no_efectivo).quantize(Decimal("0.01"))
+    if efectivo > 0:
+        partes.insert(0, ("Efectivo", efectivo, None, ""))
+    if len(partes) < 2:
+        raise ValueError("Todo se pagó de una sola forma: elige esa forma de pago en vez de «Mixto».")
+    return partes, efectivo
+
+
 @router.post("/pos/vender")
 def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db), usuario=Depends(login_required)):
     mensaje_caja = verificar_caja(db)
@@ -121,11 +149,23 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
     total = aplicar_impuesto(total_neto, tasa)
     isv_monto = (total - total_neto).quantize(Decimal("0.01"))
     monto_recibido = to_decimal(venta_in.monto_recibido)
-    if (venta_in.forma_pago or "Efectivo") != "Efectivo":  # no_efectivo_recibe_total: transferencia/tarjeta = el total exacto
-        monto_recibido = total
-    if monto_recibido < total:
-        return JSONResponse({"ok": False, "mensaje": "El monto recibido es menor al total a pagar."}, status_code=400)
-    cambio = (monto_recibido - total).quantize(Decimal("0.01"))
+    es_mixto = venta_in.forma_pago == "Mixto"
+    partes = []  # (forma, monto, banco_id, referencia): una fila de ingreso por cada una
+    if es_mixto:
+        try:
+            partes, efectivo_parte = _partes_mixto(db, venta_in, total)
+        except ValueError as e:
+            return JSONResponse({"ok": False, "mensaje": str(e)}, status_code=400)
+        if monto_recibido < efectivo_parte:
+            return JSONResponse({"ok": False, "mensaje": f"En efectivo debe pagar L {efectivo_parte:,.2f}: el monto recibido es menor."}, status_code=400)
+        cambio = (monto_recibido - efectivo_parte).quantize(Decimal("0.01")) if efectivo_parte > 0 else Decimal("0.00")
+        monto_recibido = (total + cambio).quantize(Decimal("0.01"))
+    else:
+        if (venta_in.forma_pago or "Efectivo") != "Efectivo":  # no_efectivo_recibe_total: transferencia/tarjeta = el total exacto
+            monto_recibido = total
+        if monto_recibido < total:
+            return JSONResponse({"ok": False, "mensaje": "El monto recibido es menor al total a pagar."}, status_code=400)
+        cambio = (monto_recibido - total).quantize(Decimal("0.01"))
 
     venta = Venta(
         numero_venta=generar_numero_venta(db), cliente_id=venta_in.cliente_id,
@@ -149,16 +189,30 @@ def pos_vender(request: Request, venta_in: VentaIn, db: Session = Depends(get_db
     # Efectivo -> Caja Chica; cualquier otra forma de pago (Transferencia,
     # Tarjeta, Otro) -> Banco, porque ese dinero nunca pasó físicamente por
     # la caja (ver la misma regla en Caja y en Facturas de orden).
-    cuenta_venta = CUENTA_CAJA_CHICA if venta.forma_pago == "Efectivo" else CUENTA_BANCO
-    mov_venta = MovimientoFinanciero(
-        tipo="ingreso", categoria="Venta POS", monto=total,
-        descripcion=f"Venta {venta.numero_venta}", usuario_nombre=usuario["nombre_completo"],
-        referencia=venta.numero_venta, cuenta=cuenta_venta, metodo_pago=venta.forma_pago,
-        banco_id=banco_si_aplica(db, cuenta_venta, venta_in.banco_id),
-    )
-    db.add(mov_venta)
-    db.flush()
-    registrar_asiento_para_movimiento(db, mov_venta, monto_neto=total_neto, isv_monto=isv_monto)
+    # Pago mixto: una fila por forma, cada una en su lugar (el efectivo a la
+    # caja, la tarjeta/transferencia al banco elegido) y el neto/ISV
+    # repartidos en proporción para que cada asiento cuadre.
+    if not partes:
+        partes = [(venta.forma_pago, total, venta_in.banco_id, "")]
+    isv_restante, neto_restante = isv_monto, total_neto
+    for i, (forma, monto_parte, banco_parte, ref_parte) in enumerate(partes):
+        ultima = i == len(partes) - 1
+        isv_fila = isv_restante if ultima else (monto_parte * isv_monto / total).quantize(Decimal("0.01")) if total > 0 else Decimal("0.00")
+        neto_fila = neto_restante if ultima else (monto_parte - isv_fila).quantize(Decimal("0.01"))
+        isv_restante, neto_restante = isv_restante - isv_fila, neto_restante - neto_fila
+        cuenta_venta = CUENTA_CAJA_CHICA if forma == "Efectivo" else CUENTA_BANCO
+        mov_venta = MovimientoFinanciero(
+            tipo="ingreso", categoria="Venta POS", monto=monto_parte,
+            descripcion=f"Venta {venta.numero_venta}" + (f" (pago mixto: {forma})" if es_mixto else ""),
+            usuario_nombre=usuario["nombre_completo"],
+            referencia=venta.numero_venta, cuenta=cuenta_venta, metodo_pago=forma,
+            banco_id=banco_si_aplica(db, cuenta_venta, banco_parte),
+            num_referencia=ref_parte or None,
+            estado_conciliacion="pendiente" if forma == "Transferencia" and ref_parte else None,
+        )
+        db.add(mov_venta)
+        db.flush()
+        registrar_asiento_para_movimiento(db, mov_venta, monto_neto=neto_fila, isv_monto=isv_fila)
 
     # Documento de la venta: se elige en el Punto de Venta entre comprobante
     # interno (no fiscal, el de siempre) o factura fiscal con CAI. Se emite de

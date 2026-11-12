@@ -29,6 +29,8 @@ from app.deps import login_required, roles_required
 from app.utils.turnos_caja import verificar_caja
 from app.utils.bancos import banco_si_aplica
 
+from app.utils.pago_mixto import FORMA_MIXTO, leer_partes, total as total_partes, texto as texto_partes
+
 router = APIRouter()
 
 
@@ -951,6 +953,16 @@ def _aplicar_abono(db: Session, orden: OrdenServicio, monto, forma_pago: str, ob
     return monto_validado
 
 
+def aplicar_partes_abono(db: Session, orden: OrdenServicio, partes: list, observacion: str, usuario_nombre: str) -> None:
+    """Pago mixto: un abono por cada forma (ver app/utils/pago_mixto.py). Cada
+    abono queda con su forma y su banco, así la caja solo cuenta el efectivo
+    y la factura reparte el ingreso en cada lugar."""
+    from app.utils.bancos import banco_si_aplica as _banco
+    for p in partes:
+        obs = " · ".join(x for x in ("Pago mixto", f"Ref. {p['referencia']}" if p["referencia"] else "", (observacion or "").strip()) if x)
+        _aplicar_abono(db, orden, p["monto"], p["forma"], obs, usuario_nombre, _banco(db, p["forma"], p["banco_raw"]))
+
+
 @router.post("/ordenes/{orden_id}/abonos/{pago_id}/anular")
 def ordenes_anular_abono(
     orden_id: int, pago_id: int, request: Request, motivo: str = Form(""),
@@ -1053,11 +1065,34 @@ def ordenes_registrar_abono(
     orden_id: int, request: Request,
     monto: str = Form(...), forma_pago: str = Form("Efectivo"), observacion: str = Form(""), referencia: str = Form(""),
     banco_id: str = Form(""),
+    mx_efectivo: str = Form(""), mx_tarjeta: str = Form(""), mx_banco_tarjeta: str = Form(""),
+    mx_transferencia: str = Form(""), mx_banco_transferencia: str = Form(""), mx_ref_transferencia: str = Form(""),
     db: Session = Depends(get_db), usuario=Depends(login_required),
 ):
     orden = db.get(OrdenServicio, orden_id)
     if not orden:
         return RedirectResponse("/ordenes", status_code=303)
+    if forma_pago == FORMA_MIXTO:
+        mensaje_caja = verificar_caja(db)
+        if mensaje_caja:
+            flash(request, mensaje_caja, "error")
+            return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+        try:
+            partes = leer_partes(efectivo=mx_efectivo, tarjeta=mx_tarjeta, banco_tarjeta=mx_banco_tarjeta,
+                                 transferencia=mx_transferencia, banco_transferencia=mx_banco_transferencia,
+                                 ref_transferencia=mx_ref_transferencia)
+            if total_partes(partes) > to_decimal(orden.saldo or 0):
+                raise ValueError(f"El abono (L {total_partes(partes):,.2f}) es mayor que el saldo de la orden (L {to_decimal(orden.saldo):,.2f}).")
+            aplicar_partes_abono(db, orden, partes, observacion, usuario["nombre_completo"])
+        except (ValueError, InvalidOperation) as e:
+            db.rollback()
+            flash(request, str(e), "error")
+            return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
+        db.commit()
+        ef = next((p["monto"] for p in partes if p["forma"] == "Efectivo"), Decimal("0.00"))
+        flash(request, f"Abono mixto de L {total_partes(partes):,.2f} registrado ({texto_partes(partes)}). "
+                       f"A la caja entran L {ef:,.2f} en efectivo; lo demás, al banco.", "success")
+        return RedirectResponse(f"/ordenes/{orden_id}", status_code=303)
     if referencia.strip():
         observacion = f"Ref. {referencia.strip()}" + (f" · {observacion.strip()}" if observacion.strip() else "")
     mensaje_caja = verificar_caja(db)

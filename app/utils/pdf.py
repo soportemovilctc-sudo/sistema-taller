@@ -484,7 +484,7 @@ def construir_contexto_pdf_factura(factura, config_facturacion, config_general) 
         # de una orden de servicio): el detalle son los productos vendidos.
         partes = [f"Venta de mostrador N.º {venta.numero_venta}"]
         if venta.forma_pago:
-            partes.append(f"Forma de pago: {venta.forma_pago}")
+            partes.append(f"Forma de pago: {_forma_pago_venta(venta)}")
         if getattr(venta, "detalles", None):
             moneda_factura = config_general.moneda if config_general else "L"
             items_productos = ", ".join(
@@ -640,3 +640,22 @@ def generar_pdf_informe_caja(data: dict) -> bytes:
 
     doc.build(story)
     return buffer.getvalue()
+
+
+def _forma_pago_venta(venta) -> str:
+    """«Mixto (Efectivo L 145.00 + Tarjeta L 200.00)» para una venta del POS
+    pagada en varias formas; si no, la forma tal cual."""
+    if venta.forma_pago != "Mixto":
+        return venta.forma_pago
+    try:
+        from sqlalchemy.orm import object_session
+        from app.models import MovimientoFinanciero
+        ses = object_session(venta)
+        movs = ses.query(MovimientoFinanciero).filter(
+            MovimientoFinanciero.categoria == "Venta POS", MovimientoFinanciero.referencia == venta.numero_venta,
+        ).order_by(MovimientoFinanciero.id).all() if ses else []
+        if movs:
+            return "Mixto (" + " + ".join(f"{m.metodo_pago} L {m.monto:,.2f}" for m in movs) + ")"
+    except Exception:  # noqa: BLE001 - el PDF nunca falla por esto
+        pass
+    return "Mixto"

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Movimientos del mes{% endblock %}
+{% block content %}
+{% set moneda = config_taller().moneda %}
+{% set qs = 'mes=' ~ mes_iso ~ (('&banco=' ~ inf.banco_id) if inf.banco_id else '') %}
+<div class="pill-tabs">
+  <a href="/caja/panel">Panel gerencial</a>
+  <a href="/caja/conciliacion">Conciliación y egresos</a>
+  <a href="/banco/estado-cuenta">Estado de cuenta bancario</a>
+  <a href="/banco/cuentas">Bancos</a>
+  <a href="/banco/cuadre">Cuadre de banco</a>
+  <a href="/caja/informe">Informe mensual</a>
+  <a href="/caja/movimientos" class="active">Movimientos del mes</a>
+  <a href="/caja/libro-diario">Libro Diario</a>
+</div>
+<div class="m-wrap">
+  <div class="m-head">
+    <div>
+      <h1 class="m-title">Movimientos del mes</h1>
+      <div class="m-sub">{{ inf.titulo }}{% if inf.banco_id %} · <b>{{ inf.banco_nombre }}</b>{% endif %} · {{ inf.n }} movimiento{{ 's' if inf.n != 1 else '' }}</div>
+    </div>
+    <div class="m-acciones">
+      <a href="/caja/movimientos/pdf?{{ qs }}" target="_blank" class="btn btn-outline">Ver PDF</a>
+      <a href="/caja/movimientos/pdf?{{ qs }}&descargar=1" class="btn btn-outline">Descargar PDF</a>
+      <a href="/caja/movimientos/excel?{{ qs }}" class="btn btn-success">Excel</a>
+      <button type="button" class="btn btn-outline" onclick="window.print()">Imprimir</button>
+    </div>
+  </div>
+
+  <form method="get" action="/caja/movimientos" class="mov-filtros">
+    <div class="field" style="margin:0;"><label for="movMes">Mes</label><input id="movMes" type="month" name="mes" value="{{ mes_iso }}" onchange="this.form.submit()"></div>
+    {% if bancos|length > 1 %}
+    <div class="field" style="margin:0;"><label for="movBanco">Cuenta</label>
+      <select id="movBanco" name="banco" onchange="this.form.submit()">
+        <option value="">Caja Chica y todos los bancos</option>
+        {% for b in bancos %}<option value="{{ b.id }}" {{ 'selected' if inf.banco_id == b.id else '' }}>Solo {{ b.nombre }}</option>{% endfor %}
+      </select></div>
+    {% endif %}
+    <noscript><button type="submit" class="btn btn-outline btn-sm">Ver</button></noscript>
+  </form>
+
+  <section class="mov-kpis">
+    <div class="mov-kpi"><span>Ingresos</span><b class="m-ok">{{ inf.total_ingresos|moneda(moneda) }}</b></div>
+    <div class="mov-kpi"><span>Egresos</span><b class="m-bad">{{ inf.total_egresos|moneda(moneda) }}</b></div>
+    <div class="mov-kpi"><span>Neto</span><b class="{{ 'm-bad' if inf.neto < 0 else '' }}">{{ inf.neto|moneda(moneda) }}</b></div>
+    {% if inf.saldos.caja_inicial is defined %}
+    <div class="mov-kpi"><span>Caja Chica</span><b>{{ inf.saldos.caja_final|moneda(moneda) }}</b><small>empezó en {{ inf.saldos.caja_inicial|moneda(moneda) }}</small></div>
+    {% endif %}
+    <div class="mov-kpi"><span>{{ inf.banco_nombre or 'Banco' }}</span><b>{{ inf.saldos.banco_final|moneda(moneda) }}</b><small>empezó en {{ inf.saldos.banco_inicial|moneda(moneda) }}</small></div>
+  </section>
+
+  <div class="m-sec-t">Por forma</div>
+  <div class="table-wrap">
+    <table class="mov-tabla">
+      <thead><tr><th>Forma</th><th class="num">Ingresos</th><th class="num">Egresos</th><th class="num">Neto</th><th class="num">Mov.</th></tr></thead>
+      <tbody>
+        {% for clave, v in inf.por_forma.items() %}
+        <tr class="{{ 'is-traslado' if clave == 'deposito' else '' }}">
+          <td>{{ v.nombre }}{% if clave == 'deposito' %} <span class="m-muted" style="font-size:12px;">— traslado, no suma al total</span>{% endif %}{% if clave == 'tarjeta' and inf.comision_tarjeta %}<div class="m-muted" style="font-size:12px;">Egresos = comisión POS</div>{% endif %}</td>
+          <td class="num">{{ v.ingresos|moneda(moneda) if v.ingresos else '—' }}</td>
+          <td class="num">{{ v.egresos|moneda(moneda) if v.egresos else '—' }}</td>
+          <td class="num"><b class="{{ 'm-bad' if v.neto < 0 else '' }}">{{ v.neto|moneda(moneda) }}</b></td>
+          <td class="num">{{ v.n }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><th>Total</th><th class="num">{{ inf.total_ingresos|moneda(moneda) }}</th><th class="num">{{ inf.total_egresos|moneda(moneda) }}</th><th class="num">{{ inf.neto|moneda(moneda) }}</th><th></th></tr></tfoot>
+    </table>
+  </div>
+
+  <div class="m-grid2" style="gap:28px; margin-top:22px;">
+    {% for tipo, titulo in [('ingreso', 'Ingresos por categoría'), ('gasto', 'Egresos por categoría')] %}
+    <div>
+      <div class="m-sec-t">{{ titulo }}</div>
+      {% for cat, monto, n in inf.categorias[tipo] %}
+      <div class="m-row"><span>{{ cat }} <span class="m-muted" style="font-size:12px;">· {{ n }}</span></span><span><b>{{ monto|moneda(moneda) }}</b></span></div>
+      {% else %}<p class="m-muted">Nada este mes.</p>{% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="mov-det-cab">
+    <div class="m-sec-t" style="margin:0;">Detalle</div>
+    <div class="m-chips" role="group" aria-label="Filtrar detalle">
+      <button type="button" class="m-chip on" data-f="">Todo</button>
+      {% for clave, nombre in [('efectivo','Efectivo'),('tarjeta','Tarjeta'),('transferencia','Transferencia'),('deposito','Depósitos'),('retiro','Retiros')] %}<button type="button" class="m-chip" data-f="{{ clave }}">{{ nombre }}</button>{% endfor %}
+    </div>
+    <input type="search" id="movBuscar" placeholder="Buscar concepto, categoría, orden…" aria-label="Buscar en el detalle">
+  </div>
+  <div class="table-wrap">
+    <table class="mov-tabla" id="movDetalle">
+      <thead><tr><th>Fecha</th><th>Forma</th><th>Cuenta</th><th>Categoría</th><th>Concepto</th><th class="num">Ingreso</th><th class="num">Egreso</th></tr></thead>
+      <tbody>
+        {% for f in inf.filas %}
+        <tr data-forma="{{ f.clave_forma }}">
+          <td class="nw">{{ f.fecha.strftime('%d/%m %I:%M %p') }}</td>
+          <td>{{ f.forma }}</td>
+          <td>{{ f.cuenta }}</td>
+          <td>{{ f.categoria }}</td>
+          <td class="mov-concepto">{{ f.concepto }}{% if f.referencia %}<div class="m-muted" style="font-size:11.5px;">{{ f.referencia }}</div>{% endif %}</td>
+          <td class="num m-ok">{{ f.monto|moneda(moneda) if f.ingreso else '' }}</td>
+          <td class="num m-bad">{{ '' if f.ingreso else f.monto|moneda(moneda) }}</td>
+        </tr>
+        {% else %}<tr><td colspan="7" class="m-muted">No hay movimientos este mes.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var forma = "", texto = "";
+  var filas = Array.prototype.slice.call(document.querySelectorAll("#movDetalle tbody tr[data-forma]"));
+  function aplicar() {
+    filas.forEach(function (tr) {
+      var ok = (!forma || tr.getAttribute("data-forma") === forma) && (!texto || tr.textContent.toLowerCase().indexOf(texto) >= 0);
+      tr.style.display = ok ? "" : "none";
+    });
+  }
+  document.querySelectorAll(".mov-det-cab [data-f]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      forma = b.getAttribute("data-f");
+      document.querySelectorAll(".mov-det-cab [data-f]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      aplicar();
+    });
+  });
+  var buscar = document.getElementById("movBuscar");
+  if (buscar) buscar.addEventListener("input", function () { texto = buscar.value.trim().toLowerCase(); aplicar(); });
+})();
+</script>
+{% endblock %}

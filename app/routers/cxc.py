@@ -18,6 +18,7 @@ from app.utils.calculations import to_decimal
 from app.utils.turnos_caja import verificar_caja, hoy_local, a_hora_local
 from app.utils.bancos import nombre_banco
 from app.utils import cxc as C
+from app.utils.pago_mixto import FORMA_MIXTO, leer_partes, total as total_partes, texto as texto_partes
 from app.deps import roles_required
 
 router = APIRouter()
@@ -131,10 +132,16 @@ def cxc_detalle(cxc_id: int, request: Request, db: Session = Depends(get_db), us
 @router.post("/cxc/{cxc_id}/pago")
 def cxc_pagar(cxc_id: int, request: Request, monto: str = Form(""), forma_pago: str = Form("Efectivo"),
               banco_id: str = Form(""), referencia: str = Form(""),
+              mx_efectivo: str = Form(""), mx_tarjeta: str = Form(""), mx_banco_tarjeta: str = Form(""),
+              mx_transferencia: str = Form(""), mx_banco_transferencia: str = Form(""), mx_ref_transferencia: str = Form(""),
               db: Session = Depends(get_db), usuario=Depends(caja_o_admin)):
     cxc = db.get(CuentaPorCobrar, cxc_id)
     if not cxc:
         return RedirectResponse("/cxc", status_code=303)
+    if forma_pago == FORMA_MIXTO:
+        return _pagar_mixto(request, db, usuario, cxc, dict(
+            efectivo=mx_efectivo, tarjeta=mx_tarjeta, banco_tarjeta=mx_banco_tarjeta, transferencia=mx_transferencia,
+            banco_transferencia=mx_banco_transferencia, ref_transferencia=mx_ref_transferencia))
     if forma_pago == "Efectivo":
         mensaje_caja = verificar_caja(db)
         if mensaje_caja:
@@ -152,6 +159,37 @@ def cxc_pagar(cxc_id: int, request: Request, monto: str = Form(""), forma_pago: 
     extra = " La cuenta quedó pagada." if cxc.estado == CXC_PAGADA else f" Falta L {cxc.saldo:,.2f}."
     flash(request, f"Pago de L {pago.monto:,.2f} en {forma_pago} registrado (entra a {destino}).{extra}", "success")
     return RedirectResponse(f"/cxc/{cxc_id}", status_code=303)
+
+
+def _pagar_mixto(request, db, usuario, cxc, campos):
+    """Un pago en varias formas = un pago de CxC por cada forma (cada uno a su
+    lugar: efectivo a la caja, tarjeta/transferencia al banco elegido)."""
+    try:
+        partes = leer_partes(**campos)
+        if total_partes(partes) > C.q(cxc.saldo):
+            raise ValueError(f"El pago (L {total_partes(partes):,.2f}) es mayor que lo que falta por cobrar (L {C.q(cxc.saldo):,.2f}).")
+    except ValueError as e:
+        flash(request, str(e), "error")
+        return RedirectResponse(f"/cxc/{cxc.id}", status_code=303)
+    if any(p["forma"] == "Efectivo" for p in partes):
+        mensaje_caja = verificar_caja(db)
+        if mensaje_caja:
+            flash(request, f"No se registró el pago: lleva efectivo. {mensaje_caja}", "error")
+            return RedirectResponse(f"/cxc/{cxc.id}", status_code=303)
+    try:
+        for p in partes:
+            C.registrar_pago(db, cxc, monto=p["monto"], forma_pago=p["forma"], banco_id_raw=p["banco_raw"],
+                             referencia=p["referencia"], usuario_nombre=usuario["nombre_completo"])
+    except ValueError as e:
+        db.rollback()
+        flash(request, str(e), "error")
+        return RedirectResponse(f"/cxc/{cxc.id}", status_code=303)
+    db.commit()
+    extra = " La cuenta quedó pagada." if cxc.estado == CXC_PAGADA else f" Falta L {cxc.saldo:,.2f}."
+    ef = next((p["monto"] for p in partes if p["forma"] == "Efectivo"), C.CERO)
+    flash(request, f"Pago mixto de L {total_partes(partes):,.2f} registrado ({texto_partes(partes)}). "
+                   f"A la caja entran L {ef:,.2f} en efectivo; lo demás, al banco.{extra}", "success")
+    return RedirectResponse(f"/cxc/{cxc.id}", status_code=303)
 
 
 @router.post("/cxc/{cxc_id}/pagos/{pago_id}/anular")

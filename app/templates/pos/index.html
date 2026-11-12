@@ -64,9 +64,22 @@
           <option value="Transferencia">Transferencia</option>
           <option value="Tarjeta">Tarjeta</option>
           <option value="Otro">Otro</option>
+          <option value="Mixto">Mixto (efectivo + tarjeta/transferencia)</option>
         </select>
       </div>
       {{ selector_banco(segun='pos_forma', etiqueta='¿A qué banco entró?') }}
+      <div id="posMixto" class="m-box pago-mixto" style="display:none;">
+        <div class="pm-t">Pago mixto: lo que no pague con tarjeta o transferencia es efectivo</div>
+        <div class="pm-fila"><label for="posMxTarjeta">Tarjeta <span class="m-muted">(al banco)</span></label>
+          <input type="number" min="0" step="0.01" id="posMxTarjeta" name="pos_mx_tarjeta" inputmode="decimal" placeholder="0.00"></div>
+        {{ selector_banco(nombre='pos_mx_banco_tarjeta', segun='monto:pos_mx_tarjeta', etiqueta='¿A qué banco entró la tarjeta?', clase='field pm-sub') }}
+        <div class="pm-fila"><label for="posMxTransf">Transferencia <span class="m-muted">(al banco)</span></label>
+          <input type="number" min="0" step="0.01" id="posMxTransf" name="pos_mx_transferencia" inputmode="decimal" placeholder="0.00"></div>
+        {{ selector_banco(nombre='pos_mx_banco_transferencia', segun='monto:pos_mx_transferencia', etiqueta='¿A qué banco entró la transferencia?', clase='field pm-sub') }}
+        <div class="field campo-banco pm-sub" data-segun="monto:pos_mx_transferencia"><label for="posMxRef">N.º de referencia de la transferencia *</label>
+          <input type="text" id="posMxRef" maxlength="60"></div>
+        <div class="pm-resumen" id="posMxResumen"></div>
+      </div>
       <div class="field" id="posCampoRecibido"><label for="posMontoRecibido">Monto recibido</label>
         <div style="display:flex; gap:8px;"><input type="number" min="0" step="0.01" id="posMontoRecibido" inputmode="decimal" style="flex:1;"><button type="button" class="btn btn-outline btn-sm" id="posExacto" title="El cliente paga exacto">Exacto</button></div>
       </div>
@@ -77,8 +90,11 @@
       (function () {
         var fp = document.getElementById("posFormaPago");
         function soloEfectivo() {
-          var efectivo = !fp || fp.value === "Efectivo";
+          var mixto = fp && fp.value === "Mixto";
+          var efectivo = !fp || fp.value === "Efectivo" || mixto;
           ["posCampoRecibido", "posLineaCambio"].forEach(function (id) { var el = document.getElementById(id); if (el) el.style.display = efectivo ? "" : "none"; });
+          var bx = document.getElementById("posMixto"); if (bx) bx.style.display = mixto ? "" : "none";
+          var lbl = document.querySelector('label[for="posMontoRecibido"]'); if (lbl) lbl.textContent = mixto ? "Efectivo recibido" : "Monto recibido";
           if (!efectivo) { var m = document.getElementById("posMontoRecibido"); if (m) m.value = ""; }
         }
         if (fp) { fp.addEventListener("change", soloEfectivo); soloEfectivo(); }

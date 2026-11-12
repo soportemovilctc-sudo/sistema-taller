@@ -30,6 +30,9 @@ app = FastAPI(title="Sistema de Taller", version="1.0.0")
 
 # La bitácora va DENTRO de la sesión (se agrega antes), así puede leer el usuario.
 from app.utils.bitacora import BitacoraMiddleware
+# «Ver en pantalla» de los PDF (?pantalla=1), ver app/utils/pantalla_pdf.py.
+from app.utils.pantalla_pdf import PantallaPdfMiddleware
+app.add_middleware(PantallaPdfMiddleware)
 app.add_middleware(BitacoraMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY, session_cookie="taller_session")
 
